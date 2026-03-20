@@ -25,11 +25,11 @@ export class RolePolicyService {
     member: GuildMember,
     capability: Capability
   ): Promise<boolean> {
+    await this.ensureGuild(guild);
+
     if (member.permissions.has(PermissionFlagsBits.Administrator)) {
       return true;
     }
-
-    await this.ensureGuild(guild);
 
     const { data, error } = await this.supabase
       .from('role_policies')

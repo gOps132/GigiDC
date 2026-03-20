@@ -136,3 +136,8 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Root cause: The repo starter used a stricter `required_version` floor than needed for the current AWS EC2/security-group configuration.
   Fix or required workflow: Keep the Terraform version constraint compatible with 1.5.x unless the repo starts using features that truly require 1.6+.
   Verification step: Run `terraform init` in the `terraform/` directory and confirm the AWS provider installs successfully on Terraform 1.5.7 or newer.
+
+- Issue or symptom: Discord admin users can hit foreign-key failures when creating assignments or other guild-scoped records.
+  Root cause: Capability checks returned early for Discord administrators before the `guilds` table was upserted, so later inserts into tables like `assignments` referenced a missing guild row.
+  Fix or required workflow: Upsert the guild row before any administrator short-circuit in permission checks so every guild-scoped command initializes local guild state first.
+  Verification step: Run `npm run typecheck` and `npm run build`, then create an assignment as a Discord administrator and confirm no `assignments_guild_id_fkey` error occurs.
