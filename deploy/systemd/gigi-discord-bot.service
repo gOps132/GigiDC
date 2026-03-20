@@ -1,0 +1,24 @@
+[Unit]
+Description=Gigi Discord Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gigi
+Group=gigi
+WorkingDirectory=/opt/gigi-discord-bot
+EnvironmentFile=/etc/gigi-discord-bot/gigi-discord-bot.env
+ExecStart=/usr/bin/node /opt/gigi-discord-bot/dist/index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/gigi-discord-bot
+
+[Install]
+WantedBy=multi-user.target
