@@ -144,5 +144,5 @@ Only promote issues into memory when they are recurring, costly, security-releva
 
 - Issue or symptom: Manual EC2 deploys fail with `dubious ownership`, `.git/FETCH_HEAD` permission errors, or mixed ownership under `/opt/gigi-discord-bot`.
   Root cause: Pulling or cloning the server checkout with different users or `sudo git` causes git metadata and working tree files to drift between owners.
-  Fix or required workflow: Prefer the GitHub Actions release-based deploy pipeline instead of `git pull` on the server, and keep `/opt/gigi-discord-bot` owned by the service user when manual intervention is required.
-  Verification step: Run a workflow deploy, confirm the release installs without git access on the EC2, and verify `sudo systemctl status gigi-discord-bot --no-pager` stays healthy afterward.
+  Fix or required workflow: Keep `/opt/gigi-discord-bot` owned by the intended deploy user, avoid `sudo git`, and use the repo's manual deploy script for rebuild-and-restart steps after pulling changes normally.
+  Verification step: Run `git pull`, `bash scripts/deploy-discord-bot.sh`, and confirm `sudo systemctl status gigi-discord-bot --no-pager` stays healthy afterward.

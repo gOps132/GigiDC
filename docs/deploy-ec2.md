@@ -4,8 +4,6 @@ This guide deploys the Discord bot as a single EC2 service for the reduced V1 ar
 
 If you want Terraform to create the EC2 instance for you, start with [docs/terraform.md](/Users/giancedrick/dev/projects/gigi/docs/terraform.md) and then return here for the app-level deployment steps.
 
-If you want repeatable auto-deploys after the first manual setup, continue with [docs/ci-cd.md](/Users/giancedrick/dev/projects/gigi/docs/ci-cd.md).
-
 ## Target Topology
 
 - `EC2`: this Discord bot
@@ -131,8 +129,6 @@ For later deploys:
 ```bash
 bash scripts/deploy-discord-bot.sh
 ```
-
-If you do not want to keep deploying from a live git checkout on the server, configure the GitHub Actions pipeline in [docs/ci-cd.md](/Users/giancedrick/dev/projects/gigi/docs/ci-cd.md).
 
 ## Verification
 

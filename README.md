@@ -78,13 +78,11 @@ The bot registers slash commands at startup, starts a local health server on por
 Deployment assets for the recommended two-EC2 layout are included in:
 
 - [docs/deploy-ec2.md](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md)
-- [docs/ci-cd.md](/Users/giancedrick/dev/projects/gigi/docs/ci-cd.md)
 - [docs/terraform.md](/Users/giancedrick/dev/projects/gigi/docs/terraform.md)
 - [deploy/systemd/gigi-discord-bot.service](/Users/giancedrick/dev/projects/gigi/deploy/systemd/gigi-discord-bot.service)
 - [deploy/nginx/gigi-discord-bot.conf](/Users/giancedrick/dev/projects/gigi/deploy/nginx/gigi-discord-bot.conf)
 - [scripts/bootstrap-ec2.sh](/Users/giancedrick/dev/projects/gigi/scripts/bootstrap-ec2.sh)
 - [scripts/deploy-discord-bot.sh](/Users/giancedrick/dev/projects/gigi/scripts/deploy-discord-bot.sh)
-- [scripts/install-release.sh](/Users/giancedrick/dev/projects/gigi/scripts/install-release.sh)
 - [terraform/terraform.tfvars.example](/Users/giancedrick/dev/projects/gigi/terraform/terraform.tfvars.example)
 
 ## Available Commands and Interaction Modes
@@ -150,22 +148,6 @@ Before opening a PR or deploying:
 - Confirm visible messages are stored in Supabase
 - Re-check all modified lines for secrets and private data leaks
 
-## CI/CD
-
-The repo includes a GitHub Actions workflow at [deploy.yml](/Users/giancedrick/dev/projects/gigi/.github/workflows/deploy.yml).
-
-On every push to `main`, it:
-
-- runs `npm ci`
-- runs `npm run typecheck`
-- runs `npm run build`
-- packages a release bundle
-- uploads the bundle to the Discord bot EC2
-- installs production dependencies on the EC2
-- restarts `gigi-discord-bot`
-
-Setup instructions and required GitHub secrets are in [docs/ci-cd.md](/Users/giancedrick/dev/projects/gigi/docs/ci-cd.md).
-
 ## Project Structure
 
 ```text
@@ -195,7 +177,6 @@ docs/
 - [docs/roadmap.md](/Users/giancedrick/dev/projects/gigi/docs/roadmap.md)
 - [docs/setup.md](/Users/giancedrick/dev/projects/gigi/docs/setup.md)
 - [docs/deploy-ec2.md](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md)
-- [docs/ci-cd.md](/Users/giancedrick/dev/projects/gigi/docs/ci-cd.md)
 - [docs/terraform.md](/Users/giancedrick/dev/projects/gigi/docs/terraform.md)
 - [docs/credits.md](/Users/giancedrick/dev/projects/gigi/docs/credits.md)
 - [AGENTS.md](/Users/giancedrick/dev/projects/gigi/AGENTS.md)
