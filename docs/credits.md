@@ -10,9 +10,12 @@ This project requires explicit attribution for external resources used in implem
 - `Supabase`
   - Use: Postgres-backed storage for Discord control-plane state, role policy persistence, and local job references
   - Source: https://supabase.com/
-- `Clawbot backend`
-  - Use: External agent backend for channel-history ingestion, personalization, async job execution, and returned artifacts
-  - Source: User-managed external service
+- `OpenAI`
+  - Use: DM reasoning and semantic retrieval embeddings in the V1 architecture
+  - Source: https://platform.openai.com/docs
+- `pgvector`
+  - Use: Vector storage and similarity search over embedded Discord messages in Postgres
+  - Source: https://github.com/pgvector/pgvector
 - `AWS`
   - Use: Planned bot runtime hosting on a dedicated instance
   - Source: https://aws.amazon.com/
@@ -28,6 +31,21 @@ This project requires explicit attribution for external resources used in implem
 - `Canonical Ubuntu Server AMI`
   - Use: Base EC2 image selected by the Terraform starter for the Discord bot host
   - Source: https://cloud-images.ubuntu.com/
+- `GitHub Actions`
+  - Use: Continuous integration and deployment runner for build, release bundling, and EC2 deploy automation
+  - Source: https://github.com/features/actions
+- `actions/checkout`
+  - Use: Official GitHub Action used to fetch the repository during CI/CD workflow runs
+  - Source: https://github.com/actions/checkout
+- `actions/setup-node`
+  - Use: Official GitHub Action used to provision Node.js 22 in the CI/CD workflow
+  - Source: https://github.com/actions/setup-node
+- `actions/upload-artifact`
+  - Use: Official GitHub Action used to store the built release bundle between CI and deploy jobs
+  - Source: https://github.com/actions/upload-artifact
+- `actions/download-artifact`
+  - Use: Official GitHub Action used to retrieve the built release bundle in the deploy job
+  - Source: https://github.com/actions/download-artifact
 
 ## Workflow and Planning References
 

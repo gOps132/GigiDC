@@ -1,5 +1,12 @@
 # Discord Bot with Clawbot-Primary Personalization
 
+> Historical plan only.
+>
+> The active implementation target is now documented in:
+>
+> - [docs/architecture-v1.md](/Users/giancedrick/dev/projects/gigi/docs/architecture-v1.md)
+> - [docs/roadmap.md](/Users/giancedrick/dev/projects/gigi/docs/roadmap.md)
+
 ## Summary
 
 This repo is the Discord control plane. Clawbot is the personalization and agent backend.

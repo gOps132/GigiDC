@@ -1,19 +1,17 @@
-import { Client, Events, GatewayIntentBits } from 'discord.js';
+import { Client, Events, GatewayIntentBits, MessageFlags, Partials } from 'discord.js';
 
 import { commandMap } from './commands.js';
 import type { BotContext } from './types.js';
-import type { DiscordEventIngestionService } from '../services/discordEventIngestionService.js';
 
-export function createDiscordClient(
-  context: BotContext,
-  ingestionService: DiscordEventIngestionService
-): Client {
+export function createDiscordClient(context: BotContext): Client {
   const client = new Client({
     intents: [
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.DirectMessages,
       GatewayIntentBits.MessageContent
-    ]
+    ],
+    partials: [Partials.Channel]
   });
 
   client.once(Events.ClientReady, (readyClient) => {
@@ -24,6 +22,32 @@ export function createDiscordClient(
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
+    if (interaction.isStringSelectMenu() && context.services.dmConversation.matches(interaction)) {
+      try {
+        await context.services.dmConversation.handleSelection(interaction, client);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        context.logger.error('Select menu interaction failed', {
+          customId: interaction.customId,
+          error: message
+        });
+
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp({
+            content: 'That selection failed. Please ask again.',
+            flags: MessageFlags.Ephemeral
+          });
+          return;
+        }
+
+        await interaction.reply({
+          content: 'That selection failed. Please ask again.',
+          flags: MessageFlags.Ephemeral
+        });
+      }
+      return;
+    }
+
     if (!interaction.isChatInputCommand()) {
       return;
     }
@@ -50,24 +74,28 @@ export function createDiscordClient(
       if (interaction.deferred || interaction.replied) {
         await interaction.followUp({
           content: 'The command failed. Check the bot logs for details.',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
         return;
       }
 
       await interaction.reply({
         content: 'The command failed. Check the bot logs for details.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   });
 
   client.on(Events.MessageCreate, async (message) => {
     try {
-      await ingestionService.ingestMessage(message);
+      await context.services.messageHistory.storeDiscordMessage(message);
+
+      if (message.channel.isDMBased() && !message.author.bot) {
+        await context.services.dmConversation.handleMessage(message, client);
+      }
     } catch (error) {
       const messageText = error instanceof Error ? error.message : 'Unknown error';
-      context.logger.error('Discord message ingestion failed', {
+      context.logger.error('Discord message handling failed', {
         channelId: message.channelId,
         messageId: message.id,
         error: messageText

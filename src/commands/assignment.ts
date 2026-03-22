@@ -1,6 +1,7 @@
 import {
   ChannelType,
   EmbedBuilder,
+  MessageFlags,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
   type GuildMember,
@@ -29,6 +30,11 @@ const assignmentCommandData = new SlashCommandBuilder()
           .setName('description')
           .setDescription('Assignment details')
           .setRequired(true)
+      )
+      .addStringOption((option) =>
+        option
+          .setName('affected_roles')
+          .setDescription('Role mentions or role IDs separated by spaces or commas')
       )
       .addStringOption((option) =>
         option
@@ -65,7 +71,7 @@ export const assignmentCommand: SlashCommand = {
     if (!interaction.inGuild()) {
       await interaction.reply({
         content: 'This command can only be used in a server.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -74,7 +80,7 @@ export const assignmentCommand: SlashCommand = {
     if (!guild) {
       await interaction.reply({
         content: 'Guild context was not available for this command.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -89,7 +95,7 @@ export const assignmentCommand: SlashCommand = {
     if (!allowed) {
       await interaction.reply({
         content: 'You do not have permission to manage assignments.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -120,24 +126,34 @@ async function handleCreate(
 
   const guild = interaction.guild;
   if (!guild) {
-    await interaction.reply({
-      content: 'Guild context was not available for this command.',
-      ephemeral: true
-    });
-    return;
-  }
+      await interaction.reply({
+        content: 'Guild context was not available for this command.',
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
 
   const title = interaction.options.getString('title', true).trim();
   const description = interaction.options.getString('description', true).trim();
+  const affectedRolesInput = interaction.options.getString('affected_roles');
   const dueAtInput = interaction.options.getString('due_at');
   const channel = interaction.options.getChannel('channel');
 
   const dueAt = parseDueAt(dueAtInput);
+  const mentionedRoleIds = parseMentionedRoleIds(affectedRolesInput);
 
   if (dueAtInput && !dueAt) {
     await interaction.reply({
-      content: 'Invalid `due_at`. Use a full ISO-8601 timestamp like `2026-03-20T17:00:00Z`.',
-      ephemeral: true
+        content: 'Invalid `due_at`. Use a full ISO-8601 timestamp like `2026-03-20T17:00:00Z`.',
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  if (affectedRolesInput && mentionedRoleIds.length === 0) {
+    await interaction.reply({
+        content: 'No valid role IDs were found in `affected_roles`. Use role mentions like `<@&123>` or raw role IDs.',
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -148,12 +164,13 @@ async function handleCreate(
     description,
     dueAt: dueAt?.toISOString() ?? null,
     announcementChannelId: channel?.id ?? null,
+    mentionedRoleIds,
     createdByUserId: interaction.user.id
   });
 
   await interaction.reply({
     embeds: [buildAssignmentEmbed(assignment, 'Assignment draft created')],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
 }
 
@@ -169,8 +186,8 @@ async function handlePublish(
   const guild = interaction.guild;
   if (!guild) {
     await interaction.reply({
-      content: 'Guild context was not available for this command.',
-      ephemeral: true
+        content: 'Guild context was not available for this command.',
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -183,8 +200,8 @@ async function handlePublish(
 
   if (!assignment) {
     await interaction.reply({
-      content: `No assignment found for ID \`${assignmentId}\`.`,
-      ephemeral: true
+        content: `No assignment found for ID \`${assignmentId}\`.`,
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -193,22 +210,27 @@ async function handlePublish(
 
   if (!targetChannel) {
     await interaction.reply({
-      content: 'Could not resolve a text channel for this assignment.',
-      ephemeral: true
+        content: 'Could not resolve a text channel for this assignment.',
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
 
   if (!('send' in targetChannel)) {
     await interaction.reply({
-      content: 'The resolved channel cannot send messages.',
-      ephemeral: true
+        content: 'The resolved channel cannot send messages.',
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
 
+  const roleMentions = assignment.mentioned_role_ids.map((roleId) => `<@&${roleId}>`).join(' ');
+  const announcementIntro = roleMentions.length > 0
+    ? `${roleMentions}\nNew assignment notice from ${member}`
+    : `New assignment notice from ${member}`;
+
   const sentMessage = await targetChannel.send({
-    content: `Assignment announcement from ${member}`,
+    content: announcementIntro,
     embeds: [buildAssignmentEmbed(assignment, 'New assignment')]
   });
 
@@ -221,7 +243,7 @@ async function handlePublish(
 
   await interaction.reply({
     embeds: [buildAssignmentEmbed(published, 'Assignment published')],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
 }
 
@@ -236,8 +258,8 @@ async function handleList(
   const guild = interaction.guild;
   if (!guild) {
     await interaction.reply({
-      content: 'Guild context was not available for this command.',
-      ephemeral: true
+        content: 'Guild context was not available for this command.',
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -246,8 +268,8 @@ async function handleList(
 
   if (assignments.length === 0) {
     await interaction.reply({
-      content: 'No assignments have been created yet.',
-      ephemeral: true
+        content: 'No assignments have been created yet.',
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -272,7 +294,7 @@ async function handleList(
         .setDescription(lines.join('\n\n'))
         .setColor(0x5865f2)
     ],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
 }
 
@@ -314,6 +336,13 @@ function buildAssignmentEmbed(
     });
   }
 
+  if (assignment.mentioned_role_ids.length > 0) {
+    embed.addFields({
+      name: 'Affected roles',
+      value: assignment.mentioned_role_ids.map((roleId) => `<@&${roleId}>`).join(' ')
+    });
+  }
+
   return embed;
 }
 
@@ -335,4 +364,13 @@ async function resolveTargetChannel(
   }
 
   return null;
+}
+
+function parseMentionedRoleIds(value: string | null): string[] {
+  if (!value) {
+    return [];
+  }
+
+  const matches = value.match(/\d{16,20}/g) ?? [];
+  return [...new Set(matches)];
 }

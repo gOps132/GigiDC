@@ -7,8 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const CAPABILITIES = {
   assignmentAdmin: 'assignment_admin',
-  clawbotDispatch: 'clawbot_dispatch',
-  ingestionAdmin: 'ingestion_admin'
+  historyGuildWide: 'history_guild_wide'
 } as const;
 
 export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];

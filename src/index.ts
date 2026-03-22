@@ -2,14 +2,13 @@ import { loadEnv } from './config/env.js';
 import { createDiscordClient } from './discord/client.js';
 import { registerApplicationCommands } from './discord/registerCommands.js';
 import { Logger } from './lib/logger.js';
+import { createOpenAIClient } from './lib/openai.js';
 import { createSupabaseAdminClient } from './lib/supabase.js';
 import { AssignmentService } from './services/assignmentService.js';
 import { AuditLogService } from './services/auditLogService.js';
-import { ChannelIngestionPolicyService } from './services/channelIngestionPolicyService.js';
-import { ClawbotClient } from './services/clawbotClient.js';
-import { ClawbotDispatchService } from './services/clawbotDispatchService.js';
-import { ClawbotJobService } from './services/clawbotJobService.js';
-import { DiscordEventIngestionService } from './services/discordEventIngestionService.js';
+import { DmConversationService } from './services/dmConversationService.js';
+import { MessageHistoryService } from './services/messageHistoryService.js';
+import { RetrievalService } from './services/retrievalService.js';
 import { RolePolicyService } from './services/rolePolicyService.js';
 import { startWebhookServer } from './web/server.js';
 
@@ -17,12 +16,12 @@ async function main(): Promise<void> {
   const env = loadEnv();
   const logger = new Logger(env.LOG_LEVEL);
   const supabase = createSupabaseAdminClient(env);
-  const clawbotClient = new ClawbotClient(env);
+  const openai = createOpenAIClient(env);
   const rolePolicies = new RolePolicyService(supabase);
   const assignments = new AssignmentService(supabase);
-  const channelIngestionPolicies = new ChannelIngestionPolicyService(supabase);
-  const clawbotJobs = new ClawbotJobService(supabase);
   const auditLogs = new AuditLogService(supabase);
+  const messageHistory = new MessageHistoryService(env, supabase, openai, rolePolicies, logger);
+  const retrieval = new RetrievalService(env, openai, messageHistory);
 
   const context = {
     env,
@@ -30,27 +29,20 @@ async function main(): Promise<void> {
     services: {
       assignments,
       auditLogs,
-      channelIngestionPolicies,
-      clawbotDispatch: null as unknown as ClawbotDispatchService,
-      clawbotJobs,
+      dmConversation: null as unknown as DmConversationService,
+      messageHistory,
+      retrieval,
       rolePolicies
     }
   };
 
-  const clawbotDispatch = new ClawbotDispatchService(context, clawbotClient);
-  context.services.clawbotDispatch = clawbotDispatch;
-
-  const ingestionService = new DiscordEventIngestionService(
-    channelIngestionPolicies,
-    rolePolicies,
-    clawbotClient,
-    logger
-  );
+  const dmConversation = new DmConversationService(context);
+  context.services.dmConversation = dmConversation;
 
   await registerApplicationCommands();
 
-  const client = createDiscordClient(context, ingestionService);
-  startWebhookServer(context, client, clawbotClient);
+  const client = createDiscordClient(context);
+  startWebhookServer(context);
   await client.login(env.DISCORD_TOKEN);
 }
 

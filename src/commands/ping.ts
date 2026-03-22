@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { MessageFlags, SlashCommandBuilder } from 'discord.js';
 
 import type { SlashCommand } from '../discord/types.js';
 
@@ -9,7 +9,7 @@ export const pingCommand: SlashCommand = {
   async execute(interaction) {
     await interaction.reply({
       content: 'Pong.',
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   }
 };

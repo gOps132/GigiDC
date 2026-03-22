@@ -1,5 +1,5 @@
 variable "region" {
-  description = "AWS region for the Discord bot EC2 instance. Use the same region as the existing OpenClaw instance."
+  description = "AWS region for the Discord bot EC2 instance."
   type        = string
 }
 
@@ -10,7 +10,7 @@ variable "name_prefix" {
 }
 
 variable "vpc_id" {
-  description = "ID of the existing VPC that already contains the OpenClaw EC2 instance."
+  description = "ID of the existing VPC where the Discord bot EC2 instance will run."
   type        = string
 }
 
@@ -30,7 +30,7 @@ variable "admin_cidr_blocks" {
 }
 
 variable "callback_ingress_cidr_blocks" {
-  description = "CIDR blocks allowed to reach the public HTTP callback endpoint."
+  description = "CIDR blocks allowed to reach the public HTTP endpoint."
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
@@ -51,18 +51,6 @@ variable "root_volume_size_gb" {
   description = "Root EBS volume size in GiB."
   type        = number
   default     = 20
-}
-
-variable "openclaw_port" {
-  description = "Port used by the existing OpenClaw service."
-  type        = number
-  default     = 3000
-}
-
-variable "openclaw_security_group_id" {
-  description = "Optional existing security group ID attached to the OpenClaw instance. When provided, Terraform adds an ingress rule allowing only the Discord bot security group to reach OpenClaw on openclaw_port."
-  type        = string
-  default     = null
 }
 
 variable "app_user" {

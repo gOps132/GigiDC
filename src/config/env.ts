@@ -10,14 +10,12 @@ const envSchema = z.object({
   DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
   DISCORD_CLIENT_ID: z.string().min(1, 'DISCORD_CLIENT_ID is required'),
   DISCORD_GUILD_ID: z.string().min(1).optional(),
+  PRIMARY_GUILD_ID: z.string().min(1).optional(),
   SUPABASE_URL: z.string().url('SUPABASE_URL must be a valid URL'),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY is required'),
-  BOT_PUBLIC_BASE_URL: z.string().url('BOT_PUBLIC_BASE_URL must be a valid URL'),
-  CLAWBOT_BASE_URL: z.string().url('CLAWBOT_BASE_URL must be a valid URL'),
-  CLAWBOT_API_KEY: z.string().min(1, 'CLAWBOT_API_KEY is required'),
-  CLAWBOT_WEBHOOK_SECRET: z.string().min(1).optional(),
-  CLAWBOT_JOB_PATH: z.string().min(1).default('/api/v1/jobs'),
-  CLAWBOT_INGEST_PATH: z.string().min(1).default('/api/v1/ingest/discord-message')
+  OPENAI_API_KEY: z.string().min(1, 'OPENAI_API_KEY is required'),
+  OPENAI_RESPONSE_MODEL: z.string().min(1).default('gpt-4.1-mini'),
+  OPENAI_EMBEDDING_MODEL: z.string().min(1).default('text-embedding-3-small')
 });
 
 export type Env = z.infer<typeof envSchema>;

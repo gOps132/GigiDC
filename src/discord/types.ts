@@ -1,5 +1,6 @@
 import type {
   ChatInputCommandInteraction,
+  StringSelectMenuInteraction,
   SlashCommandBuilder,
   SlashCommandSubcommandsOnlyBuilder
 } from 'discord.js';
@@ -8,9 +9,9 @@ import type { Env } from '../config/env.js';
 import type { Logger } from '../lib/logger.js';
 import type { AssignmentService } from '../services/assignmentService.js';
 import type { AuditLogService } from '../services/auditLogService.js';
-import type { ChannelIngestionPolicyService } from '../services/channelIngestionPolicyService.js';
-import type { ClawbotDispatchService } from '../services/clawbotDispatchService.js';
-import type { ClawbotJobService } from '../services/clawbotJobService.js';
+import type { DmConversationService } from '../services/dmConversationService.js';
+import type { MessageHistoryService } from '../services/messageHistoryService.js';
+import type { RetrievalService } from '../services/retrievalService.js';
 import type { RolePolicyService } from '../services/rolePolicyService.js';
 
 export interface BotContext {
@@ -19,9 +20,9 @@ export interface BotContext {
   services: {
     assignments: AssignmentService;
     auditLogs: AuditLogService;
-    channelIngestionPolicies: ChannelIngestionPolicyService;
-    clawbotDispatch: ClawbotDispatchService;
-    clawbotJobs: ClawbotJobService;
+    dmConversation: DmConversationService;
+    messageHistory: MessageHistoryService;
+    retrieval: RetrievalService;
     rolePolicies: RolePolicyService;
   };
 }
@@ -29,4 +30,9 @@ export interface BotContext {
 export interface SlashCommand {
   data: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder;
   execute(interaction: ChatInputCommandInteraction, context: BotContext): Promise<void>;
+}
+
+export interface SelectMenuHandler {
+  matches(interaction: StringSelectMenuInteraction): boolean;
+  execute(interaction: StringSelectMenuInteraction, context: BotContext): Promise<void>;
 }

@@ -8,7 +8,7 @@
 - npm
 - A Discord application and bot
 - A Supabase project
-- A reachable Clawbot instance
+- An OpenAI API key
 
 ### Environment Setup
 
@@ -22,21 +22,20 @@ Required variables:
 - `DISCORD_TOKEN`
 - `DISCORD_CLIENT_ID`
 - `DISCORD_GUILD_ID`
+- `PRIMARY_GUILD_ID`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `BOT_PUBLIC_BASE_URL`
-- `CLAWBOT_BASE_URL`
-- `CLAWBOT_API_KEY`
-- `CLAWBOT_WEBHOOK_SECRET`
+- `OPENAI_API_KEY`
 
 ## Discord Setup
 
 1. Create a Discord application in the Developer Portal
 2. Add a bot user
 3. Enable the permissions your bot needs in your invite URL
-4. Enable the `MESSAGE CONTENT INTENT` in the Discord Developer Portal if you want channel-history ingestion
-4. Invite the bot to your test server
-5. Use your server ID as `DISCORD_GUILD_ID` during development so slash command updates appear quickly
+4. Enable the `MESSAGE CONTENT INTENT` in the Discord Developer Portal
+5. Invite the bot to your test server
+6. Use your server ID as `DISCORD_GUILD_ID` during development so slash command updates appear quickly
+7. Set `PRIMARY_GUILD_ID` if you want DM guild-wide retrieval checks in V1
 
 ## Supabase Setup
 
@@ -44,7 +43,8 @@ Required variables:
 2. Open the SQL editor
 3. Run [supabase/migrations/001_initial_schema.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/001_initial_schema.sql)
 4. Run [supabase/migrations/002_clawbot_control_plane.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/002_clawbot_control_plane.sql)
-5. Create `role_policies` rows when you are ready to delegate assignment, ingestion, and Clawbot-dispatch access beyond Discord administrators
+5. Run [supabase/migrations/003_v1_retrieval.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/003_v1_retrieval.sql)
+6. Create `role_policies` rows when you are ready to delegate assignment and guild-wide history access beyond Discord administrators
 
 Example role policy shape:
 
@@ -52,35 +52,15 @@ Example role policy shape:
 insert into role_policies (guild_id, capability, discord_role_id)
 values
   ('your-discord-guild-id', 'assignment_admin', 'your-assignment-admin-role-id'),
-  ('your-discord-guild-id', 'ingestion_admin', 'your-ingestion-admin-role-id'),
-  ('your-discord-guild-id', 'clawbot_dispatch', 'your-reviewer-role-id');
+  ('your-discord-guild-id', 'history_guild_wide', 'your-history-enabled-role-id');
 ```
 
-## Clawbot Setup
+## OpenAI Setup
 
-1. Set `CLAWBOT_BASE_URL` to your running Clawbot instance
-   - Recommended on EC2: use the OpenClaw private IP or private DNS when both instances are in the same VPC
-2. Set `CLAWBOT_API_KEY` to the secret used for outgoing bot-to-Clawbot requests
-3. Set `BOT_PUBLIC_BASE_URL` to the public URL of this bot service
-4. Configure Clawbot to call `POST {BOT_PUBLIC_BASE_URL}/webhooks/clawbot` on job completion
-5. Configure Clawbot to send `Authorization: Bearer {CLAWBOT_WEBHOOK_SECRET}` or `x-clawbot-webhook-secret: {CLAWBOT_WEBHOOK_SECRET}`
-6. If your Clawbot uses different endpoint paths, override `CLAWBOT_JOB_PATH` and `CLAWBOT_INGEST_PATH`
-7. For production on EC2, follow [docs/deploy-ec2.md](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md)
-
-Expected callback body:
-
-```json
-{
-  "localJobId": "uuid-from-this-bot",
-  "clawbotJobId": "job-id-from-clawbot",
-  "status": "completed",
-  "resultSummary": "Short safe summary for Discord posting",
-  "artifactLinks": [
-    "https://example.com/artifact/1"
-  ],
-  "errorMessage": null
-}
-```
+1. Set `OPENAI_API_KEY`
+2. Optionally set `OPENAI_RESPONSE_MODEL`
+3. Optionally set `OPENAI_EMBEDDING_MODEL`
+4. For production on EC2, follow [docs/deploy-ec2.md](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md)
 
 ## Local Verification
 
@@ -96,15 +76,15 @@ npm run dev
 Then validate:
 
 - `/ping` responds
-- `/assignment create` creates a draft record
+- `/assignment create` creates a draft notice record
 - `/assignment list` returns recent assignments
-- `/assignment publish` posts to the selected channel or current channel
-- `/ingestion enable` marks a channel as ingestible
-- A new message in that channel reaches Clawbot
-- `/review pr`, `/generate summary`, or `/notes analyze` creates a job and Clawbot can callback successfully
+- `/assignment publish` posts to the selected channel or current channel and mentions affected roles
+- DM the bot with a general question
+- DM the bot with a history question like `How many times did I say "ship it"?`
+- Confirm raw messages and embeddings are being written for visible text messages
 
 ## Safety Notes
 
-- Never expose `SUPABASE_SERVICE_ROLE_KEY`, `CLAWBOT_API_KEY`, or `CLAWBOT_WEBHOOK_SECRET`
+- Never expose `SUPABASE_SERVICE_ROLE_KEY` or `OPENAI_API_KEY`
 - Do not paste real secrets into docs, issues, or pull requests
 - Review logs and generated output for sensitive data before sharing

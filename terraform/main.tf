@@ -51,7 +51,7 @@ resource "aws_security_group" "discord_bot" {
   }
 
   ingress {
-    description = "Public HTTP callback endpoint"
+    description = "Public HTTP endpoint"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -104,15 +104,4 @@ resource "aws_instance" "discord_bot" {
   tags = merge(local.common_tags, {
     Name = var.name_prefix
   })
-}
-
-resource "aws_security_group_rule" "allow_discord_bot_to_openclaw" {
-  count                    = var.openclaw_security_group_id != null ? 1 : 0
-  type                     = "ingress"
-  description              = "Allow Discord bot EC2 to reach the existing OpenClaw service"
-  from_port                = var.openclaw_port
-  to_port                  = var.openclaw_port
-  protocol                 = "tcp"
-  security_group_id        = var.openclaw_security_group_id
-  source_security_group_id = aws_security_group.discord_bot.id
 }

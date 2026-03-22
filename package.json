@@ -2,7 +2,7 @@
   "name": "gigi-discord-bot",
   "version": "0.1.0",
   "private": true,
-  "description": "Discord bot scaffold for assignments, review workflows, and AI-backed utilities.",
+  "description": "DM-first Discord bot for assignment notices and retrieval-backed chat workflows.",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
@@ -18,6 +18,7 @@
     "@supabase/supabase-js": "^2.45.4",
     "discord.js": "^14.19.3",
     "dotenv": "^16.4.7",
+    "openai": "^6.32.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {

@@ -1,0 +1,113 @@
+name: Deploy Discord Bot
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-discord-bot
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run typecheck
+        run: npm run typecheck
+
+      - name: Build application
+        run: npm run build
+
+      - name: Package release bundle
+        run: |
+          tar -czf gigi-discord-bot-release.tar.gz \
+            dist \
+            package.json \
+            package-lock.json \
+            .env.example \
+            scripts/install-release.sh
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: gigi-discord-bot-release
+          path: gigi-discord-bot-release.tar.gz
+          retention-days: 7
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: gigi-discord-bot-release
+          path: .
+
+      - name: Configure SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          if [[ -z "${DEPLOY_HOST}" || -z "${DEPLOY_SSH_KEY}" ]]; then
+            echo "Missing required deploy secrets." >&2
+            exit 1
+          fi
+
+          install -m 700 -d "${HOME}/.ssh"
+          printf '%s\n' "${DEPLOY_SSH_KEY}" > "${HOME}/.ssh/id_ed25519"
+          chmod 600 "${HOME}/.ssh/id_ed25519"
+          ssh-keyscan -p "${DEPLOY_PORT:-22}" -H "${DEPLOY_HOST}" >> "${HOME}/.ssh/known_hosts"
+
+      - name: Upload release to EC2
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          scp -P "${DEPLOY_PORT:-22}" \
+            gigi-discord-bot-release.tar.gz \
+            "${DEPLOY_USER:-ubuntu}@${DEPLOY_HOST}:/tmp/gigi-discord-bot-release.tar.gz"
+
+      - name: Deploy release on EC2
+        env:
+          DEPLOY_APP_DIR: ${{ secrets.DEPLOY_APP_DIR }}
+          DEPLOY_APP_USER: ${{ secrets.DEPLOY_APP_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_SERVICE_NAME: ${{ secrets.DEPLOY_SERVICE_NAME }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER:-ubuntu}@${DEPLOY_HOST}" <<EOF
+          set -euo pipefail
+
+          RELEASE_DIR=\$(mktemp -d)
+          trap 'rm -rf "\${RELEASE_DIR}" /tmp/gigi-discord-bot-release.tar.gz' EXIT
+
+          tar -xzf /tmp/gigi-discord-bot-release.tar.gz -C "\${RELEASE_DIR}"
+
+          sudo APP_DIR="${DEPLOY_APP_DIR:-/opt/gigi-discord-bot}" \
+            APP_USER="${DEPLOY_APP_USER:-gigi}" \
+            SERVICE_NAME="${DEPLOY_SERVICE_NAME:-gigi-discord-bot}" \
+            bash "\${RELEASE_DIR}/scripts/install-release.sh"
+          EOF

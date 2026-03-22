@@ -7,6 +7,7 @@ export interface AssignmentRecord {
   description: string;
   due_at: string | null;
   announcement_channel_id: string | null;
+  mentioned_role_ids: string[];
   created_by_user_id: string;
   published_message_id: string | null;
   status: 'draft' | 'published';
@@ -20,6 +21,7 @@ export interface CreateAssignmentInput {
   description: string;
   dueAt: string | null;
   announcementChannelId: string | null;
+  mentionedRoleIds: string[];
   createdByUserId: string;
 }
 
@@ -35,6 +37,7 @@ export class AssignmentService {
         description: input.description,
         due_at: input.dueAt,
         announcement_channel_id: input.announcementChannelId,
+        mentioned_role_ids: input.mentionedRoleIds,
         created_by_user_id: input.createdByUserId
       })
       .select('*')

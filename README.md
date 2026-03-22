@@ -1,14 +1,14 @@
 # Gigi Discord Bot
 
-Discord control-plane bot for assignment announcements, role-gated workflows, and Clawbot-backed personalization and agent jobs.
+DM-first Discord bot for agentic chat, scoped history retrieval, and assignment notifications.
 
 ## What Is In This Repo
 
 - A Node 22 + TypeScript Discord bot foundation
-- Slash command registration with `discord.js`
-- Supabase-backed Discord control-plane state
-- Clawbot-backed async jobs and channel-history ingestion
-- Working local and Clawbot-backed command sets
+- DM-first agent experience backed by OpenAI
+- Slash-command assignment notifier workflow
+- Supabase/Postgres-backed control-plane state
+- Raw message history + pgvector-ready retrieval foundation
 - Project rules and planning docs
 
 ## Quick Start
@@ -30,12 +30,10 @@ Open `.env` and put your real API keys and IDs there:
 - `DISCORD_TOKEN`
 - `DISCORD_CLIENT_ID`
 - `DISCORD_GUILD_ID`
+- `PRIMARY_GUILD_ID`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `BOT_PUBLIC_BASE_URL`
-- `CLAWBOT_BASE_URL`
-- `CLAWBOT_API_KEY`
-- `CLAWBOT_WEBHOOK_SECRET`
+- `OPENAI_API_KEY`
 
 Do not commit `.env`.
 
@@ -48,26 +46,24 @@ Do not commit `.env`.
 - Copy your server ID into `DISCORD_GUILD_ID` for guild-scoped slash command registration during development
 - Invite the bot to your server with permissions to read, send, and use application commands
 
-### 4. Configure Supabase
+### 4. Configure Supabase and retrieval storage
 
 - Create a Supabase project
 - Copy the project URL into `SUPABASE_URL`
 - Copy the server-side service role key into `SUPABASE_SERVICE_ROLE_KEY`
-- Run the SQL in both migration files in order:
+- Run the SQL migration files in order:
   - [supabase/migrations/001_initial_schema.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/001_initial_schema.sql)
   - [supabase/migrations/002_clawbot_control_plane.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/002_clawbot_control_plane.sql)
+  - [supabase/migrations/003_v1_retrieval.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/003_v1_retrieval.sql)
 
-### 5. Configure Clawbot
+### 5. Configure OpenAI
 
-- Set `CLAWBOT_BASE_URL` to your running Clawbot host, for example `http://YOUR-IP:3000`
-  - Recommended on EC2: use the OpenClaw instance private IP or private DNS, not the public IP
-- Set `CLAWBOT_API_KEY` to the secret this bot should use when calling Clawbot
-- Set `BOT_PUBLIC_BASE_URL` to the public base URL where this bot can receive callbacks
-- Configure your Clawbot to call `POST {BOT_PUBLIC_BASE_URL}/webhooks/clawbot`
-- Configure Clawbot to send either:
-  - `Authorization: Bearer {CLAWBOT_WEBHOOK_SECRET}`
-  - or `x-clawbot-webhook-secret: {CLAWBOT_WEBHOOK_SECRET}`
-- If your Clawbot uses different routes, override `CLAWBOT_JOB_PATH` and `CLAWBOT_INGEST_PATH`
+- Set `OPENAI_API_KEY` to a valid OpenAI API key
+- Optional: override `OPENAI_RESPONSE_MODEL` and `OPENAI_EMBEDDING_MODEL`
+- The bot uses OpenAI for:
+  - DM reasoning
+  - semantic retrieval over stored chat history
+  - no browser, OCR, or image understanding in V1
 
 ### 6. Start the bot
 
@@ -75,34 +71,35 @@ Do not commit `.env`.
 npm run dev
 ```
 
-The bot registers slash commands at startup, starts a local webhook server on port `8080`, and listens for Discord message events for channels where ingestion is enabled.
+The bot registers slash commands at startup, starts a local health server on port `8080`, stores visible DM and guild message history, and responds to direct messages agentically.
 
 ## EC2 Deployment
 
 Deployment assets for the recommended two-EC2 layout are included in:
 
 - [docs/deploy-ec2.md](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md)
+- [docs/ci-cd.md](/Users/giancedrick/dev/projects/gigi/docs/ci-cd.md)
 - [docs/terraform.md](/Users/giancedrick/dev/projects/gigi/docs/terraform.md)
 - [deploy/systemd/gigi-discord-bot.service](/Users/giancedrick/dev/projects/gigi/deploy/systemd/gigi-discord-bot.service)
 - [deploy/nginx/gigi-discord-bot.conf](/Users/giancedrick/dev/projects/gigi/deploy/nginx/gigi-discord-bot.conf)
 - [scripts/bootstrap-ec2.sh](/Users/giancedrick/dev/projects/gigi/scripts/bootstrap-ec2.sh)
 - [scripts/deploy-discord-bot.sh](/Users/giancedrick/dev/projects/gigi/scripts/deploy-discord-bot.sh)
+- [scripts/install-release.sh](/Users/giancedrick/dev/projects/gigi/scripts/install-release.sh)
 - [terraform/terraform.tfvars.example](/Users/giancedrick/dev/projects/gigi/terraform/terraform.tfvars.example)
 
-## Available Commands
+## Available Commands and Interaction Modes
 
 - `/ping`
 - `/assignment create`
 - `/assignment publish`
 - `/assignment list`
-- `/ingestion enable`
-- `/ingestion disable`
-- `/ingestion status`
-- `/review pr`
-- `/generate tests`
-- `/generate quiz`
-- `/generate summary`
-- `/notes analyze`
+
+DM the bot for:
+
+- freeform questions
+- semantic history search
+- exact phrase count questions such as `How many times did I say "ship it"?`
+- conversational follow-ups over your DM history
 
 ## Authorization Model
 
@@ -111,8 +108,7 @@ The bot checks Discord `Administrator` first, then capability mappings in `role_
 Capabilities used by the current command set:
 
 - `assignment_admin`
-- `ingestion_admin`
-- `clawbot_dispatch`
+- `history_guild_wide`
 
 Example:
 
@@ -120,28 +116,18 @@ Example:
 insert into role_policies (guild_id, capability, discord_role_id)
 values
   ('your-discord-guild-id', 'assignment_admin', 'your-assignment-admin-role-id'),
-  ('your-discord-guild-id', 'ingestion_admin', 'your-ingestion-admin-role-id'),
-  ('your-discord-guild-id', 'clawbot_dispatch', 'your-reviewer-role-id');
+  ('your-discord-guild-id', 'history_guild_wide', 'your-history-enabled-role-id');
 ```
 
-## Clawbot Contract
+## Retrieval Model
 
-This repo assumes:
+V1 uses a reduced retrieval-first architecture:
 
-- job dispatch endpoint: `POST {CLAWBOT_BASE_URL}{CLAWBOT_JOB_PATH}`
-- ingestion endpoint: `POST {CLAWBOT_BASE_URL}{CLAWBOT_INGEST_PATH}`
-- callback endpoint exposed by this bot: `POST {BOT_PUBLIC_BASE_URL}/webhooks/clawbot`
-
-Dispatch payload includes local job ID, guild/channel/user metadata, task type, command name, input payload, and callback URL.
-
-Callback payload must include:
-
-- `localJobId`
-- `clawbotJobId`
-- `status` as `completed`, `failed`, or `cancelled`
-- optional `resultSummary`
-- optional `artifactLinks`
-- optional `errorMessage`
+- raw Discord messages are the source of truth
+- exact analytics use SQL/text search first
+- semantic questions use OpenAI embeddings over stored messages
+- image attachments are stored as metadata only
+- no OCR, memory promotion, or digest pipeline in V1
 
 ## Development Scripts
 
@@ -160,9 +146,25 @@ Before opening a PR or deploying:
 - Run `npm run build`
 - Verify `/ping`
 - Verify `/assignment create` and `/assignment publish` in a development Discord server
-- Verify `/ingestion enable` and then send a message in that channel to confirm Clawbot receives ingestion events
-- Verify one async Clawbot command such as `/review pr`
+- DM the bot with one direct question and one history-based question
+- Confirm visible messages are stored in Supabase
 - Re-check all modified lines for secrets and private data leaks
+
+## CI/CD
+
+The repo includes a GitHub Actions workflow at [deploy.yml](/Users/giancedrick/dev/projects/gigi/.github/workflows/deploy.yml).
+
+On every push to `main`, it:
+
+- runs `npm ci`
+- runs `npm run typecheck`
+- runs `npm run build`
+- packages a release bundle
+- uploads the bundle to the Discord bot EC2
+- installs production dependencies on the EC2
+- restarts `gigi-discord-bot`
+
+Setup instructions and required GitHub secrets are in [docs/ci-cd.md](/Users/giancedrick/dev/projects/gigi/docs/ci-cd.md).
 
 ## Project Structure
 
@@ -172,8 +174,8 @@ src/
   config/           Environment validation
   discord/          Client bootstrap and command registration
   lib/              Shared clients and logging
-  services/         Supabase-backed control-plane services and Clawbot integration
-  web/              Webhook callback server
+  services/         Control-plane, history, and DM retrieval services
+  web/              Health server
 deploy/
   nginx/            Reverse-proxy template for EC2
   systemd/          System service template for EC2
@@ -189,8 +191,11 @@ docs/
 ## Documentation
 
 - [docs/discord-bot-plan.md](/Users/giancedrick/dev/projects/gigi/docs/discord-bot-plan.md)
+- [docs/architecture-v1.md](/Users/giancedrick/dev/projects/gigi/docs/architecture-v1.md)
+- [docs/roadmap.md](/Users/giancedrick/dev/projects/gigi/docs/roadmap.md)
 - [docs/setup.md](/Users/giancedrick/dev/projects/gigi/docs/setup.md)
 - [docs/deploy-ec2.md](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md)
+- [docs/ci-cd.md](/Users/giancedrick/dev/projects/gigi/docs/ci-cd.md)
 - [docs/terraform.md](/Users/giancedrick/dev/projects/gigi/docs/terraform.md)
 - [docs/credits.md](/Users/giancedrick/dev/projects/gigi/docs/credits.md)
 - [AGENTS.md](/Users/giancedrick/dev/projects/gigi/AGENTS.md)

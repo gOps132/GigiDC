@@ -141,3 +141,8 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Root cause: Capability checks returned early for Discord administrators before the `guilds` table was upserted, so later inserts into tables like `assignments` referenced a missing guild row.
   Fix or required workflow: Upsert the guild row before any administrator short-circuit in permission checks so every guild-scoped command initializes local guild state first.
   Verification step: Run `npm run typecheck` and `npm run build`, then create an assignment as a Discord administrator and confirm no `assignments_guild_id_fkey` error occurs.
+
+- Issue or symptom: Manual EC2 deploys fail with `dubious ownership`, `.git/FETCH_HEAD` permission errors, or mixed ownership under `/opt/gigi-discord-bot`.
+  Root cause: Pulling or cloning the server checkout with different users or `sudo git` causes git metadata and working tree files to drift between owners.
+  Fix or required workflow: Prefer the GitHub Actions release-based deploy pipeline instead of `git pull` on the server, and keep `/opt/gigi-discord-bot` owned by the service user when manual intervention is required.
+  Verification step: Run a workflow deploy, confirm the release installs without git access on the EC2, and verify `sudo systemctl status gigi-discord-bot --no-pager` stays healthy afterward.

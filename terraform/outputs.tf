@@ -18,8 +18,8 @@ output "discord_bot_security_group_id" {
   value       = aws_security_group.discord_bot.id
 }
 
-output "discord_bot_callback_base_url" {
-  description = "Temporary callback base URL if using the instance public IP directly."
+output "discord_bot_base_url" {
+  description = "Temporary base URL if using the instance public IP directly."
   value       = aws_instance.discord_bot.public_ip != "" ? "http://${aws_instance.discord_bot.public_ip}" : null
 }
 
@@ -29,7 +29,7 @@ output "next_step_summary" {
     "1. SSH into the new EC2 using the configured key pair.",
     "2. Clone this repo into ${var.app_dir}.",
     "3. Create /etc/gigi-discord-bot/gigi-discord-bot.env from .env.example.",
-    "4. Set CLAWBOT_BASE_URL to the existing OpenClaw private IP or private DNS.",
+    "4. Set OPENAI_API_KEY and the Discord/Supabase settings in the env file.",
     "5. Follow docs/deploy-ec2.md to enable the systemd service and Nginx."
   ])
 }

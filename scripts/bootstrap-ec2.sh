@@ -13,7 +13,7 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
-apt-get install -y curl git nginx ca-certificates gnupg
+apt-get install -y curl git nginx rsync ca-certificates gnupg
 
 if ! command -v node >/dev/null 2>&1; then
   mkdir -p /etc/apt/keyrings
