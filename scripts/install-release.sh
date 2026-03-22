@@ -36,4 +36,13 @@ chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"
 
 systemctl restart "${SERVICE_NAME}"
 systemctl status "${SERVICE_NAME}" --no-pager
-curl --fail --silent http://127.0.0.1:8080/healthz >/dev/null
+
+for _ in $(seq 1 15); do
+  if curl --fail --silent http://127.0.0.1:8080/healthz >/dev/null; then
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "Health check failed for ${SERVICE_NAME} after restart." >&2
+exit 1
