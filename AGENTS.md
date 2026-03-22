@@ -144,5 +144,10 @@ Only promote issues into memory when they are recurring, costly, security-releva
 
 - Issue or symptom: Manual EC2 deploys fail with `dubious ownership`, `.git/FETCH_HEAD` permission errors, or mixed ownership under `/opt/gigi-discord-bot`.
   Root cause: Pulling or cloning the server checkout with different users or `sudo git` causes git metadata and working tree files to drift between owners.
-  Fix or required workflow: Keep `/opt/gigi-discord-bot` owned by the intended deploy user, avoid `sudo git`, and use the repo's manual deploy script for rebuild-and-restart steps after pulling changes normally.
-  Verification step: Run `git pull`, `bash scripts/deploy-discord-bot.sh`, and confirm `sudo systemctl status gigi-discord-bot --no-pager` stays healthy afterward.
+  Fix or required workflow: Prefer the release-based GitHub Actions CD pipeline for normal deploys, and if manual intervention is required keep `/opt/gigi-discord-bot` owned by the intended deploy user and avoid `sudo git`.
+  Verification step: Run a CD deploy or `bash scripts/deploy-discord-bot.sh`, then confirm `sudo systemctl status gigi-discord-bot --no-pager` stays healthy afterward.
+
+- Issue or symptom: Infrastructure drift or broken app changes reach `main` without being caught early.
+  Root cause: Manual local checks are easy to skip, and the repo previously had no active CI baseline for TypeScript or Terraform validation.
+  Fix or required workflow: Keep a lightweight GitHub Actions CI workflow that runs `npm run typecheck`, `npm run build`, `terraform fmt -check`, and `terraform validate` on pushes and pull requests before adding more features.
+  Verification step: Confirm the CI workflow passes on a branch or pull request and fails when a TypeScript compile error or Terraform formatting error is introduced.

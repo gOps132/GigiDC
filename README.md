@@ -78,12 +78,36 @@ The bot registers slash commands at startup, starts a local health server on por
 Deployment assets for the recommended two-EC2 layout are included in:
 
 - [docs/deploy-ec2.md](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md)
+- [docs/ci-cd.md](/Users/giancedrick/dev/projects/gigi/docs/ci-cd.md)
 - [docs/terraform.md](/Users/giancedrick/dev/projects/gigi/docs/terraform.md)
 - [deploy/systemd/gigi-discord-bot.service](/Users/giancedrick/dev/projects/gigi/deploy/systemd/gigi-discord-bot.service)
 - [deploy/nginx/gigi-discord-bot.conf](/Users/giancedrick/dev/projects/gigi/deploy/nginx/gigi-discord-bot.conf)
 - [scripts/bootstrap-ec2.sh](/Users/giancedrick/dev/projects/gigi/scripts/bootstrap-ec2.sh)
 - [scripts/deploy-discord-bot.sh](/Users/giancedrick/dev/projects/gigi/scripts/deploy-discord-bot.sh)
+- [scripts/install-release.sh](/Users/giancedrick/dev/projects/gigi/scripts/install-release.sh)
 - [terraform/terraform.tfvars.example](/Users/giancedrick/dev/projects/gigi/terraform/terraform.tfvars.example)
+
+## Developer Foundations
+
+The repo now includes a CI workflow at [ci.yml](/Users/giancedrick/dev/projects/gigi/.github/workflows/ci.yml).
+
+On every push to `main` and on every pull request, CI runs:
+
+- `npm ci`
+- `npm run typecheck`
+- `npm run build`
+- `terraform fmt -check`
+- `terraform init -backend=false`
+- `terraform validate`
+
+On pushes to `main`, CD also:
+
+- builds a release bundle
+- uploads the release to the bot EC2 over SSH
+- installs the release on the server
+- restarts `gigi-discord-bot`
+
+CD setup instructions and required GitHub secrets are in [docs/ci-cd.md](/Users/giancedrick/dev/projects/gigi/docs/ci-cd.md).
 
 ## Available Commands and Interaction Modes
 
@@ -142,6 +166,8 @@ Before opening a PR or deploying:
 
 - Run `npm run typecheck`
 - Run `npm run build`
+- Run `terraform fmt -check` inside `terraform/` when infrastructure files change
+- Run `terraform validate` inside `terraform/` after `terraform init -backend=false` when infrastructure files change
 - Verify `/ping`
 - Verify `/assignment create` and `/assignment publish` in a development Discord server
 - DM the bot with one direct question and one history-based question
@@ -177,6 +203,7 @@ docs/
 - [docs/roadmap.md](/Users/giancedrick/dev/projects/gigi/docs/roadmap.md)
 - [docs/setup.md](/Users/giancedrick/dev/projects/gigi/docs/setup.md)
 - [docs/deploy-ec2.md](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md)
+- [docs/ci-cd.md](/Users/giancedrick/dev/projects/gigi/docs/ci-cd.md)
 - [docs/terraform.md](/Users/giancedrick/dev/projects/gigi/docs/terraform.md)
 - [docs/credits.md](/Users/giancedrick/dev/projects/gigi/docs/credits.md)
 - [AGENTS.md](/Users/giancedrick/dev/projects/gigi/AGENTS.md)

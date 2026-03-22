@@ -31,6 +31,24 @@ This project requires explicit attribution for external resources used in implem
 - `Canonical Ubuntu Server AMI`
   - Use: Base EC2 image selected by the Terraform starter for the Discord bot host
   - Source: https://cloud-images.ubuntu.com/
+- `GitHub Actions`
+  - Use: Continuous integration and deployment runner for app validation, Terraform validation, and release deployment to EC2
+  - Source: https://github.com/features/actions
+- `actions/checkout`
+  - Use: Official GitHub Action used to fetch the repository in CI
+  - Source: https://github.com/actions/checkout
+- `actions/setup-node`
+  - Use: Official GitHub Action used to provision Node.js 22 in CI
+  - Source: https://github.com/actions/setup-node
+- `hashicorp/setup-terraform`
+  - Use: Official HashiCorp GitHub Action used to install Terraform in CI
+  - Source: https://github.com/hashicorp/setup-terraform
+- `actions/upload-artifact`
+  - Use: Official GitHub Action used to store the built release bundle between CI and deploy steps
+  - Source: https://github.com/actions/upload-artifact
+- `actions/download-artifact`
+  - Use: Official GitHub Action used to retrieve the built release bundle in the deploy step
+  - Source: https://github.com/actions/download-artifact
 
 ## Workflow and Planning References
 

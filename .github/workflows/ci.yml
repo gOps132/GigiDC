@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gigi-discord-bot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: App Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Package release bundle
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          tar -czf gigi-discord-bot-release.tar.gz \
+            dist \
+            deploy \
+            package.json \
+            package-lock.json \
+            .env.example \
+            scripts/install-release.sh
+
+      - name: Upload release bundle
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gigi-discord-bot-release
+          path: gigi-discord-bot-release.tar.gz
+          retention-days: 7
+
+  terraform:
+    name: Terraform Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Check formatting
+        working-directory: terraform
+        run: terraform fmt -check
+
+      - name: Initialize Terraform
+        working-directory: terraform
+        run: terraform init -backend=false
+
+      - name: Validate Terraform
+        working-directory: terraform
+        run: terraform validate
+
+  deploy:
+    name: Deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - app
+      - terraform
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: gigi-discord-bot-release
+          path: .
+
+      - name: Configure SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          if [[ -z "${DEPLOY_HOST}" || -z "${DEPLOY_SSH_KEY}" ]]; then
+            echo "Missing required deploy secrets." >&2
+            exit 1
+          fi
+
+          install -m 700 -d "${HOME}/.ssh"
+          printf '%s\n' "${DEPLOY_SSH_KEY}" > "${HOME}/.ssh/id_ed25519"
+          chmod 600 "${HOME}/.ssh/id_ed25519"
+          ssh-keyscan -p "${DEPLOY_PORT:-22}" -H "${DEPLOY_HOST}" >> "${HOME}/.ssh/known_hosts"
+
+      - name: Upload release to EC2
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          scp -P "${DEPLOY_PORT:-22}" \
+            gigi-discord-bot-release.tar.gz \
+            "${DEPLOY_USER:-ubuntu}@${DEPLOY_HOST}:/tmp/gigi-discord-bot-release.tar.gz"
+
+      - name: Install release on EC2
+        env:
+          DEPLOY_APP_DIR: ${{ secrets.DEPLOY_APP_DIR }}
+          DEPLOY_APP_USER: ${{ secrets.DEPLOY_APP_USER }}
+          DEPLOY_SERVICE_NAME: ${{ secrets.DEPLOY_SERVICE_NAME }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER:-ubuntu}@${DEPLOY_HOST}" <<EOF
+          set -euo pipefail
+
+          RELEASE_DIR=\$(mktemp -d)
+          trap 'rm -rf "\${RELEASE_DIR}"' EXIT
+
+          tar -xzf /tmp/gigi-discord-bot-release.tar.gz -C "\${RELEASE_DIR}" scripts/install-release.sh
+
+          sudo APP_DIR="${DEPLOY_APP_DIR:-/opt/gigi-discord-bot}" \
+            APP_USER="${DEPLOY_APP_USER:-gigi}" \
+            SERVICE_NAME="${DEPLOY_SERVICE_NAME:-gigi-discord-bot}" \
+            RELEASE_ARCHIVE="/tmp/gigi-discord-bot-release.tar.gz" \
+            bash "\${RELEASE_DIR}/scripts/install-release.sh"
+          EOF
