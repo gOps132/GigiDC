@@ -18,12 +18,14 @@ Prefer explicit names:
 - `system-overview.excalidraw`
 - `assignment-publish-flow.excalidraw`
 - `dm-retrieval-flow.excalidraw`
+- `dm-tool-execution-flow.excalidraw`
 - `deploy-release-flow.excalidraw`
 
 Markdown + Mermaid documents are also acceptable when they are easier to diff and maintain in-repo:
 
 - `system-overview.md`
 - `dm-retrieval-flow.md`
+- `dm-tool-execution-flow.md`
 - `deploy-release-flow.md`
 
 ## Rules

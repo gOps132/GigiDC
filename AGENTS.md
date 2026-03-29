@@ -206,3 +206,8 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Root cause: The repo kept an older cleanup migration from an abandoned direction even after the bot architecture continued depending on `channel_ingestion_policies`.
   Fix or required workflow: Keep `004_cleanup_legacy_clawbot_tables.sql` as a checked-in no-op placeholder so migration numbering stays contiguous without deleting active schema.
   Verification step: Run `supabase db push --dry-run` and confirm `004_cleanup_legacy_clawbot_tables.sql` no longer contains destructive DDL.
+
+- Issue or symptom: Natural-language DM tool requests can target the wrong person or wrong task if name resolution is too permissive.
+  Root cause: DM tool execution works from freeform text, so fuzzy nickname matching or aggressive fallback can convert ambiguity into the wrong relay or task mutation.
+  Fix or required workflow: Keep DM tool resolution conservative. Prefer self references, explicit mentions, task IDs, or exact Discord names, and fail closed when a user or task reference is ambiguous.
+  Verification step: Run `npm run test` and confirm the DM tool service and DM conversation tests still pass, especially the permission and task-resolution paths.

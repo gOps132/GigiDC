@@ -39,6 +39,7 @@ function createContext(overrides?: {
   outboundStoreError?: Error | null;
   primaryGuildId?: string;
   retrievalAnswer?: string;
+  toolReply?: string | null;
 }) {
   const answerCalls: Array<{
     botUserId: string;
@@ -46,6 +47,7 @@ function createContext(overrides?: {
     requesterUserId: string;
     scope: unknown;
   }> = [];
+  const toolCalls: Array<{ channelId: string; query: string; requesterUserId: string }> = [];
   const replyCalls: Array<{ components?: unknown[]; content: string }> = [];
   const storedBotMessages: string[] = [];
   const updateCalls: Array<{ components?: unknown[]; content: string }> = [];
@@ -74,6 +76,24 @@ function createContext(overrides?: {
     runtime: {},
     services: {
       agentActions: {},
+      agentTools: {
+        async maybeHandleDmQuery(query: string, requester: { id: string }, _client: unknown, channelId: string) {
+          toolCalls.push({
+            channelId,
+            query,
+            requesterUserId: requester.id
+          });
+
+          if (!overrides?.toolReply) {
+            return null;
+          }
+
+          return {
+            executedToolNames: ['list_open_tasks'],
+            reply: overrides.toolReply
+          };
+        }
+      },
       assignments: {},
       auditLogs: {},
       channelIngestionPolicies: {},
@@ -179,6 +199,7 @@ function createContext(overrides?: {
     message,
     replyCalls,
     storedBotMessages,
+    toolCalls,
     updateCalls
   };
 }
@@ -260,5 +281,22 @@ test('DmConversationService persists direct bot-authored DM replies in canonical
 
   assert.equal(answerCalls.length, 1);
   assert.equal(replyCalls[0]?.content, 'Here is the direct answer');
+  assert.deepEqual(storedBotMessages, ['bot-reply-1']);
+});
+
+test('DmConversationService routes tool-style DM requests through the tool service before retrieval', async () => {
+  const store = new InMemoryPendingDmScopeSelectionStore();
+  const { answerCalls, client, context, message, replyCalls, storedBotMessages, toolCalls } = createContext({
+    retrievalAnswer: 'retrieval fallback',
+    toolReply: 'Created task `task-1` and listed your open tasks.'
+  });
+  message.content = 'Create a task for me to review the launch notes and show me my tasks.';
+
+  const service = new DmConversationService(context, store);
+  await service.handleMessage(message as never, client as never);
+
+  assert.equal(toolCalls.length, 1);
+  assert.equal(answerCalls.length, 0);
+  assert.equal(replyCalls[0]?.content, 'Created task `task-1` and listed your open tasks.');
   assert.deepEqual(storedBotMessages, ['bot-reply-1']);
 });

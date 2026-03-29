@@ -6,6 +6,7 @@ V1 is a reduced Discord bot architecture built for:
 
 - DM-first agentic interaction
 - participant-visible shared Gigi tasks and actions for relay and follow-up continuity
+- bounded multi-tool DM execution on top of that shared task/action substrate
 - slash-command assignment notices
 - exact + semantic retrieval over raw Discord history
 - role-gated guild-wide history access
@@ -79,11 +80,17 @@ This layer is the Discord-facing shell:
 This layer holds the actual bot behavior:
 
 - `DmConversationService`
+  - routes explicit tool-style DM requests through a bounded planner/executor path before retrieval
   - decides whether a DM question needs a scope picker
   - persists pending scope-selection state so Discord select menus survive process restarts
   - resolves `This DM` vs guild-wide history access
   - persists bot-authored DM prompts and answers immediately so canonical history does not depend on gateway echo timing
   - calls retrieval and sends the final Discord reply
+- `AgentToolService`
+  - turns explicit DM requests into up to three internal tool calls
+  - enforces capability checks and participant access before executing task or relay operations
+  - resolves Discord users conservatively from self references, mentions, or exact guild names
+  - records audit events for tool execution, denial, and failure paths
 - `AgentActionService`
   - persists participant-visible Gigi actions such as DM relays and follow-up tasks
   - records requester, assignee/recipient, status, due date, and delivery metadata
@@ -125,6 +132,8 @@ The repo now follows a lightweight ports-and-adapters split inside the applicati
 - adapters translate those ports into Supabase queries or OpenAI SDK calls
 
 This is the main architectural improvement from the current upgrade slice because it gives the bot cleaner seams for provider changes, fake-backed tests, and future worker extraction.
+
+The latest extension of that seam is `ToolPlanningClient`, which keeps the DM tool planner behind a port instead of binding service code directly to OpenAI structured-output details.
 
 ### Data Schema
 
@@ -168,6 +177,7 @@ Use them for:
 - semantic history lookup
 - exact analytics like phrase counts
 - scoped follow-up questions
+- bounded task and relay execution when the request is explicit enough to plan safely
 
 If multiple scopes are possible and allowed, the bot asks the user to choose via a Discord select menu.
 
@@ -176,6 +186,7 @@ The DM flow is effectively:
 ```text
 Discord DM
   -> message stored
+  -> optional tool planner + internal tool execution
   -> optional persisted scope selection
   -> retrieval strategy selection
   -> participant-visible agent action lookup
@@ -196,6 +207,37 @@ Discord Guild Message
 
 This keeps DM interactions available by default while making guild-history retention an explicit policy choice.
 
+### DM Tool Runtime
+
+The new DM tool runtime is intentionally narrow.
+
+It currently supports:
+
+- create follow-up task
+- list open tasks
+- complete task
+- send DM relay
+
+The runtime shape is:
+
+```text
+Discord DM
+  -> DmConversationService
+  -> AgentToolService
+  -> ToolPlanningClient
+  -> task / relay execution
+  -> agent_actions + audit_logs + messages
+  -> deterministic DM reply
+```
+
+This means Gigi can now do limited multi-step work in DM, such as:
+
+- create a task and then list open tasks in the same turn
+- complete a task and confirm it
+- send a participant-visible DM relay without switching to slash commands
+
+This is still not a general tool framework. It is a bounded internal action runtime attached to the shared task/action substrate.
+
 ### Shared Identity Foundation
 
 GigiDC now has a narrow but real shared-identity seam.
@@ -212,6 +254,7 @@ The current concrete workflows are:
 
 - `/relay dm`, which creates an `agent_actions` record, sends the DM, records success or failure, and lets the participants ask Gigi about that relay later in DM
 - `/task create`, `/task list`, and `/task complete`, which turn `agent_actions` into a broader task/action substrate instead of a relay-only memory seam
+- DM tool execution, which lets explicit natural-language DM requests create tasks, list tasks, complete tasks, or send relays without leaving the DM surface
 
 ### Shared Identity Tradeoffs
 
@@ -238,6 +281,17 @@ This architectural change improves continuity, but it also introduces real costs
   - outbound DM persistence is now explicit, which is better than relying on gateway echoes
   - but indexing is still an in-process queue, so a restart can still leave some recent history unembedded even when the raw message row exists
   - this means continuity is improved before durability is fully solved
+- **Planner ambiguity and conservative execution**
+  - the DM tool planner is deliberately narrow and conservative, which reduces risky actions but also means some valid user requests will fall back to retrieval instead of executing
+  - user resolution for relays or assigned tasks can fail when the request uses nicknames, vague labels, or ambiguous names instead of a Discord mention or exact name
+  - this is preferable to dispatching the wrong relay or completing the wrong task, but it does create user-friction that a richer identity or directory layer would later need to address
+- **Extra model and latency cost**
+  - tool-style DM requests now spend an additional model call on planning before any actual execution happens
+  - that keeps execution safer and more structured, but it raises per-turn latency and API cost relative to direct retrieval-only turns
+- **Still not durable orchestration**
+  - tool execution happens synchronously during the DM turn
+  - a process crash mid-turn can still leave the user without a final reply even though some writes may already have happened
+  - there is still no durable worker, retry queue, or background execution model for longer-running or multi-step actions
 
 ### Background Indexing
 
@@ -306,6 +360,13 @@ Shared Gigi relay and task dispatch is role-gated by `agent_action_dispatch`.
 
 Participant-visible action and task recall does not require guild-wide history access. Retrieval can use `agent_actions` for the requester or recipient/assignee of a Gigi-mediated relay or task while still keeping unrelated guild history gated.
 
+DM tool execution uses the same permission boundaries:
+
+- listing your own tasks is allowed without dispatch capability
+- completing a task is allowed for visible participants
+- creating shared tasks or sending relays still requires `agent_action_dispatch`
+- listing another user's tasks still requires `agent_action_dispatch`
+
 ## Current Risks
 
 The current shared-identity foundation is intentionally narrow, but the repo should treat these as active architectural risks:
@@ -315,6 +376,8 @@ The current shared-identity foundation is intentionally narrow, but the repo sho
 - duplicated signal across `messages` and `agent_actions` can create noisy context assembly
 - the lack of a durable indexing worker means semantic recall can lag behind raw-history recall after restarts
 - broader shared-memory features should not be added by simply widening retrieval scope; they need explicit visibility rules and task boundaries
+- the current DM tool planner can misclassify natural language or fail to resolve people unless the request is explicit
+- multi-tool execution is still bounded to short synchronous internal actions and should not be mistaken for a general agent-worker system
 
 ## Runtime Health
 

@@ -1,7 +1,8 @@
 import { loadEnv } from './config/env.js';
 import {
   OpenAIEmbeddingClient,
-  OpenAIResponseClient
+  OpenAIResponseClient,
+  OpenAIToolPlanningClient
 } from './adapters/openaiClients.js';
 import {
   SupabaseAgentActionStore,
@@ -20,6 +21,7 @@ import { Logger } from './lib/logger.js';
 import { createOpenAIClient } from './lib/openai.js';
 import { createSupabaseAdminClient } from './lib/supabase.js';
 import { AgentActionService } from './services/agentActionService.js';
+import { AgentToolService } from './services/agentToolService.js';
 import { AssignmentService } from './services/assignmentService.js';
 import { AuditLogService } from './services/auditLogService.js';
 import { ChannelIngestionPolicyService } from './services/channelIngestionPolicyService.js';
@@ -39,6 +41,7 @@ async function main(): Promise<void> {
   const runtime = new RuntimeStateService();
   const embeddings = new OpenAIEmbeddingClient(openai);
   const responses = new OpenAIResponseClient(openai);
+  const toolPlanner = new OpenAIToolPlanningClient(openai);
   const historyRepository = new SupabaseMessageHistoryRepository(supabase);
   const pendingDmScopeSelections = new SupabasePendingDmScopeSelectionStore(supabase);
   const rolePolicyStore = new SupabaseRolePolicyStore(supabase);
@@ -62,6 +65,15 @@ async function main(): Promise<void> {
     logger
   );
   const retrieval = new RetrievalService(env, responses, messageHistory, agentActions);
+  const agentTools = new AgentToolService(
+    env,
+    toolPlanner,
+    agentActions,
+    auditLogs,
+    messageHistory,
+    rolePolicies,
+    logger
+  );
 
   const context = {
     env,
@@ -69,6 +81,7 @@ async function main(): Promise<void> {
     runtime,
     services: {
       agentActions,
+      agentTools,
       assignments,
       auditLogs,
       channelIngestionPolicies,

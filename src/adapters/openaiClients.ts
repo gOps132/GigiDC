@@ -1,6 +1,40 @@
 import type OpenAI from 'openai';
+import { zodTextFormat } from 'openai/helpers/zod';
+import { z } from 'zod';
 
-import type { EmbeddingClient, ResponseClient } from '../ports/ai.js';
+import type { EmbeddingClient, ResponseClient, ToolPlan, ToolPlanningClient } from '../ports/ai.js';
+
+const toolPlanSchema = z.object({
+  toolCalls: z
+    .array(
+      z.discriminatedUnion('name', [
+        z.object({
+          name: z.literal('create_follow_up_task'),
+          title: z.string().min(1).max(120),
+          details: z.string().min(1).max(2000),
+          assigneeReference: z.string().trim().min(1).max(120).nullable(),
+          dueAt: z.string().trim().min(1).max(80).nullable()
+        }),
+        z.object({
+          name: z.literal('list_open_tasks'),
+          userReference: z.string().trim().min(1).max(120).nullable()
+        }),
+        z.object({
+          name: z.literal('complete_task'),
+          taskReference: z.string().trim().min(1).max(120),
+          result: z.string().trim().min(1).max(500).nullable()
+        }),
+        z.object({
+          name: z.literal('send_dm_relay'),
+          recipientReference: z.string().trim().min(1).max(120),
+          message: z.string().min(1).max(2000),
+          context: z.string().trim().min(1).max(500).nullable()
+        })
+      ])
+    )
+    .max(3)
+    .default([])
+});
 
 export class OpenAIEmbeddingClient implements EmbeddingClient {
   constructor(private readonly openai: OpenAI) {}
@@ -45,5 +79,30 @@ export class OpenAIResponseClient implements ResponseClient {
     });
 
     return response.output_text.trim() || 'I could not produce a useful answer for that yet.';
+  }
+}
+
+export class OpenAIToolPlanningClient implements ToolPlanningClient {
+  constructor(private readonly openai: OpenAI) {}
+
+  async planDmTools(input: {
+    instructions: string;
+    model: string;
+    text: string;
+  }): Promise<ToolPlan> {
+    const response = await this.openai.responses.parse({
+      model: input.model,
+      instructions: input.instructions,
+      input: input.text,
+      max_output_tokens: 600,
+      text: {
+        format: zodTextFormat(toolPlanSchema, 'gigi_dm_tool_plan'),
+        verbosity: 'low'
+      }
+    });
+
+    return response.output_parsed ?? {
+      toolCalls: []
+    };
   }
 }

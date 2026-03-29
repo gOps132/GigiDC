@@ -7,6 +7,7 @@ DM-first Discord bot for agentic chat, scoped history retrieval, shared Gigi ide
 - A Node 22 + TypeScript Discord bot foundation
 - DM-first agent experience backed by OpenAI
 - Shared Gigi task/action memory for relays, follow-up questions, and tracked work
+- Bounded DM tool execution for task creation, task completion, task listing, and DM relays
 - Slash-command assignment notifier workflow
 - Supabase/Postgres-backed control-plane state
 - Raw message history + pgvector-ready retrieval foundation
@@ -76,7 +77,7 @@ Do not commit `.env`.
 npm run dev
 ```
 
-The bot can register slash commands at startup, starts a local health server on port `8080`, stores DM history immediately, stores guild history only for channels with ingestion explicitly enabled, persists participant-visible relay actions and tasks, and responds to direct messages agentically.
+The bot can register slash commands at startup, starts a local health server on port `8080`, stores DM history immediately, stores guild history only for channels with ingestion explicitly enabled, persists participant-visible relay actions and tasks, and responds to direct messages agentically through retrieval plus a bounded internal tool planner.
 
 ## EC2 Deployment
 
@@ -136,6 +137,8 @@ DM the bot for:
 - conversational follow-ups over your DM history
 - follow-up questions about Gigi-mediated relay actions that involve you
 - task-oriented questions like `what tasks do i still have?`
+- explicit tool-style requests like `create a task for me to review launch notes tomorrow and show me my open tasks`
+- explicit relay requests like `send Mina a DM saying the release moved to Friday`
 
 ## Authorization Model
 
@@ -167,6 +170,7 @@ V1 uses a reduced retrieval-first architecture:
 - DM history is always eligible for storage
 - guild-channel ingestion is opt-in through `channel_ingestion_policies`
 - participant-visible Gigi actions and follow-up tasks are persisted in `agent_actions`
+- explicit tool-style DM requests can be planned into up to three internal tool calls before falling back to retrieval
 - ingestion policy changes and permission denials are written to `audit_logs`
 - relay dispatch attempts and outcomes are written to `audit_logs`
 - task creation and completion events are written to `audit_logs`
@@ -175,6 +179,7 @@ V1 uses a reduced retrieval-first architecture:
 - exact analytics use SQL/text search first
 - semantic questions use OpenAI embeddings over stored messages
 - history-aware DM answers can also draw from participant-visible relay actions and open tasks
+- DM tool execution is intentionally bounded to task and relay operations; there is still no browser worker, sandbox worker, or arbitrary external tool surface
 - image attachments are stored as metadata only
 - no OCR, autonomous memory promotion, or digest pipeline in V1
 
@@ -184,6 +189,8 @@ Current implications and limits:
 - bot-authored DM persistence increases storage and embedding cost over time
 - relay memory currently exists in both `agent_actions` and raw `messages`, and tasks now share that same substrate, so future retrieval tuning has to manage duplication and priority carefully
 - this is still a permission-aware shared identity, not unrestricted global memory
+- the DM tool planner is conservative by design, so user resolution can fail without an explicit mention or exact Discord name
+- tool execution is still synchronous inside the DM turn, so this is not yet a durable worker or long-running orchestration system
 
 ## Development Scripts
 

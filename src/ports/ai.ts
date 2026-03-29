@@ -9,3 +9,39 @@ export interface ResponseClient {
     text: string;
   }): Promise<string>;
 }
+
+export type PlannedToolCall =
+  | {
+      name: 'complete_task';
+      result: string | null;
+      taskReference: string;
+    }
+  | {
+      assigneeReference: string | null;
+      details: string;
+      dueAt: string | null;
+      name: 'create_follow_up_task';
+      title: string;
+    }
+  | {
+      name: 'list_open_tasks';
+      userReference: string | null;
+    }
+  | {
+      context: string | null;
+      message: string;
+      name: 'send_dm_relay';
+      recipientReference: string;
+    };
+
+export interface ToolPlan {
+  toolCalls: PlannedToolCall[];
+}
+
+export interface ToolPlanningClient {
+  planDmTools(input: {
+    instructions: string;
+    model: string;
+    text: string;
+  }): Promise<ToolPlan>;
+}

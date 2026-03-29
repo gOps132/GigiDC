@@ -33,6 +33,20 @@ export class DmConversationService {
       return;
     }
 
+    const toolResult = await this.context.services.agentTools.maybeHandleDmQuery(
+      query,
+      message.author,
+      client,
+      message.channelId
+    );
+    if (toolResult) {
+      const reply = await message.reply({
+        content: toolResult.reply
+      });
+      await this.captureOutboundReply(reply, 'dm tool reply');
+      return;
+    }
+
     const scopeOptions = await this.resolveAvailableScopes(client, message.author);
 
     if (shouldPromptForScope(query, scopeOptions)) {
