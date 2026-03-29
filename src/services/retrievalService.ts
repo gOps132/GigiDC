@@ -1,4 +1,5 @@
 import type { Env } from '../config/env.js';
+import type { Logger } from '../lib/logger.js';
 import type { ResponseClient } from '../ports/ai.js';
 import type { AgentActionRecord, AgentActionService } from './agentActionService.js';
 import type { HistoryMessageRecord, HistoryScope, MessageHistoryService } from './messageHistoryService.js';
@@ -13,7 +14,8 @@ export class RetrievalService {
     private readonly env: Env,
     private readonly responses: ResponseClient,
     private readonly messageHistory: MessageHistoryService,
-    private readonly agentActions: AgentActionService
+    private readonly agentActions: AgentActionService,
+    private readonly logger: Logger
   ) {}
 
   async answerQuestion(
@@ -37,13 +39,13 @@ export class RetrievalService {
       };
     }
 
-    const recent = await this.messageHistory.listRecentMessages(scope, 6);
-    const semanticMatches = await this.messageHistory.searchSemantic(scope, query, 8);
+    const recent = await this.loadRecentMessages(scope);
+    const semanticMatches = await this.loadSemanticMatches(scope, query);
     const taskMatches = isTaskAwareQuery(query)
-      ? await this.agentActions.listOpenTasksForUser(requesterUserId, 4)
+      ? await this.loadTaskMatches(requesterUserId)
       : [];
     const actionMatches = isHistoryAwareQuery(query)
-      ? await this.agentActions.listRelevantVisibleActionsForUser(requesterUserId, query, 4)
+      ? await this.loadActionMatches(requesterUserId, query)
       : [];
 
     if (semanticMatches.length === 0 && recent.length === 0 && actionMatches.length === 0 && taskMatches.length === 0) {
@@ -85,6 +87,54 @@ export class RetrievalService {
         ? `Question: ${query}\n\nChat history context:\n${contextBlocks.join('\n\n')}`
         : `Question: ${query}`
     });
+  }
+
+  private async loadRecentMessages(scope: HistoryScope): Promise<HistoryMessageRecord[]> {
+    try {
+      return await this.messageHistory.listRecentMessages(scope, 6);
+    } catch (error) {
+      this.logger.warn('Recent message lookup failed during retrieval', {
+        error: error instanceof Error ? error.message : 'Unknown recent-history error',
+        scope: scope.kind
+      });
+      return [];
+    }
+  }
+
+  private async loadSemanticMatches(scope: HistoryScope, query: string): Promise<HistoryMessageRecord[]> {
+    try {
+      return await this.messageHistory.searchSemantic(scope, query, 8);
+    } catch (error) {
+      this.logger.warn('Semantic search failed during retrieval', {
+        error: error instanceof Error ? error.message : 'Unknown semantic-search error',
+        query
+      });
+      return [];
+    }
+  }
+
+  private async loadTaskMatches(requesterUserId: string): Promise<AgentActionRecord[]> {
+    try {
+      return await this.agentActions.listOpenTasksForUser(requesterUserId, 4);
+    } catch (error) {
+      this.logger.warn('Task memory lookup failed during retrieval', {
+        error: error instanceof Error ? error.message : 'Unknown task-memory error',
+        requesterUserId
+      });
+      return [];
+    }
+  }
+
+  private async loadActionMatches(requesterUserId: string, query: string): Promise<AgentActionRecord[]> {
+    try {
+      return await this.agentActions.listRelevantVisibleActionsForUser(requesterUserId, query, 4);
+    } catch (error) {
+      this.logger.warn('Shared action lookup failed during retrieval', {
+        error: error instanceof Error ? error.message : 'Unknown shared-action error',
+        requesterUserId
+      });
+      return [];
+    }
   }
 }
 

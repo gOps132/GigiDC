@@ -59,6 +59,12 @@ test('RetrievalService can answer from shared action history when message histor
       async listOpenTasksForUser() {
         return [];
       }
+    } as never,
+    {
+      warn() {},
+      debug() {},
+      error() {},
+      info() {}
     } as never
   );
 
@@ -131,6 +137,12 @@ test('RetrievalService can answer from open tasks when the question is task-orie
       async listOpenTasksForUser() {
         return [task];
       }
+    } as never,
+    {
+      warn() {},
+      debug() {},
+      error() {},
+      info() {}
     } as never
   );
 
@@ -148,4 +160,66 @@ test('RetrievalService can answer from open tasks when the question is task-orie
   assert.match(answer.answer, /release notes/i);
   assert.match(responseInputs[0]?.text ?? '', /Open tasks/i);
   assert.match(responseInputs[0]?.text ?? '', /Prepare release notes/i);
+});
+
+test('RetrievalService falls back to direct answering when semantic search fails', async () => {
+  const warnings: Array<Record<string, unknown>> = [];
+  const responseInputs: Array<{ instructions: string; model: string; text: string }> = [];
+
+  const service = new RetrievalService(
+    {
+      OPENAI_RESPONSE_MODEL: 'gpt-test'
+    } as never,
+    {
+      async createTextResponse(input) {
+        responseInputs.push(input);
+        return 'Hello.';
+      }
+    },
+    {
+      async countPhrase() {
+        return 0;
+      },
+      async listRecentMessages() {
+        return [];
+      },
+      async searchSemantic() {
+        throw new Error('embedding provider unavailable');
+      }
+    } as never,
+    {
+      async listRelevantVisibleActionsForUser() {
+        return [];
+      },
+      async listOpenTasksForUser() {
+        return [];
+      }
+    } as never,
+    {
+      warn(message: string, metadata: Record<string, unknown>) {
+        warnings.push({
+          message,
+          ...metadata
+        });
+      },
+      debug() {},
+      error() {},
+      info() {}
+    } as never
+  );
+
+  const answer = await service.answerQuestion(
+    'hi',
+    {
+      dmUserId: 'user-2',
+      kind: 'dm'
+    },
+    'user-2',
+    'bot-user'
+  );
+
+  assert.equal(answer.source, 'direct');
+  assert.equal(answer.answer, 'Hello.');
+  assert.equal(responseInputs.length, 1);
+  assert.equal(warnings[0]?.message, 'Semantic search failed during retrieval');
 });

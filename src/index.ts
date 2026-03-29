@@ -64,7 +64,7 @@ async function main(): Promise<void> {
     rolePolicies,
     logger
   );
-  const retrieval = new RetrievalService(env, responses, messageHistory, agentActions);
+  const retrieval = new RetrievalService(env, responses, messageHistory, agentActions, logger);
   const agentTools = new AgentToolService(
     env,
     toolPlanner,

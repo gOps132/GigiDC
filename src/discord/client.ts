@@ -1,4 +1,4 @@
-import { Client, Events, GatewayIntentBits, MessageFlags, Partials } from 'discord.js';
+import { Client, Events, GatewayIntentBits, MessageFlags, Partials, type Message } from 'discord.js';
 
 import { commandMap } from './commands.js';
 import type { BotContext } from './types.js';
@@ -88,24 +88,7 @@ export function createDiscordClient(context: BotContext): Client {
   });
 
   client.on(Events.MessageCreate, async (message) => {
-    try {
-      const result = await context.services.messageHistory.storeDiscordMessage(message);
-
-      if (message.inGuild() && !result.stored && result.reason === 'skipped_by_ingestion_policy') {
-        return;
-      }
-
-      if (message.channel.isDMBased() && !message.author.bot) {
-        await context.services.dmConversation.handleMessage(message, client);
-      }
-    } catch (error) {
-      const messageText = error instanceof Error ? error.message : 'Unknown error';
-      context.logger.error('Discord message handling failed', {
-        channelId: message.channelId,
-        messageId: message.id,
-        error: messageText
-      });
-    }
+    await handleIncomingDiscordMessage(message, client, context);
   });
 
   client.on(Events.ShardDisconnect, () => {
@@ -113,4 +96,52 @@ export function createDiscordClient(context: BotContext): Client {
   });
 
   return client;
+}
+
+export async function handleIncomingDiscordMessage(
+  message: Message,
+  client: Client,
+  context: BotContext
+): Promise<void> {
+  let storeSucceeded = true;
+
+  try {
+    const result = await context.services.messageHistory.storeDiscordMessage(message);
+
+    if (message.inGuild() && !result.stored && result.reason === 'skipped_by_ingestion_policy') {
+      return;
+    }
+  } catch (error) {
+    storeSucceeded = false;
+    const messageText = error instanceof Error ? error.message : 'Unknown message storage error';
+    context.logger.error('Discord message storage failed', {
+      channelId: message.channelId,
+      messageId: message.id,
+      error: messageText
+    });
+
+    if (message.inGuild() || message.author.bot) {
+      return;
+    }
+  }
+
+  if (!message.channel.isDMBased() || message.author.bot) {
+    return;
+  }
+
+  try {
+    await context.services.dmConversation.handleMessage(message, client);
+  } catch (error) {
+    const messageText = error instanceof Error ? error.message : 'Unknown DM conversation error';
+    context.logger.error('Discord DM handling failed', {
+      channelId: message.channelId,
+      messageId: message.id,
+      error: messageText,
+      historyStored: storeSucceeded
+    });
+
+    await message.reply({
+      content: 'I hit an internal error while handling that DM. Try again in a moment.'
+    }).catch(() => undefined);
+  }
 }

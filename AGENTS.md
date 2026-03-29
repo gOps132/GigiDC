@@ -211,3 +211,8 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Root cause: DM tool execution works from freeform text, so fuzzy nickname matching or aggressive fallback can convert ambiguity into the wrong relay or task mutation.
   Fix or required workflow: Keep DM tool resolution conservative. Prefer self references, explicit mentions, task IDs, or exact Discord names, and fail closed when a user or task reference is ambiguous.
   Verification step: Run `npm run test` and confirm the DM tool service and DM conversation tests still pass, especially the permission and task-resolution paths.
+
+- Issue or symptom: Plain DMs can appear dead when history storage, embeddings, or semantic retrieval fail.
+  Root cause: The DM path previously depended on `storeDiscordMessage` succeeding before conversation handling, and retrieval attempted semantic search before it could fall back to a simple direct answer.
+  Fix or required workflow: Let DM conversation handling continue even if history persistence fails, degrade retrieval gracefully when semantic search is unavailable, and send a best-effort fallback error reply when DM handling still throws.
+  Verification step: Run `npm run test` and confirm the Discord DM handler and retrieval fallback tests pass, especially the storage-failure and semantic-search-failure cases.
