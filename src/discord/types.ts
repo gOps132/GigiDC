@@ -7,6 +7,7 @@ import type {
 
 import type { Env } from '../config/env.js';
 import type { Logger } from '../lib/logger.js';
+import type { AgentActionService } from '../services/agentActionService.js';
 import type { AssignmentService } from '../services/assignmentService.js';
 import type { AuditLogService } from '../services/auditLogService.js';
 import type { ChannelIngestionPolicyService } from '../services/channelIngestionPolicyService.js';
@@ -22,6 +23,7 @@ export interface BotContext {
   logger: Logger;
   runtime: RuntimeStateService;
   services: {
+    agentActions: AgentActionService;
     assignments: AssignmentService;
     auditLogs: AuditLogService;
     channelIngestionPolicies: ChannelIngestionPolicyService;

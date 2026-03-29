@@ -6,6 +6,11 @@ import type {
   ChannelIngestionPolicyRecord,
   SetChannelIngestionPolicyInput
 } from '../services/channelIngestionPolicyService.js';
+import type {
+  AgentActionRecord,
+  CreateAgentActionInput,
+  UpdateAgentActionStatusInput
+} from '../services/agentActionService.js';
 import type { Capability } from '../services/rolePolicyService.js';
 
 export interface AssignmentStore {
@@ -17,6 +22,12 @@ export interface AssignmentStore {
 
 export interface AuditLogStore {
   record(input: AuditLogInput): Promise<void>;
+}
+
+export interface AgentActionStore {
+  createAction(input: CreateAgentActionInput): Promise<AgentActionRecord>;
+  listVisibleRecentForUser(userId: string, limit: number): Promise<AgentActionRecord[]>;
+  updateActionStatus(input: UpdateAgentActionStatusInput): Promise<AgentActionRecord>;
 }
 
 export interface ChannelIngestionPolicyStore {

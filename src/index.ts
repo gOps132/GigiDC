@@ -4,6 +4,7 @@ import {
   OpenAIResponseClient
 } from './adapters/openaiClients.js';
 import {
+  SupabaseAgentActionStore,
   SupabaseAssignmentStore,
   SupabaseAuditLogStore,
   SupabaseChannelIngestionPolicyStore,
@@ -18,6 +19,7 @@ import { registerApplicationCommands } from './discord/registerCommands.js';
 import { Logger } from './lib/logger.js';
 import { createOpenAIClient } from './lib/openai.js';
 import { createSupabaseAdminClient } from './lib/supabase.js';
+import { AgentActionService } from './services/agentActionService.js';
 import { AssignmentService } from './services/assignmentService.js';
 import { AuditLogService } from './services/auditLogService.js';
 import { ChannelIngestionPolicyService } from './services/channelIngestionPolicyService.js';
@@ -43,7 +45,9 @@ async function main(): Promise<void> {
   const channelIngestionPolicyStore = new SupabaseChannelIngestionPolicyStore(supabase);
   const assignmentStore = new SupabaseAssignmentStore(supabase);
   const auditLogStore = new SupabaseAuditLogStore(supabase);
+  const agentActionStore = new SupabaseAgentActionStore(supabase);
   const rolePolicies = new RolePolicyService(rolePolicyStore);
+  const agentActions = new AgentActionService(agentActionStore);
   const channelIngestionPolicies = new ChannelIngestionPolicyService(channelIngestionPolicyStore);
   const assignments = new AssignmentService(assignmentStore);
   const auditLogs = new AuditLogService(auditLogStore);
@@ -57,13 +61,14 @@ async function main(): Promise<void> {
     rolePolicies,
     logger
   );
-  const retrieval = new RetrievalService(env, responses, messageHistory);
+  const retrieval = new RetrievalService(env, responses, messageHistory, agentActions);
 
   const context = {
     env,
     logger,
     runtime,
     services: {
+      agentActions,
       assignments,
       auditLogs,
       channelIngestionPolicies,

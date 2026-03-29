@@ -6,11 +6,17 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type {
+  AgentActionStore,
   AssignmentStore,
   AuditLogStore,
   ChannelIngestionPolicyStore,
   RolePolicyStore
 } from '../ports/controlPlane.js';
+import type {
+  AgentActionRecord,
+  CreateAgentActionInput,
+  UpdateAgentActionStatusInput
+} from '../services/agentActionService.js';
 import type { AssignmentRecord, CreateAssignmentInput } from '../services/assignmentService.js';
 import type { AuditLogInput } from '../services/auditLogService.js';
 import type {
@@ -31,6 +37,27 @@ interface ChannelIngestionPolicyRow {
   id: string;
   updated_at: string;
   updated_by_user_id: string;
+}
+
+interface AgentActionRow {
+  action_type: AgentActionRecord['action_type'];
+  channel_id: string | null;
+  completed_at: string | null;
+  created_at: string;
+  error_message: string | null;
+  guild_id: string | null;
+  id: string;
+  instructions: string;
+  metadata: Record<string, unknown>;
+  recipient_user_id: string | null;
+  recipient_username: string | null;
+  requester_user_id: string;
+  requester_username: string;
+  result_summary: string | null;
+  status: AgentActionRecord['status'];
+  title: string;
+  updated_at: string;
+  visibility: AgentActionRecord['visibility'];
 }
 
 export class SupabaseAssignmentStore implements AssignmentStore {
@@ -134,6 +161,73 @@ export class SupabaseAuditLogStore implements AuditLogStore {
   }
 }
 
+export class SupabaseAgentActionStore implements AgentActionStore {
+  constructor(private readonly supabase: SupabaseClient) {}
+
+  async createAction(input: CreateAgentActionInput): Promise<AgentActionRecord> {
+    const { data, error } = await this.supabase
+      .from('agent_actions')
+      .insert({
+        guild_id: input.guildId,
+        channel_id: input.channelId,
+        requester_user_id: input.requesterUserId,
+        requester_username: input.requesterUsername,
+        recipient_user_id: input.recipientUserId,
+        recipient_username: input.recipientUsername,
+        action_type: input.actionType,
+        visibility: input.visibility,
+        title: input.title,
+        instructions: input.instructions,
+        metadata: input.metadata ?? {}
+      })
+      .select('*')
+      .single();
+
+    if (error || !data) {
+      throw new Error(`Failed to create agent action: ${error?.message ?? 'Unknown error'}`);
+    }
+
+    return data as AgentActionRecord;
+  }
+
+  async listVisibleRecentForUser(userId: string, limit: number): Promise<AgentActionRecord[]> {
+    const { data, error } = await this.supabase
+      .from('agent_actions')
+      .select('*')
+      .or(`requester_user_id.eq.${userId},recipient_user_id.eq.${userId}`)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      throw new Error(`Failed to list visible agent actions: ${error.message}`);
+    }
+
+    return ((data ?? []) as AgentActionRow[]).filter((row) => isVisibleToUser(row, userId));
+  }
+
+  async updateActionStatus(input: UpdateAgentActionStatusInput): Promise<AgentActionRecord> {
+    const { data, error } = await this.supabase
+      .from('agent_actions')
+      .update({
+        status: input.status,
+        result_summary: input.resultSummary ?? null,
+        error_message: input.errorMessage ?? null,
+        metadata: input.metadata ?? {},
+        completed_at: input.completedAt ?? null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', input.actionId)
+      .select('*')
+      .single();
+
+    if (error || !data) {
+      throw new Error(`Failed to update agent action: ${error?.message ?? 'Unknown error'}`);
+    }
+
+    return data as AgentActionRecord;
+  }
+}
+
 export class SupabaseChannelIngestionPolicyStore implements ChannelIngestionPolicyStore {
   constructor(private readonly supabase: SupabaseClient) {}
 
@@ -181,6 +275,18 @@ export class SupabaseChannelIngestionPolicyStore implements ChannelIngestionPoli
 
     return data as ChannelIngestionPolicyRecord;
   }
+}
+
+function isVisibleToUser(row: AgentActionRow, userId: string): boolean {
+  if (row.visibility === 'requester_only') {
+    return row.requester_user_id === userId;
+  }
+
+  if (row.visibility === 'participants') {
+    return row.requester_user_id === userId || row.recipient_user_id === userId;
+  }
+
+  return row.requester_user_id === userId || row.recipient_user_id === userId;
 }
 
 export class SupabaseRolePolicyStore implements RolePolicyStore {

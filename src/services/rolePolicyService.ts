@@ -5,6 +5,7 @@ import {
 import type { RolePolicyStore } from '../ports/controlPlane.js';
 
 export const CAPABILITIES = {
+  agentActionDispatch: 'agent_action_dispatch',
   assignmentAdmin: 'assignment_admin',
   ingestionAdmin: 'ingestion_admin',
   historyGuildWide: 'history_guild_wide'

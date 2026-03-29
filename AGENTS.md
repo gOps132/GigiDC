@@ -90,6 +90,13 @@ For changes that alter system boundaries, data flow, deployment flow, permission
 - update or add diagrams under `docs/diagrams/` when a visual explanation would reduce future onboarding or review cost
 - update `docs/credits.md` when a new external visualization or generation tool is introduced
 
+For architecture changes that increase memory, retrieval scope, shared identity, automation, or tool use:
+
+- document the main downsides and operational implications, not just the intended design
+- explicitly call out risks such as context rot, noisy retrieval, duplicated memory representations, privacy leakage, retention pressure, storage cost, embedding cost, and durability gaps
+- record what the current design does not solve yet so future work does not mistake a partial seam for a complete system
+- keep these tradeoffs in `docs/architecture-v1.md` and the relevant roadmap or diagram notes when the mental model changes
+
 Use `docs/project-visualization-workflow.md` as the standing checklist.
 
 ## Testing Instructions
@@ -130,6 +137,7 @@ Before opening or updating a PR:
 - Re-check all external materials for proper attribution and license handling
 - Confirm tests relevant to the change were run or explain why they were not
 - Confirm generated code or content was reviewed rather than merged blindly
+- For architectural changes, explicitly note the main risks, tradeoffs, and unresolved implications in the PR or updated docs instead of describing only the happy path
 
 ## Self-Healing Project Memory
 
@@ -183,6 +191,11 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Root cause: Manual local checks are easy to skip, and the repo previously had no active CI baseline for TypeScript or Terraform validation.
   Fix or required workflow: Keep a lightweight GitHub Actions CI workflow that runs `npm run typecheck`, `npm run build`, `terraform fmt -check`, and `terraform validate` on pushes and pull requests before adding more features.
   Verification step: Confirm the CI workflow passes on a branch or pull request and fails when a TypeScript compile error or Terraform formatting error is introduced.
+
+- Issue or symptom: Gigi-mediated DM replies or relay deliveries can be missing from canonical memory if the bot relies only on Discord gateway echoes to observe its own outbound messages.
+  Root cause: Bot-authored outbound messages are not guaranteed to be observed or processed in the same way as inbound user messages during runtime and restart boundaries.
+  Fix or required workflow: Explicitly persist bot-authored outbound DMs through `MessageHistoryService` immediately after sending them, especially for relay deliveries and DM conversation replies.
+  Verification step: Run `npm run test` and confirm relay and DM-conversation tests verify `storeBotAuthoredMessage` is called for successful bot-authored DM outputs.
 
 - Issue or symptom: Supabase schema changes drift between local notes, SQL editor steps, and checked-in migration history.
   Root cause: The repo originally stored migration SQL files without a CLI-managed workflow, making it easy to apply changes manually without preserving a reproducible path.

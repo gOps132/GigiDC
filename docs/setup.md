@@ -58,6 +58,7 @@ Current checked-in baseline migrations:
 - [supabase/migrations/003_v1_retrieval.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/003_v1_retrieval.sql)
 - [supabase/migrations/004_cleanup_legacy_clawbot_tables.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/004_cleanup_legacy_clawbot_tables.sql)
 - [supabase/migrations/005_pending_dm_scope_selections.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/005_pending_dm_scope_selections.sql)
+- [supabase/migrations/20260329160104_add_agent_actions_shared_identity.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/20260329160104_add_agent_actions_shared_identity.sql)
 
 Use the CLI for all new migrations:
 
@@ -74,6 +75,7 @@ Example role policy shape:
 ```sql
 insert into role_policies (guild_id, capability, discord_role_id)
 values
+  ('your-discord-guild-id', 'agent_action_dispatch', 'your-shared-action-role-id'),
   ('your-discord-guild-id', 'assignment_admin', 'your-assignment-admin-role-id'),
   ('your-discord-guild-id', 'ingestion_admin', 'your-ingestion-admin-role-id'),
   ('your-discord-guild-id', 'history_guild_wide', 'your-history-enabled-role-id');
@@ -113,15 +115,19 @@ Then validate:
 - `/ingestion status` shows whether the current channel is enabled
 - `/ingestion enable` turns ingestion on for the current or selected channel
 - `/ingestion disable` turns ingestion off again
+- `/relay dm` sends a participant-visible shared action through Gigi and creates an `agent_actions` row
 - `/assignment create` creates a draft notice record
 - `/assignment list` returns recent assignments
 - `/assignment publish` posts to the selected channel or current channel and mentions affected roles
 - DM the bot with a general question
 - DM the bot with a history question like `How many times did I say "ship it"?`
+- After `/relay dm`, ask the bot in DM what the requester wanted and confirm the answer can come from `agent_actions`
 - Confirm DM messages are being written immediately
+- Confirm bot-authored DM replies and successful relay deliveries are also written into `messages`
 - Confirm embeddings are written shortly after message storage rather than inline on the message hot path
 - If you enabled `channel_ingestion_policies`, confirm only enabled guild channels are stored
 - Confirm ingestion policy changes create `audit_logs` rows without storing secrets or private message content
+- Confirm relay permission denials and success/failure outcomes create `audit_logs` rows
 - Check both `/healthz` and `/readyz`
 
 ## Safety Notes

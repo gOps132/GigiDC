@@ -117,6 +117,14 @@ export class MessageHistoryService {
     };
   }
 
+  async storeBotAuthoredMessage(message: Message): Promise<MessageStoreResult> {
+    if (!message.author.bot) {
+      throw new Error('Expected a bot-authored message when storing outbound bot history');
+    }
+
+    return this.storeDiscordMessage(message);
+  }
+
   async listRecentMessages(scope: HistoryScope, limit = 8): Promise<HistoryMessageRecord[]> {
     return this.history.listRecentMessages(scope, limit);
   }

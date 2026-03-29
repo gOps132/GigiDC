@@ -5,6 +5,7 @@
 V1 is a reduced Discord bot architecture built for:
 
 - DM-first agentic interaction
+- participant-visible shared Gigi actions for relay and follow-up continuity
 - slash-command assignment notices
 - exact + semantic retrieval over raw Discord history
 - role-gated guild-wide history access
@@ -23,7 +24,7 @@ That layering matches the current codebase more closely than the original one-li
 V1 intentionally still excludes:
 
 - smart digestion
-- memory promotion
+- autonomous memory promotion from arbitrary chat
 - OCR / vision
 - browser workers
 - code sandbox workers
@@ -81,21 +82,28 @@ This layer holds the actual bot behavior:
   - decides whether a DM question needs a scope picker
   - persists pending scope-selection state so Discord select menus survive process restarts
   - resolves `This DM` vs guild-wide history access
+  - persists bot-authored DM prompts and answers immediately so canonical history does not depend on gateway echo timing
   - calls retrieval and sends the final Discord reply
+- `AgentActionService`
+  - persists participant-visible Gigi actions such as DM relays
+  - records requester, recipient, status, and delivery metadata
+  - gives retrieval a durable shared-identity seam without exposing raw guild history broadly
 - `RetrievalService`
   - routes phrase-count questions to exact SQL/RPC paths
   - falls back to recent-message context plus semantic search
+  - adds participant-visible agent action context for history-aware follow-up questions
   - asks OpenAI Responses for the final natural-language answer
 - `MessageHistoryService`
   - stores DM history immediately and stores guild history only for channels with ingestion enabled
+  - explicitly stores outbound bot-authored DMs so Gigi's own replies and relay deliveries become canonical history
   - queues message embeddings for background indexing instead of generating them on the Discord gateway hot path
   - serves recent-history, phrase-count, and semantic-search queries
 - `AssignmentService`
   - creates, lists, and publishes assignment notices
-- `RolePolicyService`
-  - upserts guild rows and checks capability-based access
 - `AuditLogService`
   - persists operational audit rows for policy changes and security-relevant command outcomes
+- `RolePolicyService`
+  - upserts guild rows and checks capability-based access
 
 ### Platform Integrations
 
@@ -127,6 +135,7 @@ Control-plane schema:
 - `guilds`
 - `role_policies`
 - `assignments`
+- `agent_actions`
 - `audit_logs`
 - `pending_dm_scope_selections`
 
@@ -169,6 +178,7 @@ Discord DM
   -> message stored
   -> optional persisted scope selection
   -> retrieval strategy selection
+  -> participant-visible agent action lookup
   -> background embedding queue
   -> OpenAI answer synthesis
   -> DM reply
@@ -185,6 +195,45 @@ Discord Guild Message
 ```
 
 This keeps DM interactions available by default while making guild-history retention an explicit policy choice.
+
+### Shared Identity Foundation
+
+GigiDC now has a narrow but real shared-identity seam.
+
+The current foundation is not "remember everything and answer everything." It is:
+
+- one Gigi identity across guild commands and DMs
+- durable `agent_actions` records for explicit Gigi-mediated actions
+- participant-scoped visibility so requesters and recipients can ask follow-up questions later
+- explicit persistence of Gigi's own DM outputs in `messages` so recall can use raw history as well as action summaries
+- retrieval that can answer from those action records even when the user does not have guild-wide history access
+
+The first concrete workflow is `/relay dm`, which creates an `agent_actions` record, sends the DM, records success or failure, and lets the participants ask Gigi about that relay later in DM.
+
+### Shared Identity Tradeoffs
+
+This architectural change improves continuity, but it also introduces real costs and failure modes:
+
+- **History growth and context rot**
+  - storing more bot-authored DM outputs makes the history corpus grow faster
+  - if retrieval keeps pulling larger or lower-signal windows, answer quality can degrade because stale or repetitive context competes with the relevant message or action
+  - this is one reason V2 still needs digesting, ranking improvements, and tighter retrieval windows instead of just "more memory"
+- **Higher storage and embedding cost**
+  - every persisted bot-authored message increases `messages` volume
+  - if those messages are embedded, OpenAI embedding usage and Supabase storage both rise with usage
+  - this is acceptable for the current scope, but it does not scale indefinitely without retention policy, pruning, or summarization
+- **Dual-memory representations**
+  - a successful relay now exists both as an `agent_actions` row and as raw DM history in `messages`
+  - that improves traceability, but it also creates duplication and possible ranking ambiguity
+  - retrieval has to avoid double-counting the same event or over-weighting relays compared with ordinary conversation
+- **Privacy and retention implications**
+  - more private bot-authored DM content is now canonical project data rather than transient output
+  - that raises the bar for retention policy, deletion workflows, audit review, and least-privilege access to stored history
+  - a future "shared memory" model must stay permission-aware so continuity does not become cross-user leakage
+- **Operational asymmetry still exists**
+  - outbound DM persistence is now explicit, which is better than relying on gateway echoes
+  - but indexing is still an in-process queue, so a restart can still leave some recent history unembedded even when the raw message row exists
+  - this means continuity is improved before durability is fully solved
 
 ### Background Indexing
 
@@ -209,6 +258,7 @@ Slash commands are for structured workflows:
 - `/ingestion enable`
 - `/ingestion disable`
 - `/ingestion status`
+- `/relay dm`
 - `/assignment create`
 - `/assignment publish`
 - `/assignment list`
@@ -224,6 +274,7 @@ That behavior is controlled by `REGISTER_COMMANDS_ON_STARTUP`, which keeps boot 
 - guilds
 - role_policies
 - assignments
+- agent_actions
 - audit_logs
 - pending_dm_scope_selections
 
@@ -244,6 +295,20 @@ Guild-wide history access is role-gated by `history_guild_wide`.
 
 Channel-ingestion administration is role-gated by `ingestion_admin`.
 
+Shared Gigi relay dispatch is role-gated by `agent_action_dispatch`.
+
+Participant-visible action recall does not require guild-wide history access. Retrieval can use `agent_actions` for the requester or recipient of a Gigi-mediated relay while still keeping unrelated guild history gated.
+
+## Current Risks
+
+The current shared-identity foundation is intentionally narrow, but the repo should treat these as active architectural risks:
+
+- retrieval quality can decay as DM and bot-authored history grows unless ranking and summarization improve
+- canonical storage now contains more private conversational material, which increases retention and deletion pressure
+- duplicated signal across `messages` and `agent_actions` can create noisy context assembly
+- the lack of a durable indexing worker means semantic recall can lag behind raw-history recall after restarts
+- broader shared-memory features should not be added by simply widening retrieval scope; they need explicit visibility rules and task boundaries
+
 ## Runtime Health
 
 Runtime health is now two-tiered:
@@ -260,6 +325,8 @@ The current audit surface is still selective, but ingestion-policy changes now f
 - permission-denied ingestion admin attempts are logged
 - ingestion enable and disable actions are logged
 - no-op enable or disable attempts are also logged so admin intent is visible
+- relay permission denials are logged
+- relay success and failure outcomes are logged
 
 This gives the repo a real operational trail around retention policy changes, which are more sensitive than ordinary read-only commands.
 

@@ -1,17 +1,19 @@
 import type { Env } from '../config/env.js';
 import type { ResponseClient } from '../ports/ai.js';
+import type { AgentActionRecord, AgentActionService } from './agentActionService.js';
 import type { HistoryMessageRecord, HistoryScope, MessageHistoryService } from './messageHistoryService.js';
 
 export interface RetrievalAnswer {
   answer: string;
-  source: 'exact' | 'semantic' | 'direct';
+  source: 'action' | 'exact' | 'semantic' | 'direct';
 }
 
 export class RetrievalService {
   constructor(
     private readonly env: Env,
     private readonly responses: ResponseClient,
-    private readonly messageHistory: MessageHistoryService
+    private readonly messageHistory: MessageHistoryService,
+    private readonly agentActions: AgentActionService
   ) {}
 
   async answerQuestion(
@@ -37,8 +39,11 @@ export class RetrievalService {
 
     const recent = await this.messageHistory.listRecentMessages(scope, 6);
     const semanticMatches = await this.messageHistory.searchSemantic(scope, query, 8);
+    const actionMatches = isHistoryAwareQuery(query)
+      ? await this.agentActions.listRelevantVisibleActionsForUser(requesterUserId, query, 4)
+      : [];
 
-    if (semanticMatches.length === 0 && recent.length === 0) {
+    if (semanticMatches.length === 0 && recent.length === 0 && actionMatches.length === 0) {
       if (!isHistoryAwareQuery(query)) {
         const directAnswer = await this.answerDirect(query, []);
         return {
@@ -53,12 +58,14 @@ export class RetrievalService {
       };
     }
 
-    const context = formatContext(recent, semanticMatches);
+    const context = formatContext(recent, semanticMatches, actionMatches);
     const answer = await this.answerDirect(query, context.length > 0 ? [context] : []);
 
     return {
       answer,
-      source: 'semantic'
+      source: semanticMatches.length === 0 && recent.length === 0 && actionMatches.length > 0
+        ? 'action'
+        : 'semantic'
     };
   }
 
@@ -79,7 +86,7 @@ export class RetrievalService {
 }
 
 function isHistoryAwareQuery(query: string): boolean {
-  return /\b(remember|history|chat|message|messages|said|mention|mentioned|talking|talked|discuss|discussed|last week|yesterday|before|server|guild)\b/i.test(
+  return /\b(remember|history|chat|message|messages|said|mention|mentioned|talking|talked|discuss|discussed|asked|want|wanted|relay|again|last week|yesterday|before|server|guild)\b/i.test(
     query
   );
 }
@@ -130,9 +137,19 @@ function parsePhraseCountIntent(
 
 function formatContext(
   recent: HistoryMessageRecord[],
-  semanticMatches: HistoryMessageRecord[]
+  semanticMatches: HistoryMessageRecord[],
+  actionMatches: AgentActionRecord[]
 ): string {
   const sections: string[] = [];
+
+  if (actionMatches.length > 0) {
+    sections.push(
+      'Recent shared actions:\n' +
+        actionMatches
+          .map((action) => formatActionLine(action))
+          .join('\n')
+    );
+  }
 
   if (recent.length > 0) {
     sections.push(
@@ -159,6 +176,31 @@ function formatMessageLine(message: HistoryMessageRecord): string {
   const timestamp = new Date(message.created_at).toISOString();
   const content = message.content.length > 0 ? message.content : '[attachment only]';
   return `- [${timestamp}] ${message.author_username}: ${content}`;
+}
+
+function formatActionLine(action: AgentActionRecord): string {
+  const timestamp = new Date(action.created_at).toISOString();
+  const recipientLabel = action.recipient_username ?? 'unknown recipient';
+  const parts = [
+    `- [${timestamp}] ${action.requester_username} -> ${recipientLabel}`,
+    `type=${action.action_type}`,
+    `status=${action.status}`,
+    `message="${action.instructions}"`
+  ];
+
+  if (typeof action.metadata.context === 'string' && action.metadata.context.trim().length > 0) {
+    parts.push(`context="${action.metadata.context.trim()}"`);
+  }
+
+  if (action.result_summary) {
+    parts.push(`result="${action.result_summary}"`);
+  }
+
+  if (action.error_message) {
+    parts.push(`error="${action.error_message}"`);
+  }
+
+  return parts.join(' | ');
 }
 
 function scopeLabel(scope: HistoryScope): string {

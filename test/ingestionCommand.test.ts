@@ -81,6 +81,7 @@ function createContext(overrides?: {
     },
     runtime: {},
     services: {
+      agentActions: {},
       assignments: {},
       auditLogs: {
         async record(input: Record<string, unknown>) {

@@ -1,11 +1,12 @@
 # Gigi Discord Bot
 
-DM-first Discord bot for agentic chat, scoped history retrieval, and assignment notifications.
+DM-first Discord bot for agentic chat, scoped history retrieval, shared Gigi identity, and assignment notifications.
 
 ## What Is In This Repo
 
 - A Node 22 + TypeScript Discord bot foundation
 - DM-first agent experience backed by OpenAI
+- Shared Gigi action memory for participant-visible relays and follow-up questions
 - Slash-command assignment notifier workflow
 - Supabase/Postgres-backed control-plane state
 - Raw message history + pgvector-ready retrieval foundation
@@ -75,7 +76,7 @@ Do not commit `.env`.
 npm run dev
 ```
 
-The bot can register slash commands at startup, starts a local health server on port `8080`, stores DM history immediately, stores guild history only for channels with ingestion explicitly enabled, and responds to direct messages agentically.
+The bot can register slash commands at startup, starts a local health server on port `8080`, stores DM history immediately, stores guild history only for channels with ingestion explicitly enabled, persists participant-visible relay actions, and responds to direct messages agentically.
 
 ## EC2 Deployment
 
@@ -119,6 +120,7 @@ CD setup instructions and required GitHub secrets are in [docs/ci-cd.md](/Users/
 - `/ingestion enable`
 - `/ingestion disable`
 - `/ingestion status`
+- `/relay dm`
 - `/assignment create`
 - `/assignment publish`
 - `/assignment list`
@@ -129,6 +131,7 @@ DM the bot for:
 - semantic history search
 - exact phrase count questions such as `How many times did I say "ship it"?`
 - conversational follow-ups over your DM history
+- follow-up questions about Gigi-mediated relay actions that involve you
 
 ## Authorization Model
 
@@ -136,6 +139,7 @@ The bot checks Discord `Administrator` first, then capability mappings in `role_
 
 Capabilities used by the current command set:
 
+- `agent_action_dispatch`
 - `assignment_admin`
 - `ingestion_admin`
 - `history_guild_wide`
@@ -145,6 +149,7 @@ Example:
 ```sql
 insert into role_policies (guild_id, capability, discord_role_id)
 values
+  ('your-discord-guild-id', 'agent_action_dispatch', 'your-shared-action-role-id'),
   ('your-discord-guild-id', 'assignment_admin', 'your-assignment-admin-role-id'),
   ('your-discord-guild-id', 'ingestion_admin', 'your-ingestion-admin-role-id'),
   ('your-discord-guild-id', 'history_guild_wide', 'your-history-enabled-role-id');
@@ -157,12 +162,23 @@ V1 uses a reduced retrieval-first architecture:
 - raw Discord messages are the source of truth
 - DM history is always eligible for storage
 - guild-channel ingestion is opt-in through `channel_ingestion_policies`
+- participant-visible Gigi actions are persisted in `agent_actions`
 - ingestion policy changes and permission denials are written to `audit_logs`
+- relay dispatch attempts and outcomes are written to `audit_logs`
 - DM scope-selection prompts are persisted briefly in Supabase so restarts do not invalidate active menus
+- bot-authored DM replies and relay deliveries are stored explicitly in canonical message history instead of relying only on gateway echoes
 - exact analytics use SQL/text search first
 - semantic questions use OpenAI embeddings over stored messages
+- history-aware DM answers can also draw from participant-visible relay actions
 - image attachments are stored as metadata only
-- no OCR, memory promotion, or digest pipeline in V1
+- no OCR, autonomous memory promotion, or digest pipeline in V1
+
+Current implications and limits:
+
+- more shared continuity also means faster history growth, which can eventually cause retrieval quality drift or context rot if ranking stays naive
+- bot-authored DM persistence increases storage and embedding cost over time
+- relay memory currently exists in both `agent_actions` and raw `messages`, so future retrieval tuning has to manage duplication carefully
+- this is still a permission-aware shared identity, not unrestricted global memory
 
 ## Development Scripts
 
@@ -189,6 +205,7 @@ Before opening a PR or deploying:
 - Run `terraform validate` inside `terraform/` after `terraform init -backend=false` when infrastructure files change
 - Verify `/ping`
 - Verify `/ingestion status`, `/ingestion enable`, and `/ingestion disable` in a development Discord server
+- Verify `/relay dm` can deliver a message and that a participant can ask a follow-up in DM
 - Verify `/assignment create` and `/assignment publish` in a development Discord server
 - DM the bot with one direct question and one history-based question
 - Confirm DM messages are stored in Supabase

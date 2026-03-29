@@ -46,7 +46,7 @@ export class DmConversationService {
         userId: message.author.id
       }, new Date(Date.now() + PENDING_SCOPE_TTL_MS));
 
-      await message.reply({
+      const prompt = await message.reply({
         content: 'Pick which chat history I should use for this question.',
         components: [
           new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
@@ -62,6 +62,7 @@ export class DmConversationService {
           )
         ]
       });
+      await this.captureOutboundReply(prompt, 'dm scope prompt');
       return;
     }
 
@@ -72,9 +73,10 @@ export class DmConversationService {
       client.user?.id ?? ''
     );
 
-    await message.reply({
+    const reply = await message.reply({
       content: answer.answer
     });
+    await this.captureOutboundReply(reply, 'dm direct reply');
   }
 
   matches(interaction: StringSelectMenuInteraction): boolean {
@@ -123,9 +125,10 @@ export class DmConversationService {
       client.user?.id ?? ''
     );
 
-    await interaction.followUp({
+    const followUp = await interaction.followUp({
       content: answer.answer
     });
+    await this.captureOutboundReply(followUp as Message, 'dm scope follow-up');
   }
 
   private async resolveAvailableScopes(client: Client, user: User): Promise<ScopeOption[]> {
@@ -170,6 +173,19 @@ export class DmConversationService {
 
     return scopes;
   }
+
+  private async captureOutboundReply(message: Message, label: string): Promise<void> {
+    try {
+      await this.context.services.messageHistory.storeBotAuthoredMessage(message);
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : 'Unknown DM reply persistence error';
+      this.context.logger.error('Failed to persist outbound bot-authored DM message', {
+        error: messageText,
+        label,
+        messageId: message.id
+      });
+    }
+  }
 }
 
 function shouldPromptForScope(query: string, scopeOptions: ScopeOption[]): boolean {
@@ -177,7 +193,7 @@ function shouldPromptForScope(query: string, scopeOptions: ScopeOption[]): boole
     return false;
   }
 
-  return /\b(remember|history|chat|message|messages|said|mention|mentioned|talking|talked|discuss|discussed|last week|yesterday|before|server|guild)\b/i.test(
+  return /\b(remember|history|chat|message|messages|said|mention|mentioned|talking|talked|discuss|discussed|asked|want|wanted|relay|again|last week|yesterday|before|server|guild)\b/i.test(
     query
   );
 }

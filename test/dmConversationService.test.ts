@@ -33,10 +33,12 @@ class InMemoryPendingDmScopeSelectionStore implements PendingDmScopeSelectionSto
 }
 
 function createContext(overrides?: {
+  allowGuildWideHistory?: boolean;
+  botReplyId?: string;
   guildName?: string;
+  outboundStoreError?: Error | null;
   primaryGuildId?: string;
   retrievalAnswer?: string;
-  allowGuildWideHistory?: boolean;
 }) {
   const answerCalls: Array<{
     botUserId: string;
@@ -45,6 +47,7 @@ function createContext(overrides?: {
     scope: unknown;
   }> = [];
   const replyCalls: Array<{ components?: unknown[]; content: string }> = [];
+  const storedBotMessages: string[] = [];
   const updateCalls: Array<{ components?: unknown[]; content: string }> = [];
   const followUpCalls: Array<{ content: string }> = [];
 
@@ -70,11 +73,24 @@ function createContext(overrides?: {
     },
     runtime: {},
     services: {
+      agentActions: {},
       assignments: {},
       auditLogs: {},
       channelIngestionPolicies: {},
       dmConversation: {},
-      messageHistory: {},
+      messageHistory: {
+        async storeBotAuthoredMessage(message: { id: string }) {
+          if (overrides?.outboundStoreError) {
+            throw overrides.outboundStoreError;
+          }
+
+          storedBotMessages.push(message.id);
+          return {
+            reason: 'stored' as const,
+            stored: true
+          };
+        }
+      },
       messageIndexing: {},
       retrieval: {
         async answerQuestion(query: string, scope: unknown, requesterUserId: string, botUserId: string) {
@@ -122,6 +138,12 @@ function createContext(overrides?: {
     content: 'What did we talk about yesterday?',
     async reply(payload: { components?: unknown[]; content: string }) {
       replyCalls.push(payload);
+      return {
+        author: {
+          bot: true
+        },
+        id: overrides?.botReplyId ?? `bot-reply-${replyCalls.length}`
+      };
     }
   };
 
@@ -133,6 +155,12 @@ function createContext(overrides?: {
     values: ['guild:guild-1'],
     async followUp(payload: { content: string }) {
       followUpCalls.push(payload);
+      return {
+        author: {
+          bot: true
+        },
+        id: `bot-follow-up-${followUpCalls.length}`
+      };
     },
     async reply(payload: { content: string }) {
       followUpCalls.push(payload);
@@ -150,13 +178,14 @@ function createContext(overrides?: {
     interaction,
     message,
     replyCalls,
+    storedBotMessages,
     updateCalls
   };
 }
 
 test('DmConversationService persists scope selection prompts instead of keeping them in memory', async () => {
   const store = new InMemoryPendingDmScopeSelectionStore();
-  const { client, context, message, replyCalls } = createContext({
+  const { client, context, message, replyCalls, storedBotMessages } = createContext({
     allowGuildWideHistory: true,
     primaryGuildId: 'guild-1'
   });
@@ -168,6 +197,7 @@ test('DmConversationService persists scope selection prompts instead of keeping 
   assert.equal(store.saved[0]?.userId, 'user-1');
   assert.equal(store.saved[0]?.scopeOptions.length, 2);
   assert.equal(replyCalls.length, 1);
+  assert.deepEqual(storedBotMessages, ['bot-reply-1']);
   assert.match(replyCalls[0]?.content ?? '', /pick which chat history/i);
 });
 
@@ -199,7 +229,7 @@ test('DmConversationService reads persisted scope selections when the user choos
   };
   await store.save(selection, new Date(Date.now() + 60_000));
 
-  const { answerCalls, client, context, followUpCalls, interaction, updateCalls } = createContext({
+  const { answerCalls, client, context, followUpCalls, interaction, storedBotMessages, updateCalls } = createContext({
     allowGuildWideHistory: true,
     primaryGuildId: 'guild-1',
     retrievalAnswer: 'Here is the stored answer'
@@ -215,4 +245,20 @@ test('DmConversationService reads persisted scope selections when the user choos
   assert.deepEqual(answerCalls[0]?.scope, selection.scopeOptions[1]?.scope);
   assert.match(updateCalls[0]?.content ?? '', /using gigi hq server/i);
   assert.equal(followUpCalls[0]?.content, 'Here is the stored answer');
+  assert.deepEqual(storedBotMessages, ['bot-follow-up-1']);
+});
+
+test('DmConversationService persists direct bot-authored DM replies in canonical history', async () => {
+  const store = new InMemoryPendingDmScopeSelectionStore();
+  const { answerCalls, client, context, message, replyCalls, storedBotMessages } = createContext({
+    allowGuildWideHistory: false,
+    retrievalAnswer: 'Here is the direct answer'
+  });
+  const service = new DmConversationService(context, store);
+
+  await service.handleMessage(message as never, client as never);
+
+  assert.equal(answerCalls.length, 1);
+  assert.equal(replyCalls[0]?.content, 'Here is the direct answer');
+  assert.deepEqual(storedBotMessages, ['bot-reply-1']);
 });
