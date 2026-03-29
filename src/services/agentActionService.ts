@@ -1,7 +1,13 @@
 import type { AgentActionStore } from '../ports/controlPlane.js';
 
+export const AGENT_ACTION_SCOPES = {
+  action: 'action',
+  task: 'task'
+} as const;
+
 export const AGENT_ACTION_TYPES = {
-  dmRelay: 'dm_relay'
+  dmRelay: 'dm_relay',
+  followUpTask: 'follow_up_task'
 } as const;
 
 export const AGENT_ACTION_VISIBILITIES = {
@@ -14,15 +20,18 @@ export const AGENT_ACTION_STATUSES = {
   cancelled: 'cancelled',
   completed: 'completed',
   failed: 'failed',
+  inProgress: 'in_progress',
   requested: 'requested'
 } as const;
 
+export type AgentActionScope = (typeof AGENT_ACTION_SCOPES)[keyof typeof AGENT_ACTION_SCOPES];
 export type AgentActionType = (typeof AGENT_ACTION_TYPES)[keyof typeof AGENT_ACTION_TYPES];
 export type AgentActionVisibility = (typeof AGENT_ACTION_VISIBILITIES)[keyof typeof AGENT_ACTION_VISIBILITIES];
 export type AgentActionStatus = (typeof AGENT_ACTION_STATUSES)[keyof typeof AGENT_ACTION_STATUSES];
 
 export interface AgentActionRecord {
   id: string;
+  action_scope: AgentActionScope;
   guild_id: string | null;
   channel_id: string | null;
   requester_user_id: string;
@@ -37,12 +46,14 @@ export interface AgentActionRecord {
   result_summary: string | null;
   error_message: string | null;
   metadata: Record<string, unknown>;
+  due_at: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
 }
 
 export interface CreateAgentActionInput {
+  actionScope: AgentActionScope;
   guildId: string | null;
   channelId: string | null;
   requesterUserId: string;
@@ -53,6 +64,7 @@ export interface CreateAgentActionInput {
   visibility: AgentActionVisibility;
   title: string;
   instructions: string;
+  dueAt?: string | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -77,6 +89,19 @@ export interface CreateDirectMessageRelayInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface CreateFollowUpTaskInput {
+  guildId: string | null;
+  channelId: string | null;
+  requesterUserId: string;
+  requesterUsername: string;
+  assigneeUserId: string;
+  assigneeUsername: string;
+  title: string;
+  instructions: string;
+  dueAt?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
 export interface MarkAgentActionResultInput {
   metadata?: Record<string, unknown>;
   resultSummary?: string | null;
@@ -87,6 +112,7 @@ export class AgentActionService {
 
   async createDirectMessageRelay(input: CreateDirectMessageRelayInput): Promise<AgentActionRecord> {
     return this.store.createAction({
+      actionScope: AGENT_ACTION_SCOPES.action,
       guildId: input.guildId,
       channelId: input.channelId,
       requesterUserId: input.requesterUserId,
@@ -97,11 +123,40 @@ export class AgentActionService {
       visibility: AGENT_ACTION_VISIBILITIES.participants,
       title: `DM relay from ${input.requesterUsername} to ${input.recipientUsername}`,
       instructions: input.message,
+      dueAt: null,
       metadata: {
         ...(input.context ? { context: input.context } : {}),
         ...(input.metadata ?? {})
       }
     });
+  }
+
+  async createFollowUpTask(input: CreateFollowUpTaskInput): Promise<AgentActionRecord> {
+    const assigneeIsRequester = input.assigneeUserId === input.requesterUserId;
+
+    return this.store.createAction({
+      actionScope: AGENT_ACTION_SCOPES.task,
+      guildId: input.guildId,
+      channelId: input.channelId,
+      requesterUserId: input.requesterUserId,
+      requesterUsername: input.requesterUsername,
+      recipientUserId: input.assigneeUserId,
+      recipientUsername: input.assigneeUsername,
+      actionType: AGENT_ACTION_TYPES.followUpTask,
+      visibility: assigneeIsRequester
+        ? AGENT_ACTION_VISIBILITIES.requesterOnly
+        : AGENT_ACTION_VISIBILITIES.participants,
+      title: input.title,
+      instructions: input.instructions,
+      dueAt: input.dueAt ?? null,
+      metadata: {
+        ...(input.metadata ?? {})
+      }
+    });
+  }
+
+  async getActionById(actionId: string): Promise<AgentActionRecord | null> {
+    return this.store.getActionById(actionId);
   }
 
   async markCompleted(
@@ -166,6 +221,17 @@ export class AgentActionService {
 
     return ranked.slice(0, limit).map(({ action }) => action);
   }
+
+  async listOpenTasksForUser(userId: string, limit = 6): Promise<AgentActionRecord[]> {
+    const open = await this.store.listVisibleRecentForUser(userId, 20, {
+      actionScope: AGENT_ACTION_SCOPES.task,
+      statuses: [AGENT_ACTION_STATUSES.requested, AGENT_ACTION_STATUSES.inProgress]
+    });
+
+    return open
+      .sort((left, right) => compareByDueDate(left, right))
+      .slice(0, limit);
+  }
 }
 
 function scoreAction(action: AgentActionRecord, queryTokens: Set<string>): number {
@@ -198,6 +264,20 @@ function scoreAction(action: AgentActionRecord, queryTokens: Set<string>): numbe
     score += 1;
   }
 
+  if (action.action_scope === AGENT_ACTION_SCOPES.task) {
+    score += 1;
+    if (
+      queryTokens.has('task') ||
+      queryTokens.has('todo') ||
+      queryTokens.has('supposed') ||
+      queryTokens.has('assigned') ||
+      queryTokens.has('deadline') ||
+      queryTokens.has('follow')
+    ) {
+      score += 2;
+    }
+  }
+
   return score;
 }
 
@@ -209,4 +289,31 @@ function tokenize(input: string): Set<string> {
       .map((token) => token.trim())
       .filter((token) => token.length >= 3)
   );
+}
+
+function compareByDueDate(left: AgentActionRecord, right: AgentActionRecord): number {
+  const leftDue = left.due_at ? Date.parse(left.due_at) : Number.POSITIVE_INFINITY;
+  const rightDue = right.due_at ? Date.parse(right.due_at) : Number.POSITIVE_INFINITY;
+
+  if (leftDue !== rightDue) {
+    return leftDue - rightDue;
+  }
+
+  return Date.parse(right.created_at) - Date.parse(left.created_at);
+}
+
+export function canUserAccessAction(action: AgentActionRecord, userId: string): boolean {
+  if (action.visibility === AGENT_ACTION_VISIBILITIES.requesterOnly) {
+    return action.requester_user_id === userId;
+  }
+
+  if (action.visibility === AGENT_ACTION_VISIBILITIES.participants) {
+    return action.requester_user_id === userId || action.recipient_user_id === userId;
+  }
+
+  return action.requester_user_id === userId || action.recipient_user_id === userId;
+}
+
+export function isTaskAction(action: AgentActionRecord): boolean {
+  return action.action_scope === AGENT_ACTION_SCOPES.task;
 }

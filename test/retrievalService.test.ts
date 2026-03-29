@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { RetrievalService } from '../src/services/retrievalService.js';
-import { AGENT_ACTION_STATUSES, AGENT_ACTION_TYPES, type AgentActionRecord } from '../src/services/agentActionService.js';
+import { AGENT_ACTION_SCOPES, AGENT_ACTION_STATUSES, AGENT_ACTION_TYPES, type AgentActionRecord } from '../src/services/agentActionService.js';
 
 test('RetrievalService can answer from shared action history when message history is empty', async () => {
   const responseInputs: Array<{ instructions: string; model: string; text: string }> = [];
   const action: AgentActionRecord = {
     id: 'action-1',
+    action_scope: AGENT_ACTION_SCOPES.action,
     guild_id: 'guild-1',
     channel_id: 'channel-1',
     requester_user_id: 'erick-id',
@@ -24,6 +25,7 @@ test('RetrievalService can answer from shared action history when message histor
     metadata: {
       context: 'This was about the release train.'
     },
+    due_at: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     completed_at: new Date().toISOString()
@@ -53,6 +55,9 @@ test('RetrievalService can answer from shared action history when message histor
     {
       async listRelevantVisibleActionsForUser() {
         return [action];
+      },
+      async listOpenTasksForUser() {
+        return [];
       }
     } as never
   );
@@ -71,4 +76,76 @@ test('RetrievalService can answer from shared action history when message histor
   assert.match(answer.answer, /launch checklist/i);
   assert.match(responseInputs[0]?.text ?? '', /Recent shared actions/i);
   assert.match(responseInputs[0]?.text ?? '', /Erick/i);
+});
+
+test('RetrievalService can answer from open tasks when the question is task-oriented', async () => {
+  const responseInputs: Array<{ instructions: string; model: string; text: string }> = [];
+  const task: AgentActionRecord = {
+    id: 'task-1',
+    action_scope: AGENT_ACTION_SCOPES.task,
+    guild_id: 'guild-1',
+    channel_id: 'channel-1',
+    requester_user_id: 'manager-id',
+    requester_username: 'Manager',
+    recipient_user_id: 'user-2',
+    recipient_username: 'Mina',
+    action_type: AGENT_ACTION_TYPES.followUpTask,
+    status: AGENT_ACTION_STATUSES.requested,
+    visibility: 'participants',
+    title: 'Prepare release notes',
+    instructions: 'Draft the release notes before standup.',
+    result_summary: null,
+    error_message: null,
+    metadata: {},
+    due_at: '2026-04-01T09:00:00Z',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    completed_at: null
+  };
+
+  const service = new RetrievalService(
+    {
+      OPENAI_RESPONSE_MODEL: 'gpt-test'
+    } as never,
+    {
+      async createTextResponse(input) {
+        responseInputs.push(input);
+        return 'You need to prepare the release notes before standup.';
+      }
+    },
+    {
+      async countPhrase() {
+        return 0;
+      },
+      async listRecentMessages() {
+        return [];
+      },
+      async searchSemantic() {
+        return [];
+      }
+    } as never,
+    {
+      async listRelevantVisibleActionsForUser() {
+        return [];
+      },
+      async listOpenTasksForUser() {
+        return [task];
+      }
+    } as never
+  );
+
+  const answer = await service.answerQuestion(
+    'what tasks do i still have?',
+    {
+      dmUserId: 'user-2',
+      kind: 'dm'
+    },
+    'user-2',
+    'bot-user'
+  );
+
+  assert.equal(answer.source, 'action');
+  assert.match(answer.answer, /release notes/i);
+  assert.match(responseInputs[0]?.text ?? '', /Open tasks/i);
+  assert.match(responseInputs[0]?.text ?? '', /Prepare release notes/i);
 });

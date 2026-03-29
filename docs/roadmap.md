@@ -27,7 +27,7 @@ Add digest artifacts without turning them into the source of truth.
 Planned additions:
 
 - per-thread and per-channel/day summaries
-- richer shared-action and task tracking beyond simple DM relays
+- richer shared-action and task tracking beyond simple follow-up tasks
 - topic tags
 - phrase stats
 - lightweight activity summaries
@@ -58,7 +58,7 @@ Planned additions:
 - optional OCR / image-aware retrieval
 - optional browser worker
 - optional code/test assistance worker
-- richer orchestration for long-running tasks
+- richer orchestration for long-running tasks and tool execution
 
 Rules:
 

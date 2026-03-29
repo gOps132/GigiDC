@@ -25,5 +25,5 @@ flowchart LR
 - `src/discord/client.ts` remains the runtime shell, but most behavior now lives behind service contracts.
 - The service layer no longer imports Supabase or OpenAI SDK clients directly for core behavior.
 - `pending_dm_scope_selections` moved DM menu state out of process memory and behind a store port.
-- `agent_actions` gives the bot a new durable control-plane seam for shared identity without collapsing everything into unrestricted cross-channel retrieval.
+- `agent_actions` gives the bot a durable control-plane seam for shared identity and tracked work without collapsing everything into unrestricted cross-channel retrieval.
 - This is not full clean architecture yet, but it is the right seam for future background workers, tests, and provider changes.

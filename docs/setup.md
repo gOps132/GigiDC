@@ -59,6 +59,7 @@ Current checked-in baseline migrations:
 - [supabase/migrations/004_cleanup_legacy_clawbot_tables.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/004_cleanup_legacy_clawbot_tables.sql)
 - [supabase/migrations/005_pending_dm_scope_selections.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/005_pending_dm_scope_selections.sql)
 - [supabase/migrations/20260329160104_add_agent_actions_shared_identity.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/20260329160104_add_agent_actions_shared_identity.sql)
+- [supabase/migrations/20260329162152_expand_agent_actions_task_model.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/20260329162152_expand_agent_actions_task_model.sql)
 
 Use the CLI for all new migrations:
 
@@ -116,12 +117,16 @@ Then validate:
 - `/ingestion enable` turns ingestion on for the current or selected channel
 - `/ingestion disable` turns ingestion off again
 - `/relay dm` sends a participant-visible shared action through Gigi and creates an `agent_actions` row
+- `/task create` creates a follow-up task in `agent_actions`
+- `/task list` shows open tasks visible to the requester
+- `/task complete` closes a task and records the result summary
 - `/assignment create` creates a draft notice record
 - `/assignment list` returns recent assignments
 - `/assignment publish` posts to the selected channel or current channel and mentions affected roles
 - DM the bot with a general question
 - DM the bot with a history question like `How many times did I say "ship it"?`
 - After `/relay dm`, ask the bot in DM what the requester wanted and confirm the answer can come from `agent_actions`
+- Ask the bot in DM what tasks are still open and confirm the answer can come from open task records
 - Confirm DM messages are being written immediately
 - Confirm bot-authored DM replies and successful relay deliveries are also written into `messages`
 - Confirm embeddings are written shortly after message storage rather than inline on the message hot path

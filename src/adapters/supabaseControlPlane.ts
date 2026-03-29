@@ -14,6 +14,8 @@ import type {
 } from '../ports/controlPlane.js';
 import type {
   AgentActionRecord,
+  AgentActionScope,
+  AgentActionStatus,
   CreateAgentActionInput,
   UpdateAgentActionStatusInput
 } from '../services/agentActionService.js';
@@ -41,9 +43,11 @@ interface ChannelIngestionPolicyRow {
 
 interface AgentActionRow {
   action_type: AgentActionRecord['action_type'];
+  action_scope: AgentActionRecord['action_scope'];
   channel_id: string | null;
   completed_at: string | null;
   created_at: string;
+  due_at: string | null;
   error_message: string | null;
   guild_id: string | null;
   id: string;
@@ -168,6 +172,7 @@ export class SupabaseAgentActionStore implements AgentActionStore {
     const { data, error } = await this.supabase
       .from('agent_actions')
       .insert({
+        action_scope: input.actionScope,
         guild_id: input.guildId,
         channel_id: input.channelId,
         requester_user_id: input.requesterUserId,
@@ -178,6 +183,7 @@ export class SupabaseAgentActionStore implements AgentActionStore {
         visibility: input.visibility,
         title: input.title,
         instructions: input.instructions,
+        due_at: input.dueAt ?? null,
         metadata: input.metadata ?? {}
       })
       .select('*')
@@ -190,14 +196,44 @@ export class SupabaseAgentActionStore implements AgentActionStore {
     return data as AgentActionRecord;
   }
 
-  async listVisibleRecentForUser(userId: string, limit: number): Promise<AgentActionRecord[]> {
+  async getActionById(actionId: string): Promise<AgentActionRecord | null> {
     const { data, error } = await this.supabase
+      .from('agent_actions')
+      .select('*')
+      .eq('id', actionId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to load agent action: ${error.message}`);
+    }
+
+    return (data as AgentActionRecord | null) ?? null;
+  }
+
+  async listVisibleRecentForUser(
+    userId: string,
+    limit: number,
+    options?: {
+      actionScope?: AgentActionScope;
+      statuses?: AgentActionStatus[];
+    }
+  ): Promise<AgentActionRecord[]> {
+    let query = this.supabase
       .from('agent_actions')
       .select('*')
       .or(`requester_user_id.eq.${userId},recipient_user_id.eq.${userId}`)
       .order('created_at', { ascending: false })
       .limit(limit);
 
+    if (options?.actionScope) {
+      query = query.eq('action_scope', options.actionScope);
+    }
+
+    if (options?.statuses && options.statuses.length > 0) {
+      query = query.in('status', options.statuses);
+    }
+
+    const { data, error } = await query;
     if (error) {
       throw new Error(`Failed to list visible agent actions: ${error.message}`);
     }

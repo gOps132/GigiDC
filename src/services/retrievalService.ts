@@ -39,12 +39,15 @@ export class RetrievalService {
 
     const recent = await this.messageHistory.listRecentMessages(scope, 6);
     const semanticMatches = await this.messageHistory.searchSemantic(scope, query, 8);
+    const taskMatches = isTaskAwareQuery(query)
+      ? await this.agentActions.listOpenTasksForUser(requesterUserId, 4)
+      : [];
     const actionMatches = isHistoryAwareQuery(query)
       ? await this.agentActions.listRelevantVisibleActionsForUser(requesterUserId, query, 4)
       : [];
 
-    if (semanticMatches.length === 0 && recent.length === 0 && actionMatches.length === 0) {
-      if (!isHistoryAwareQuery(query)) {
+    if (semanticMatches.length === 0 && recent.length === 0 && actionMatches.length === 0 && taskMatches.length === 0) {
+      if (!isHistoryAwareQuery(query) && !isTaskAwareQuery(query)) {
         const directAnswer = await this.answerDirect(query, []);
         return {
           answer: directAnswer,
@@ -53,17 +56,17 @@ export class RetrievalService {
       }
 
       return {
-        answer: `I couldn't find enough history in ${scopeLabel(scope)} to answer that yet.`,
+        answer: `I couldn't find enough history or open tasks in ${scopeLabel(scope)} to answer that yet.`,
         source: 'direct'
       };
     }
 
-    const context = formatContext(recent, semanticMatches, actionMatches);
+    const context = formatContext(recent, semanticMatches, actionMatches, taskMatches);
     const answer = await this.answerDirect(query, context.length > 0 ? [context] : []);
 
     return {
       answer,
-      source: semanticMatches.length === 0 && recent.length === 0 && actionMatches.length > 0
+      source: semanticMatches.length === 0 && recent.length === 0 && (actionMatches.length > 0 || taskMatches.length > 0)
         ? 'action'
         : 'semantic'
     };
@@ -83,6 +86,12 @@ export class RetrievalService {
         : `Question: ${query}`
     });
   }
+}
+
+function isTaskAwareQuery(query: string): boolean {
+  return /\b(task|tasks|todo|to-do|supposed|assigned|assignment|deadline|due|follow up|follow-up|need to do|open task)\b/i.test(
+    query
+  );
 }
 
 function isHistoryAwareQuery(query: string): boolean {
@@ -138,9 +147,19 @@ function parsePhraseCountIntent(
 function formatContext(
   recent: HistoryMessageRecord[],
   semanticMatches: HistoryMessageRecord[],
-  actionMatches: AgentActionRecord[]
+  actionMatches: AgentActionRecord[],
+  taskMatches: AgentActionRecord[]
 ): string {
   const sections: string[] = [];
+
+  if (taskMatches.length > 0) {
+    sections.push(
+      'Open tasks:\n' +
+        taskMatches
+          .map((action) => formatTaskLine(action))
+          .join('\n')
+    );
+  }
 
   if (actionMatches.length > 0) {
     sections.push(
@@ -198,6 +217,23 @@ function formatActionLine(action: AgentActionRecord): string {
 
   if (action.error_message) {
     parts.push(`error="${action.error_message}"`);
+  }
+
+  return parts.join(' | ');
+}
+
+function formatTaskLine(action: AgentActionRecord): string {
+  const timestamp = new Date(action.created_at).toISOString();
+  const assigneeLabel = action.recipient_username ?? action.requester_username;
+  const parts = [
+    `- [${timestamp}] ${action.requester_username} assigned ${assigneeLabel}`,
+    `status=${action.status}`,
+    `title="${action.title}"`,
+    `details="${action.instructions}"`
+  ];
+
+  if (action.due_at) {
+    parts.push(`due="${new Date(action.due_at).toISOString()}"`);
   }
 
   return parts.join(' | ');

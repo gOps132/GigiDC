@@ -1,12 +1,12 @@
 # Gigi Discord Bot
 
-DM-first Discord bot for agentic chat, scoped history retrieval, shared Gigi identity, and assignment notifications.
+DM-first Discord bot for agentic chat, scoped history retrieval, shared Gigi identity, durable task/action memory, and assignment notifications.
 
 ## What Is In This Repo
 
 - A Node 22 + TypeScript Discord bot foundation
 - DM-first agent experience backed by OpenAI
-- Shared Gigi action memory for participant-visible relays and follow-up questions
+- Shared Gigi task/action memory for relays, follow-up questions, and tracked work
 - Slash-command assignment notifier workflow
 - Supabase/Postgres-backed control-plane state
 - Raw message history + pgvector-ready retrieval foundation
@@ -76,7 +76,7 @@ Do not commit `.env`.
 npm run dev
 ```
 
-The bot can register slash commands at startup, starts a local health server on port `8080`, stores DM history immediately, stores guild history only for channels with ingestion explicitly enabled, persists participant-visible relay actions, and responds to direct messages agentically.
+The bot can register slash commands at startup, starts a local health server on port `8080`, stores DM history immediately, stores guild history only for channels with ingestion explicitly enabled, persists participant-visible relay actions and tasks, and responds to direct messages agentically.
 
 ## EC2 Deployment
 
@@ -121,6 +121,9 @@ CD setup instructions and required GitHub secrets are in [docs/ci-cd.md](/Users/
 - `/ingestion disable`
 - `/ingestion status`
 - `/relay dm`
+- `/task create`
+- `/task list`
+- `/task complete`
 - `/assignment create`
 - `/assignment publish`
 - `/assignment list`
@@ -132,6 +135,7 @@ DM the bot for:
 - exact phrase count questions such as `How many times did I say "ship it"?`
 - conversational follow-ups over your DM history
 - follow-up questions about Gigi-mediated relay actions that involve you
+- task-oriented questions like `what tasks do i still have?`
 
 ## Authorization Model
 
@@ -162,14 +166,15 @@ V1 uses a reduced retrieval-first architecture:
 - raw Discord messages are the source of truth
 - DM history is always eligible for storage
 - guild-channel ingestion is opt-in through `channel_ingestion_policies`
-- participant-visible Gigi actions are persisted in `agent_actions`
+- participant-visible Gigi actions and follow-up tasks are persisted in `agent_actions`
 - ingestion policy changes and permission denials are written to `audit_logs`
 - relay dispatch attempts and outcomes are written to `audit_logs`
+- task creation and completion events are written to `audit_logs`
 - DM scope-selection prompts are persisted briefly in Supabase so restarts do not invalidate active menus
 - bot-authored DM replies and relay deliveries are stored explicitly in canonical message history instead of relying only on gateway echoes
 - exact analytics use SQL/text search first
 - semantic questions use OpenAI embeddings over stored messages
-- history-aware DM answers can also draw from participant-visible relay actions
+- history-aware DM answers can also draw from participant-visible relay actions and open tasks
 - image attachments are stored as metadata only
 - no OCR, autonomous memory promotion, or digest pipeline in V1
 
@@ -177,7 +182,7 @@ Current implications and limits:
 
 - more shared continuity also means faster history growth, which can eventually cause retrieval quality drift or context rot if ranking stays naive
 - bot-authored DM persistence increases storage and embedding cost over time
-- relay memory currently exists in both `agent_actions` and raw `messages`, so future retrieval tuning has to manage duplication carefully
+- relay memory currently exists in both `agent_actions` and raw `messages`, and tasks now share that same substrate, so future retrieval tuning has to manage duplication and priority carefully
 - this is still a permission-aware shared identity, not unrestricted global memory
 
 ## Development Scripts
@@ -206,6 +211,7 @@ Before opening a PR or deploying:
 - Verify `/ping`
 - Verify `/ingestion status`, `/ingestion enable`, and `/ingestion disable` in a development Discord server
 - Verify `/relay dm` can deliver a message and that a participant can ask a follow-up in DM
+- Verify `/task create`, `/task list`, and `/task complete`
 - Verify `/assignment create` and `/assignment publish` in a development Discord server
 - DM the bot with one direct question and one history-based question
 - Confirm DM messages are stored in Supabase

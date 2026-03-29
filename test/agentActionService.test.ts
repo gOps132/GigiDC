@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  AGENT_ACTION_SCOPES,
   AGENT_ACTION_STATUSES,
   AGENT_ACTION_TYPES,
   AgentActionService,
@@ -17,6 +18,7 @@ class InMemoryAgentActionStore implements AgentActionStore {
   async createAction(input: CreateAgentActionInput): Promise<AgentActionRecord> {
     const record: AgentActionRecord = {
       id: `action-${this.actions.length + 1}`,
+      action_scope: input.actionScope,
       guild_id: input.guildId,
       channel_id: input.channelId,
       requester_user_id: input.requesterUserId,
@@ -31,6 +33,7 @@ class InMemoryAgentActionStore implements AgentActionStore {
       result_summary: null,
       error_message: null,
       metadata: input.metadata ?? {},
+      due_at: input.dueAt ?? null,
       created_at: new Date(Date.now() - this.actions.length * 1_000).toISOString(),
       updated_at: new Date().toISOString(),
       completed_at: null
@@ -40,10 +43,34 @@ class InMemoryAgentActionStore implements AgentActionStore {
     return record;
   }
 
-  async listVisibleRecentForUser(userId: string): Promise<AgentActionRecord[]> {
-    return this.actions.filter(
-      (action) => action.requester_user_id === userId || action.recipient_user_id === userId
-    );
+  async getActionById(actionId: string): Promise<AgentActionRecord | null> {
+    return this.actions.find((action) => action.id === actionId) ?? null;
+  }
+
+  async listVisibleRecentForUser(
+    userId: string,
+    _limit: number,
+    options?: {
+      actionScope?: AgentActionRecord['action_scope'];
+      statuses?: AgentActionRecord['status'][];
+    }
+  ): Promise<AgentActionRecord[]> {
+    return this.actions.filter((action) => {
+      const visible = action.requester_user_id === userId || action.recipient_user_id === userId;
+      if (!visible) {
+        return false;
+      }
+
+      if (options?.actionScope && action.action_scope !== options.actionScope) {
+        return false;
+      }
+
+      if (options?.statuses && !options.statuses.includes(action.status)) {
+        return false;
+      }
+
+      return true;
+    });
   }
 
   async updateActionStatus(input: UpdateAgentActionStatusInput): Promise<AgentActionRecord> {
@@ -78,8 +105,31 @@ test('AgentActionService creates DM relay actions with participant visibility', 
   });
 
   assert.equal(action.action_type, AGENT_ACTION_TYPES.dmRelay);
+  assert.equal(action.action_scope, AGENT_ACTION_SCOPES.action);
   assert.equal(action.visibility, 'participants');
   assert.equal(action.metadata.context, 'Follow up on tonight’s release.');
+});
+
+test('AgentActionService creates self tasks as requester-only open tasks', async () => {
+  const store = new InMemoryAgentActionStore();
+  const service = new AgentActionService(store);
+
+  const task = await service.createFollowUpTask({
+    guildId: 'guild-1',
+    channelId: 'channel-1',
+    requesterUserId: 'user-1',
+    requesterUsername: 'Erick',
+    assigneeUserId: 'user-1',
+    assigneeUsername: 'Erick',
+    title: 'Prepare release notes',
+    instructions: 'Draft the release notes before standup.',
+    dueAt: '2026-04-01T09:00:00Z'
+  });
+
+  assert.equal(task.action_type, AGENT_ACTION_TYPES.followUpTask);
+  assert.equal(task.action_scope, AGENT_ACTION_SCOPES.task);
+  assert.equal(task.visibility, 'requester_only');
+  assert.equal(task.due_at, '2026-04-01T09:00:00Z');
 });
 
 test('AgentActionService ranks relevant visible actions for follow-up questions', async () => {
@@ -87,6 +137,7 @@ test('AgentActionService ranks relevant visible actions for follow-up questions'
   const service = new AgentActionService(store);
 
   const relevant = await store.createAction({
+    actionScope: AGENT_ACTION_SCOPES.action,
     guildId: 'guild-1',
     channelId: 'channel-1',
     requesterUserId: 'erick-id',
@@ -106,6 +157,7 @@ test('AgentActionService ranks relevant visible actions for follow-up questions'
   });
 
   await store.createAction({
+    actionScope: AGENT_ACTION_SCOPES.action,
     guildId: 'guild-1',
     channelId: 'channel-2',
     requesterUserId: 'other-id',
@@ -128,4 +180,45 @@ test('AgentActionService ranks relevant visible actions for follow-up questions'
   assert.equal(ranked.length, 2);
   assert.equal(ranked[0]?.requester_username, 'Erick');
   assert.match(ranked[0]?.instructions ?? '', /launch draft/i);
+});
+
+test('AgentActionService lists open tasks ordered by due date', async () => {
+  const store = new InMemoryAgentActionStore();
+  const service = new AgentActionService(store);
+
+  await store.createAction({
+    actionScope: AGENT_ACTION_SCOPES.task,
+    guildId: 'guild-1',
+    channelId: 'channel-1',
+    requesterUserId: 'manager-id',
+    requesterUsername: 'Manager',
+    recipientUserId: 'user-2',
+    recipientUsername: 'Mina',
+    actionType: AGENT_ACTION_TYPES.followUpTask,
+    visibility: 'participants',
+    title: 'Later task',
+    instructions: 'Handle this later.',
+    dueAt: '2026-04-05T09:00:00Z',
+    metadata: {}
+  });
+
+  await store.createAction({
+    actionScope: AGENT_ACTION_SCOPES.task,
+    guildId: 'guild-1',
+    channelId: 'channel-1',
+    requesterUserId: 'manager-id',
+    requesterUsername: 'Manager',
+    recipientUserId: 'user-2',
+    recipientUsername: 'Mina',
+    actionType: AGENT_ACTION_TYPES.followUpTask,
+    visibility: 'participants',
+    title: 'Sooner task',
+    instructions: 'Handle this first.',
+    dueAt: '2026-04-01T09:00:00Z',
+    metadata: {}
+  });
+
+  const tasks = await service.listOpenTasksForUser('user-2', 5);
+  assert.equal(tasks.length, 2);
+  assert.equal(tasks[0]?.title, 'Sooner task');
 });

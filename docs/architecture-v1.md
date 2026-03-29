@@ -5,7 +5,7 @@
 V1 is a reduced Discord bot architecture built for:
 
 - DM-first agentic interaction
-- participant-visible shared Gigi actions for relay and follow-up continuity
+- participant-visible shared Gigi tasks and actions for relay and follow-up continuity
 - slash-command assignment notices
 - exact + semantic retrieval over raw Discord history
 - role-gated guild-wide history access
@@ -85,13 +85,13 @@ This layer holds the actual bot behavior:
   - persists bot-authored DM prompts and answers immediately so canonical history does not depend on gateway echo timing
   - calls retrieval and sends the final Discord reply
 - `AgentActionService`
-  - persists participant-visible Gigi actions such as DM relays
-  - records requester, recipient, status, and delivery metadata
+  - persists participant-visible Gigi actions such as DM relays and follow-up tasks
+  - records requester, assignee/recipient, status, due date, and delivery metadata
   - gives retrieval a durable shared-identity seam without exposing raw guild history broadly
 - `RetrievalService`
   - routes phrase-count questions to exact SQL/RPC paths
   - falls back to recent-message context plus semantic search
-  - adds participant-visible agent action context for history-aware follow-up questions
+  - adds participant-visible agent action and open-task context for history-aware follow-up questions
   - asks OpenAI Responses for the final natural-language answer
 - `MessageHistoryService`
   - stores DM history immediately and stores guild history only for channels with ingestion enabled
@@ -203,12 +203,15 @@ GigiDC now has a narrow but real shared-identity seam.
 The current foundation is not "remember everything and answer everything." It is:
 
 - one Gigi identity across guild commands and DMs
-- durable `agent_actions` records for explicit Gigi-mediated actions
+- durable `agent_actions` records for explicit Gigi-mediated actions and follow-up tasks
 - participant-scoped visibility so requesters and recipients can ask follow-up questions later
 - explicit persistence of Gigi's own DM outputs in `messages` so recall can use raw history as well as action summaries
-- retrieval that can answer from those action records even when the user does not have guild-wide history access
+- retrieval that can answer from those task and action records even when the user does not have guild-wide history access
 
-The first concrete workflow is `/relay dm`, which creates an `agent_actions` record, sends the DM, records success or failure, and lets the participants ask Gigi about that relay later in DM.
+The current concrete workflows are:
+
+- `/relay dm`, which creates an `agent_actions` record, sends the DM, records success or failure, and lets the participants ask Gigi about that relay later in DM
+- `/task create`, `/task list`, and `/task complete`, which turn `agent_actions` into a broader task/action substrate instead of a relay-only memory seam
 
 ### Shared Identity Tradeoffs
 
@@ -225,7 +228,8 @@ This architectural change improves continuity, but it also introduces real costs
 - **Dual-memory representations**
   - a successful relay now exists both as an `agent_actions` row and as raw DM history in `messages`
   - that improves traceability, but it also creates duplication and possible ranking ambiguity
-  - retrieval has to avoid double-counting the same event or over-weighting relays compared with ordinary conversation
+  - follow-up tasks now share the same substrate, which increases the need for retrieval to distinguish between conversational context, action history, and open work
+  - retrieval has to avoid double-counting the same event or over-weighting relays or tasks compared with ordinary conversation
 - **Privacy and retention implications**
   - more private bot-authored DM content is now canonical project data rather than transient output
   - that raises the bar for retention policy, deletion workflows, audit review, and least-privilege access to stored history
@@ -259,6 +263,9 @@ Slash commands are for structured workflows:
 - `/ingestion disable`
 - `/ingestion status`
 - `/relay dm`
+- `/task create`
+- `/task list`
+- `/task complete`
 - `/assignment create`
 - `/assignment publish`
 - `/assignment list`
@@ -295,9 +302,9 @@ Guild-wide history access is role-gated by `history_guild_wide`.
 
 Channel-ingestion administration is role-gated by `ingestion_admin`.
 
-Shared Gigi relay dispatch is role-gated by `agent_action_dispatch`.
+Shared Gigi relay and task dispatch is role-gated by `agent_action_dispatch`.
 
-Participant-visible action recall does not require guild-wide history access. Retrieval can use `agent_actions` for the requester or recipient of a Gigi-mediated relay while still keeping unrelated guild history gated.
+Participant-visible action and task recall does not require guild-wide history access. Retrieval can use `agent_actions` for the requester or recipient/assignee of a Gigi-mediated relay or task while still keeping unrelated guild history gated.
 
 ## Current Risks
 
@@ -327,6 +334,7 @@ The current audit surface is still selective, but ingestion-policy changes now f
 - no-op enable or disable attempts are also logged so admin intent is visible
 - relay permission denials are logged
 - relay success and failure outcomes are logged
+- task creation and completion outcomes are logged
 
 This gives the repo a real operational trail around retention policy changes, which are more sensitive than ordinary read-only commands.
 

@@ -9,6 +9,8 @@ import type {
 import type {
   AgentActionRecord,
   CreateAgentActionInput,
+  AgentActionScope,
+  AgentActionStatus,
   UpdateAgentActionStatusInput
 } from '../services/agentActionService.js';
 import type { Capability } from '../services/rolePolicyService.js';
@@ -26,7 +28,15 @@ export interface AuditLogStore {
 
 export interface AgentActionStore {
   createAction(input: CreateAgentActionInput): Promise<AgentActionRecord>;
-  listVisibleRecentForUser(userId: string, limit: number): Promise<AgentActionRecord[]>;
+  getActionById(actionId: string): Promise<AgentActionRecord | null>;
+  listVisibleRecentForUser(
+    userId: string,
+    limit: number,
+    options?: {
+      actionScope?: AgentActionScope;
+      statuses?: AgentActionStatus[];
+    }
+  ): Promise<AgentActionRecord[]>;
   updateActionStatus(input: UpdateAgentActionStatusInput): Promise<AgentActionRecord>;
 }
 

@@ -11,7 +11,7 @@ flowchart LR
   DMFlow["DM Scope + Retrieval<br/>DmConversationService + RetrievalService"]
   History["Message Storage + Background Indexing<br/>MessageHistoryService + MessageIndexingService"]
   SharedIdentity["Shared Gigi Identity<br/>AgentActionService + agent_actions"]
-  Admin["Assignment + Ingestion + Relay Admin<br/>Role + Audit Services"]
+  Admin["Assignment + Ingestion + Relay + Task Admin<br/>Role + Audit Services"]
   Ports["Ports<br/>history + control-plane + AI contracts"]
   Adapters["Platform Adapters<br/>Supabase + OpenAI"]
   DB["Supabase / Postgres"]
@@ -41,10 +41,10 @@ flowchart LR
 ## Reading Guide
 
 - The runtime entrypoints are small: startup, command registration, gateway handling, and health/readiness endpoints.
-- Most behavior sits in services, especially the DM retrieval path, the shared-identity action path, and the admin command path for assignments, ingestion, and relay dispatch.
+- Most behavior sits in services, especially the DM retrieval path, the shared-identity task/action path, and the admin command path for assignments, ingestion, relay dispatch, and task tracking.
 - The service layer now depends on explicit ports, with Supabase and OpenAI behind adapter boundaries rather than inside the services themselves.
 - The storage layer is intentionally split between workflow state and retrieval state.
-- `agent_actions` is now the first durable shared-identity seam for GigiDC. It captures explicit Gigi-mediated work that can be recalled later by the participants.
+- `agent_actions` is now the first durable shared-identity seam for GigiDC. It captures explicit Gigi-mediated relays and follow-up tasks that can be recalled later by the participants.
 - Infrastructure is not incidental. Terraform, bootstrap scripts, release scripts, and CI/CD form a distinct operations surface around the bot.
 
 ## Keep This Updated When
