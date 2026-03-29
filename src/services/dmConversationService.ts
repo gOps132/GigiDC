@@ -10,29 +10,18 @@ import {
 } from 'discord.js';
 
 import type { BotContext } from '../discord/types.js';
+import type { PendingDmScopeSelectionStore, ScopeOption } from '../ports/conversation.js';
 import { CAPABILITIES } from './rolePolicyService.js';
 import { resolveDmScope, resolvePrimaryGuildScope, type HistoryScope } from './messageHistoryService.js';
 
 const DM_SCOPE_SELECT_PREFIX = 'dm-scope';
 const PENDING_SCOPE_TTL_MS = 15 * 60 * 1000;
 
-interface PendingScopeSelection {
-  createdAt: number;
-  query: string;
-  scopeOptions: ScopeOption[];
-  userId: string;
-}
-
-interface ScopeOption {
-  label: string;
-  value: string;
-  scope: HistoryScope;
-}
-
 export class DmConversationService {
-  private readonly pendingSelections = new Map<string, PendingScopeSelection>();
-
-  constructor(private readonly context: BotContext) {}
+  constructor(
+    private readonly context: BotContext,
+    private readonly pendingSelections: PendingDmScopeSelectionStore
+  ) {}
 
   async handleMessage(message: Message, client: Client): Promise<void> {
     if (!message.channel.isDMBased() || message.author.bot) {
@@ -48,12 +37,14 @@ export class DmConversationService {
 
     if (shouldPromptForScope(query, scopeOptions)) {
       const selectionId = randomUUID();
-      this.pendingSelections.set(selectionId, {
+      await this.pendingSelections.deleteExpired(new Date());
+      await this.pendingSelections.save({
         createdAt: Date.now(),
+        id: selectionId,
         query,
         scopeOptions,
         userId: message.author.id
-      });
+      }, new Date(Date.now() + PENDING_SCOPE_TTL_MS));
 
       await message.reply({
         content: 'Pick which chat history I should use for this question.',
@@ -92,10 +83,10 @@ export class DmConversationService {
 
   async handleSelection(interaction: StringSelectMenuInteraction, client: Client): Promise<void> {
     const selectionId = interaction.customId.replace(`${DM_SCOPE_SELECT_PREFIX}:`, '');
-    const pending = this.pendingSelections.get(selectionId);
+    const pending = await this.pendingSelections.get(selectionId);
 
     if (!pending || Date.now() - pending.createdAt > PENDING_SCOPE_TTL_MS) {
-      this.pendingSelections.delete(selectionId);
+      await this.pendingSelections.delete(selectionId);
       await interaction.reply({
         content: 'That scope selection has expired. Ask me again and I will re-run it.'
       });
@@ -110,7 +101,6 @@ export class DmConversationService {
     }
 
     const option = pending.scopeOptions.find((scopeOption) => scopeOption.value === interaction.values[0]);
-    this.pendingSelections.delete(selectionId);
 
     if (!option) {
       await interaction.reply({
@@ -118,6 +108,8 @@ export class DmConversationService {
       });
       return;
     }
+
+    await this.pendingSelections.delete(selectionId);
 
     await interaction.update({
       content: `Using ${option.label.toLowerCase()} for your question.`,

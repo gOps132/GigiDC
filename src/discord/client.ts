@@ -15,6 +15,7 @@ export function createDiscordClient(context: BotContext): Client {
   });
 
   client.once(Events.ClientReady, (readyClient) => {
+    context.runtime.markDiscordReady(readyClient.user.id);
     context.logger.info('Discord client ready', {
       botUserId: readyClient.user.id,
       tag: readyClient.user.tag
@@ -88,7 +89,11 @@ export function createDiscordClient(context: BotContext): Client {
 
   client.on(Events.MessageCreate, async (message) => {
     try {
-      await context.services.messageHistory.storeDiscordMessage(message);
+      const result = await context.services.messageHistory.storeDiscordMessage(message);
+
+      if (message.inGuild() && !result.stored && result.reason === 'skipped_by_ingestion_policy') {
+        return;
+      }
 
       if (message.channel.isDMBased() && !message.author.bot) {
         await context.services.dmConversation.handleMessage(message, client);
@@ -101,6 +106,10 @@ export function createDiscordClient(context: BotContext): Client {
         error: messageText
       });
     }
+  });
+
+  client.on(Events.ShardDisconnect, () => {
+    context.runtime.markDiscordDegraded();
   });
 
   return client;

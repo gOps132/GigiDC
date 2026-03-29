@@ -11,8 +11,15 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
+    "test": "node --import tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "register:commands": "tsx src/discord/registerCommands.ts"
+    "register:commands": "tsx src/discord/registerCommands.ts",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status",
+    "supabase:db:reset": "supabase db reset",
+    "supabase:db:push": "supabase db push",
+    "supabase:migration:new": "supabase migration new"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

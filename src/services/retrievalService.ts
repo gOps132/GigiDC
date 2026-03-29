@@ -1,6 +1,5 @@
-import type OpenAI from 'openai';
-
 import type { Env } from '../config/env.js';
+import type { ResponseClient } from '../ports/ai.js';
 import type { HistoryMessageRecord, HistoryScope, MessageHistoryService } from './messageHistoryService.js';
 
 export interface RetrievalAnswer {
@@ -11,7 +10,7 @@ export interface RetrievalAnswer {
 export class RetrievalService {
   constructor(
     private readonly env: Env,
-    private readonly openai: OpenAI,
+    private readonly responses: ResponseClient,
     private readonly messageHistory: MessageHistoryService
   ) {}
 
@@ -64,7 +63,7 @@ export class RetrievalService {
   }
 
   private async answerDirect(query: string, contextBlocks: string[]): Promise<string> {
-    const response = await this.openai.responses.create({
+    return this.responses.createTextResponse({
       model: this.env.OPENAI_RESPONSE_MODEL,
       instructions: [
         'You are GigiDC, a Discord assistant.',
@@ -72,22 +71,10 @@ export class RetrievalService {
         'Be concise and practical.',
         'If the context is insufficient for a history-based question, say so plainly instead of guessing.'
       ].join(' '),
-      input: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'input_text',
-              text: contextBlocks.length > 0
-                ? `Question: ${query}\n\nChat history context:\n${contextBlocks.join('\n\n')}`
-                : `Question: ${query}`
-            }
-          ]
-        }
-      ]
+      text: contextBlocks.length > 0
+        ? `Question: ${query}\n\nChat history context:\n${contextBlocks.join('\n\n')}`
+        : `Question: ${query}`
     });
-
-    return response.output_text.trim() || 'I could not produce a useful answer for that yet.';
   }
 }
 

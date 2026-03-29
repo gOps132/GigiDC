@@ -1,0 +1,2 @@
+-- Intentionally empty.
+-- Add local-only seed data here when you need repeatable development fixtures.

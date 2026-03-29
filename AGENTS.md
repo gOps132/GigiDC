@@ -60,6 +60,38 @@ Environment configuration rules:
 - Prefer reproducible script-based setup over manual workstation tweaks
 - Document every required external dependency, version expectation, and setup step in project docs
 
+## Repo-Local Agent Skills
+
+Prefer the repo-local skills in `.codex/skills` when a task matches their domain instead of relying on generic workflow only.
+
+- Use `discord-bot` for Discord bot workflows such as slash commands, embeds, roles, threads, and Discord integration patterns
+- Use `project-visualization` for codebase understanding, architecture refresh work, visual diagrams, and cross-cutting change analysis
+- Use `supabase-postgres-best-practices` for Supabase/Postgres schema, query, index, migration, and RLS work
+- Use `terraform-style-guide` for Terraform authoring and review, but keep the repo's Terraform Core compatibility aligned with 1.5.x unless the repo intentionally upgrades
+- Use `security-best-practices` for security reviews, secrets handling, auth boundaries, and DM/privacy-sensitive changes
+- Use `github-workflow`, `gh-fix-ci`, and `gh-address-comments` for PR workflows, GitHub Actions failures, and review-comment resolution
+
+See `docs/agent-skills.md` for the current project-specific skill map and selection rationale.
+
+## Project Visualization Workflow
+
+Use `Understand-Anything` as the default architecture-analysis tool when understanding the repo, planning cross-cutting changes, or reviewing architectural impact.
+
+For repo understanding and architecture extraction, start with the generated graph and dashboard before broad manual doc reading.
+
+- use `Understand-Anything` first to identify entrypoints, layers, data boundaries, and cross-cutting dependencies
+- then read only the docs needed for intent, product context, operational exceptions, or future plans
+- treat graph-derived structure as the fastest way to find where to read next, not a replacement for intent-bearing docs
+
+For changes that alter system boundaries, data flow, deployment flow, permissions, or storage behavior:
+
+- refresh the relevant `Understand-Anything` view or diff analysis
+- update `docs/architecture-v1.md` when the text architecture model changes
+- update or add diagrams under `docs/diagrams/` when a visual explanation would reduce future onboarding or review cost
+- update `docs/credits.md` when a new external visualization or generation tool is introduced
+
+Use `docs/project-visualization-workflow.md` as the standing checklist.
+
 ## Testing Instructions
 
 Every meaningful change should include a verification step proportionate to risk.
@@ -151,3 +183,13 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Root cause: Manual local checks are easy to skip, and the repo previously had no active CI baseline for TypeScript or Terraform validation.
   Fix or required workflow: Keep a lightweight GitHub Actions CI workflow that runs `npm run typecheck`, `npm run build`, `terraform fmt -check`, and `terraform validate` on pushes and pull requests before adding more features.
   Verification step: Confirm the CI workflow passes on a branch or pull request and fails when a TypeScript compile error or Terraform formatting error is introduced.
+
+- Issue or symptom: Supabase schema changes drift between local notes, SQL editor steps, and checked-in migration history.
+  Root cause: The repo originally stored migration SQL files without a CLI-managed workflow, making it easy to apply changes manually without preserving a reproducible path.
+  Fix or required workflow: Keep `supabase/config.toml` checked in, use the existing `supabase/migrations/` files as the baseline history, and create all future schema changes with `supabase migration new` instead of ad hoc SQL editor edits.
+  Verification step: Run `supabase --version`, confirm `supabase/config.toml` exists, and use `supabase db push` or `supabase db reset` against the intended environment.
+
+- Issue or symptom: A fresh Supabase CLI push would drop active control-plane tables from `004_cleanup_legacy_clawbot_tables.sql`.
+  Root cause: The repo kept an older cleanup migration from an abandoned direction even after the bot architecture continued depending on `channel_ingestion_policies`.
+  Fix or required workflow: Keep `004_cleanup_legacy_clawbot_tables.sql` as a checked-in no-op placeholder so migration numbering stays contiguous without deleting active schema.
+  Verification step: Run `supabase db push --dry-run` and confirm `004_cleanup_legacy_clawbot_tables.sql` no longer contains destructive DDL.

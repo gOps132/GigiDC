@@ -1,0 +1,218 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import type { BotContext } from '../src/discord/types.js';
+import type {
+  PendingDmScopeSelection,
+  PendingDmScopeSelectionStore
+} from '../src/ports/conversation.js';
+import { DmConversationService } from '../src/services/dmConversationService.js';
+
+class InMemoryPendingDmScopeSelectionStore implements PendingDmScopeSelectionStore {
+  readonly deletedIds: string[] = [];
+  readonly saved: PendingDmScopeSelection[] = [];
+  private readonly selections = new Map<string, PendingDmScopeSelection>();
+
+  async delete(selectionId: string): Promise<void> {
+    this.deletedIds.push(selectionId);
+    this.selections.delete(selectionId);
+  }
+
+  async deleteExpired(_now: Date): Promise<void> {
+    return;
+  }
+
+  async get(selectionId: string): Promise<PendingDmScopeSelection | null> {
+    return this.selections.get(selectionId) ?? null;
+  }
+
+  async save(selection: PendingDmScopeSelection, _expiresAt: Date): Promise<void> {
+    this.saved.push(selection);
+    this.selections.set(selection.id, selection);
+  }
+}
+
+function createContext(overrides?: {
+  guildName?: string;
+  primaryGuildId?: string;
+  retrievalAnswer?: string;
+  allowGuildWideHistory?: boolean;
+}) {
+  const answerCalls: Array<{
+    botUserId: string;
+    query: string;
+    requesterUserId: string;
+    scope: unknown;
+  }> = [];
+  const replyCalls: Array<{ components?: unknown[]; content: string }> = [];
+  const updateCalls: Array<{ components?: unknown[]; content: string }> = [];
+  const followUpCalls: Array<{ content: string }> = [];
+
+  const guildId = overrides?.primaryGuildId ?? 'guild-1';
+  const guild = {
+    id: guildId,
+    name: overrides?.guildName ?? 'Gigi HQ',
+    members: {
+      fetch: async (_userId: string) => ({})
+    }
+  };
+
+  const context = {
+    env: {
+      DISCORD_GUILD_ID: overrides?.primaryGuildId,
+      PRIMARY_GUILD_ID: overrides?.primaryGuildId
+    },
+    logger: {
+      debug() {},
+      error() {},
+      info() {},
+      warn() {}
+    },
+    runtime: {},
+    services: {
+      assignments: {},
+      auditLogs: {},
+      channelIngestionPolicies: {},
+      dmConversation: {},
+      messageHistory: {},
+      messageIndexing: {},
+      retrieval: {
+        async answerQuestion(query: string, scope: unknown, requesterUserId: string, botUserId: string) {
+          answerCalls.push({
+            botUserId,
+            query,
+            requesterUserId,
+            scope
+          });
+
+          return {
+            answer: overrides?.retrievalAnswer ?? 'retrieved answer',
+            source: 'semantic' as const
+          };
+        }
+      },
+      rolePolicies: {
+        async memberHasCapability() {
+          return overrides?.allowGuildWideHistory ?? false;
+        }
+      }
+    }
+  } as unknown as BotContext;
+
+  const client = {
+    guilds: {
+      cache: new Map([[guildId, guild]]),
+      async fetch() {
+        return guild;
+      }
+    },
+    user: {
+      id: 'bot-user'
+    }
+  };
+
+  const message = {
+    author: {
+      bot: false,
+      id: 'user-1'
+    },
+    channel: {
+      isDMBased: () => true
+    },
+    content: 'What did we talk about yesterday?',
+    async reply(payload: { components?: unknown[]; content: string }) {
+      replyCalls.push(payload);
+    }
+  };
+
+  const interaction = {
+    customId: '',
+    user: {
+      id: 'user-1'
+    },
+    values: ['guild:guild-1'],
+    async followUp(payload: { content: string }) {
+      followUpCalls.push(payload);
+    },
+    async reply(payload: { content: string }) {
+      followUpCalls.push(payload);
+    },
+    async update(payload: { components?: unknown[]; content: string }) {
+      updateCalls.push(payload);
+    }
+  };
+
+  return {
+    answerCalls,
+    client,
+    context,
+    followUpCalls,
+    interaction,
+    message,
+    replyCalls,
+    updateCalls
+  };
+}
+
+test('DmConversationService persists scope selection prompts instead of keeping them in memory', async () => {
+  const store = new InMemoryPendingDmScopeSelectionStore();
+  const { client, context, message, replyCalls } = createContext({
+    allowGuildWideHistory: true,
+    primaryGuildId: 'guild-1'
+  });
+  const service = new DmConversationService(context, store);
+
+  await service.handleMessage(message as never, client as never);
+
+  assert.equal(store.saved.length, 1);
+  assert.equal(store.saved[0]?.userId, 'user-1');
+  assert.equal(store.saved[0]?.scopeOptions.length, 2);
+  assert.equal(replyCalls.length, 1);
+  assert.match(replyCalls[0]?.content ?? '', /pick which chat history/i);
+});
+
+test('DmConversationService reads persisted scope selections when the user chooses a scope', async () => {
+  const store = new InMemoryPendingDmScopeSelectionStore();
+  const selection: PendingDmScopeSelection = {
+    createdAt: Date.now(),
+    id: 'selection-1',
+    query: 'What did we talk about yesterday?',
+    scopeOptions: [
+      {
+        label: 'This DM',
+        scope: {
+          dmUserId: 'user-1',
+          kind: 'dm'
+        },
+        value: 'dm'
+      },
+      {
+        label: 'Gigi HQ server',
+        scope: {
+          guildId: 'guild-1',
+          kind: 'guild'
+        },
+        value: 'guild:guild-1'
+      }
+    ],
+    userId: 'user-1'
+  };
+  await store.save(selection, new Date(Date.now() + 60_000));
+
+  const { answerCalls, client, context, followUpCalls, interaction, updateCalls } = createContext({
+    allowGuildWideHistory: true,
+    primaryGuildId: 'guild-1',
+    retrievalAnswer: 'Here is the stored answer'
+  });
+  interaction.customId = 'dm-scope:selection-1';
+
+  const service = new DmConversationService(context, store);
+  await service.handleSelection(interaction as never, client as never);
+
+  assert.deepEqual(store.deletedIds, ['selection-1']);
+  assert.equal(answerCalls.length, 1);
+  assert.equal(answerCalls[0]?.query, selection.query);
+  assert.deepEqual(answerCalls[0]?.scope, selection.scopeOptions[1]?.scope);
+  assert.match(updateCalls[0]?.content ?? '', /using gigi hq server/i);
+  assert.equal(followUpCalls[0]?.content, 'Here is the stored answer');
+});

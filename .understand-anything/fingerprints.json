@@ -1,0 +1,1382 @@
+{
+  "version": "1.0.0",
+  "gitCommitHash": "fe87a41b5d3db412a4113a869acfa71ee223ac2c",
+  "generatedAt": "2026-03-29T12:31:57.849Z",
+  "files": {
+    "AGENTS.md": {
+      "filePath": "AGENTS.md",
+      "contentHash": "67f47e4fd4cb11de10a2d11bbbbb8842e57ff0d4eb869abe047e812cf73d7bd2",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 180,
+      "hasStructuralAnalysis": true
+    },
+    "docs/agent-skills.md": {
+      "filePath": "docs/agent-skills.md",
+      "contentHash": "2a078febaf7030c7daa2da463046b9a07c10d241397bb54ee127cde2c7d6d68d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 52,
+      "hasStructuralAnalysis": true
+    },
+    "docs/architecture-v1.md": {
+      "filePath": "docs/architecture-v1.md",
+      "contentHash": "c2ff96f3ab663213215d5e1d277a4a61ce4a4e9a4d0c591b26dd37662f066d84",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 232,
+      "hasStructuralAnalysis": true
+    },
+    "docs/ci-cd.md": {
+      "filePath": "docs/ci-cd.md",
+      "contentHash": "4e3edc6bac66a1ecd799c304c4d9ef269d978a6f2d08e6a7d09662778685f17f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 111,
+      "hasStructuralAnalysis": true
+    },
+    "docs/credits.md": {
+      "filePath": "docs/credits.md",
+      "contentHash": "fedd2b6fc662a71b5322aaf2f412fd2f51eb7b5a847924f045f0aab78d1e24d9",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 82,
+      "hasStructuralAnalysis": true
+    },
+    "docs/deploy-ec2.md": {
+      "filePath": "docs/deploy-ec2.md",
+      "contentHash": "f31263ec18da62058eb41c798e28afd1e6733626e2d1629c56df92dc1d837ef6",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 155,
+      "hasStructuralAnalysis": true
+    },
+    "docs/diagrams/dm-retrieval-flow.md": {
+      "filePath": "docs/diagrams/dm-retrieval-flow.md",
+      "contentHash": "81fae5a1bb6942c74ccb6497ed7570ddea5b8a0cd56c611601f1bbe658b0708b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 50,
+      "hasStructuralAnalysis": true
+    },
+    "docs/diagrams/README.md": {
+      "filePath": "docs/diagrams/README.md",
+      "contentHash": "6b6ed62f362f4600c1fbe643e4a11558dd9a2fef71bdbcd1def18bcab024302e",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 35,
+      "hasStructuralAnalysis": true
+    },
+    "docs/diagrams/system-overview.md": {
+      "filePath": "docs/diagrams/system-overview.md",
+      "contentHash": "29194d946e262ce50ba99f22aa5a3e8dd91c81ae7b803b695136d22d0c18717e",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 48,
+      "hasStructuralAnalysis": true
+    },
+    "docs/discord-bot-plan.md": {
+      "filePath": "docs/discord-bot-plan.md",
+      "contentHash": "83e51eba5f9ddf1f2e551429763b4a2f54b9907d7949dfd272c50fb33826f011",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 129,
+      "hasStructuralAnalysis": true
+    },
+    "docs/documentation-commit-message-template.md": {
+      "filePath": "docs/documentation-commit-message-template.md",
+      "contentHash": "1976123dedd66daf17655f3b2ec34ae3814d5509be7a7812b8d816e0e00a62b2",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 62,
+      "hasStructuralAnalysis": true
+    },
+    "docs/project-visualization-workflow.md": {
+      "filePath": "docs/project-visualization-workflow.md",
+      "contentHash": "2899e90906d3c0c97f0af0053f8b37411610ec0e5dd8d6248b69c767d03cd0f5",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 113,
+      "hasStructuralAnalysis": true
+    },
+    "docs/roadmap.md": {
+      "filePath": "docs/roadmap.md",
+      "contentHash": "e8f1795f7c2205b3adb721c04c2fd369b58d10448aa1103891593569dac24da7",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 58,
+      "hasStructuralAnalysis": true
+    },
+    "docs/setup.md": {
+      "filePath": "docs/setup.md",
+      "contentHash": "215de167c5360c38053fe8649f7b046cfa794b57fedd4fb0b9d8badf49a52942",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 91,
+      "hasStructuralAnalysis": true
+    },
+    "docs/terraform.md": {
+      "filePath": "docs/terraform.md",
+      "contentHash": "46f6c2e489d0a260add50cfde9108fa48b659bc0e395f9eb49f4b15202157a47",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 128,
+      "hasStructuralAnalysis": true
+    },
+    "package.json": {
+      "filePath": "package.json",
+      "contentHash": "b9230d2a8a62e37a134425e0bd311cc3fc9eec09832255b831718b6510bc24e8",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 30,
+      "hasStructuralAnalysis": true
+    },
+    "README.md": {
+      "filePath": "README.md",
+      "contentHash": "19e951475f7720596959ed6c1f73b40c51f80b39143f48fc220e8da14e3aeb5f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 221,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/bootstrap-ec2.sh": {
+      "filePath": "scripts/bootstrap-ec2.sh",
+      "contentHash": "0c7b66ba5992baaf9e8103d8bfbbbd9887851059698b91e312913c4f762e6abb",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 48,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/deploy-discord-bot.sh": {
+      "filePath": "scripts/deploy-discord-bot.sh",
+      "contentHash": "b31915aaa545880f8be1be6e1bf59979629c948405af3030e95b3996a126accb",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 20,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/install-release.sh": {
+      "filePath": "scripts/install-release.sh",
+      "contentHash": "91e250df44d89521851d37695ef180b23dddfd360c6f480bf871c9a7d4289e06",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 49,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/setup-understand-anything.sh": {
+      "filePath": "scripts/setup-understand-anything.sh",
+      "contentHash": "a1324806292b5b2247668e39e8a9bac2f880011e9b5a4023aac1ff3fe691dab6",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 69,
+      "hasStructuralAnalysis": true
+    },
+    "src/commands/assignment.ts": {
+      "filePath": "src/commands/assignment.ts",
+      "contentHash": "1558da60ae3cb84b1deb04d6fb93fe35d7e32889d832e9dc502d00fe5e35004b",
+      "functions": [
+        {
+          "name": "handleCreate",
+          "params": [
+            "interaction",
+            "context"
+          ],
+          "returnType": "Promise<void>",
+          "exported": false,
+          "lineCount": 57
+        },
+        {
+          "name": "handlePublish",
+          "params": [
+            "interaction",
+            "context",
+            "member"
+          ],
+          "returnType": "Promise<void>",
+          "exported": false,
+          "lineCount": 72
+        },
+        {
+          "name": "handleList",
+          "params": [
+            "interaction",
+            "context"
+          ],
+          "returnType": "Promise<void>",
+          "exported": false,
+          "lineCount": 50
+        },
+        {
+          "name": "parseDueAt",
+          "params": [
+            "value"
+          ],
+          "returnType": "Date | null",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "buildAssignmentEmbed",
+          "params": [
+            "assignment",
+            "title"
+          ],
+          "returnType": "EmbedBuilder",
+          "exported": false,
+          "lineCount": 38
+        },
+        {
+          "name": "resolveTargetChannel",
+          "params": [
+            "interaction",
+            "assignment"
+          ],
+          "returnType": "Promise<TextBasedChannel | null>",
+          "exported": false,
+          "lineCount": 19
+        },
+        {
+          "name": "parseMentionedRoleIds",
+          "params": [
+            "value"
+          ],
+          "returnType": "string[]",
+          "exported": false,
+          "lineCount": 8
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "discord.js",
+          "specifiers": [
+            "ChannelType",
+            "EmbedBuilder",
+            "MessageFlags",
+            "SlashCommandBuilder",
+            "ChatInputCommandInteraction",
+            "GuildMember",
+            "TextBasedChannel"
+          ]
+        },
+        {
+          "source": "../services/assignmentService.js",
+          "specifiers": [
+            "AssignmentRecord"
+          ]
+        },
+        {
+          "source": "../services/rolePolicyService.js",
+          "specifiers": [
+            "CAPABILITIES"
+          ]
+        },
+        {
+          "source": "../discord/types.js",
+          "specifiers": [
+            "BotContext",
+            "SlashCommand"
+          ]
+        }
+      ],
+      "exports": [
+        "assignmentCommand"
+      ],
+      "totalLines": 377,
+      "hasStructuralAnalysis": true
+    },
+    "src/commands/hehe.ts": {
+      "filePath": "src/commands/hehe.ts",
+      "contentHash": "6c2ebb78575d0da0c1d5181e9f6686d60b7f996a6e434cda62da6efdcbc09944",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "discord.js",
+          "specifiers": [
+            "MessageFlags",
+            "SlashCommandBuilder"
+          ]
+        },
+        {
+          "source": "../discord/types.js",
+          "specifiers": [
+            "SlashCommand"
+          ]
+        }
+      ],
+      "exports": [
+        "heheCommand"
+      ],
+      "totalLines": 16,
+      "hasStructuralAnalysis": true
+    },
+    "src/commands/ping.ts": {
+      "filePath": "src/commands/ping.ts",
+      "contentHash": "17abeecc122221a88124af80fb99648bdfb6e16ce13526471c80d681e2e8043e",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "discord.js",
+          "specifiers": [
+            "MessageFlags",
+            "SlashCommandBuilder"
+          ]
+        },
+        {
+          "source": "../discord/types.js",
+          "specifiers": [
+            "SlashCommand"
+          ]
+        }
+      ],
+      "exports": [
+        "pingCommand"
+      ],
+      "totalLines": 16,
+      "hasStructuralAnalysis": true
+    },
+    "src/config/env.ts": {
+      "filePath": "src/config/env.ts",
+      "contentHash": "7bf1a8b58162df7ab59bf88236887089607dcb8f8c5d3535097c2216bf04328f",
+      "functions": [
+        {
+          "name": "loadEnv",
+          "params": [],
+          "returnType": "Env",
+          "exported": true,
+          "lineCount": 13
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "dotenv",
+          "specifiers": [
+            "loadDotEnv"
+          ]
+        },
+        {
+          "source": "zod",
+          "specifiers": [
+            "z"
+          ]
+        }
+      ],
+      "exports": [
+        "loadEnv"
+      ],
+      "totalLines": 36,
+      "hasStructuralAnalysis": true
+    },
+    "src/discord/client.ts": {
+      "filePath": "src/discord/client.ts",
+      "contentHash": "f78fca390d91adff02574e96966ca439dc389927a4af06a9adbcae8748377968",
+      "functions": [
+        {
+          "name": "createDiscordClient",
+          "params": [
+            "context"
+          ],
+          "returnType": "Client",
+          "exported": true,
+          "lineCount": 102
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "discord.js",
+          "specifiers": [
+            "Client",
+            "Events",
+            "GatewayIntentBits",
+            "MessageFlags",
+            "Partials"
+          ]
+        },
+        {
+          "source": "./commands.js",
+          "specifiers": [
+            "commandMap"
+          ]
+        },
+        {
+          "source": "./types.js",
+          "specifiers": [
+            "BotContext"
+          ]
+        }
+      ],
+      "exports": [
+        "createDiscordClient"
+      ],
+      "totalLines": 108,
+      "hasStructuralAnalysis": true
+    },
+    "src/discord/commands.ts": {
+      "filePath": "src/discord/commands.ts",
+      "contentHash": "0eb2841fb88e7eba7c1919949ecbbb2d174255174b2f38e54685bf0828f23307",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "../commands/assignment.js",
+          "specifiers": [
+            "assignmentCommand"
+          ]
+        },
+        {
+          "source": "../commands/hehe.js",
+          "specifiers": [
+            "heheCommand"
+          ]
+        },
+        {
+          "source": "../commands/ping.js",
+          "specifiers": [
+            "pingCommand"
+          ]
+        },
+        {
+          "source": "./types.js",
+          "specifiers": [
+            "SlashCommand"
+          ]
+        }
+      ],
+      "exports": [
+        "commands",
+        "commandMap"
+      ],
+      "totalLines": 13,
+      "hasStructuralAnalysis": true
+    },
+    "src/discord/registerCommands.ts": {
+      "filePath": "src/discord/registerCommands.ts",
+      "contentHash": "0d8907fb3c2caed86d05bb6134599bf65e614c1fe3ed10cd0a10a33c74f65174",
+      "functions": [
+        {
+          "name": "registerApplicationCommands",
+          "params": [],
+          "returnType": "Promise<void>",
+          "exported": true,
+          "lineCount": 15
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "discord.js",
+          "specifiers": [
+            "REST",
+            "Routes"
+          ]
+        },
+        {
+          "source": "../config/env.js",
+          "specifiers": [
+            "loadEnv"
+          ]
+        },
+        {
+          "source": "./commands.js",
+          "specifiers": [
+            "commands"
+          ]
+        }
+      ],
+      "exports": [
+        "registerApplicationCommands"
+      ],
+      "totalLines": 32,
+      "hasStructuralAnalysis": true
+    },
+    "src/discord/types.ts": {
+      "filePath": "src/discord/types.ts",
+      "contentHash": "c4b48a92e2e0fcb5059145283dd62fa973510c81cce47f2d29f27277904ffe0a",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "discord.js",
+          "specifiers": [
+            "ChatInputCommandInteraction",
+            "StringSelectMenuInteraction",
+            "SlashCommandBuilder",
+            "SlashCommandSubcommandsOnlyBuilder"
+          ]
+        },
+        {
+          "source": "../config/env.js",
+          "specifiers": [
+            "Env"
+          ]
+        },
+        {
+          "source": "../lib/logger.js",
+          "specifiers": [
+            "Logger"
+          ]
+        },
+        {
+          "source": "../services/assignmentService.js",
+          "specifiers": [
+            "AssignmentService"
+          ]
+        },
+        {
+          "source": "../services/auditLogService.js",
+          "specifiers": [
+            "AuditLogService"
+          ]
+        },
+        {
+          "source": "../services/dmConversationService.js",
+          "specifiers": [
+            "DmConversationService"
+          ]
+        },
+        {
+          "source": "../services/messageHistoryService.js",
+          "specifiers": [
+            "MessageHistoryService"
+          ]
+        },
+        {
+          "source": "../services/retrievalService.js",
+          "specifiers": [
+            "RetrievalService"
+          ]
+        },
+        {
+          "source": "../services/rolePolicyService.js",
+          "specifiers": [
+            "RolePolicyService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 39,
+      "hasStructuralAnalysis": true
+    },
+    "src/index.ts": {
+      "filePath": "src/index.ts",
+      "contentHash": "1481b31ea1aa5663751c0cbcabda56d0ca607359e716753414af3a0530c0b513",
+      "functions": [
+        {
+          "name": "main",
+          "params": [],
+          "returnType": "Promise<void>",
+          "exported": false,
+          "lineCount": 33
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./config/env.js",
+          "specifiers": [
+            "loadEnv"
+          ]
+        },
+        {
+          "source": "./discord/client.js",
+          "specifiers": [
+            "createDiscordClient"
+          ]
+        },
+        {
+          "source": "./discord/registerCommands.js",
+          "specifiers": [
+            "registerApplicationCommands"
+          ]
+        },
+        {
+          "source": "./lib/logger.js",
+          "specifiers": [
+            "Logger"
+          ]
+        },
+        {
+          "source": "./lib/openai.js",
+          "specifiers": [
+            "createOpenAIClient"
+          ]
+        },
+        {
+          "source": "./lib/supabase.js",
+          "specifiers": [
+            "createSupabaseAdminClient"
+          ]
+        },
+        {
+          "source": "./services/assignmentService.js",
+          "specifiers": [
+            "AssignmentService"
+          ]
+        },
+        {
+          "source": "./services/auditLogService.js",
+          "specifiers": [
+            "AuditLogService"
+          ]
+        },
+        {
+          "source": "./services/dmConversationService.js",
+          "specifiers": [
+            "DmConversationService"
+          ]
+        },
+        {
+          "source": "./services/messageHistoryService.js",
+          "specifiers": [
+            "MessageHistoryService"
+          ]
+        },
+        {
+          "source": "./services/retrievalService.js",
+          "specifiers": [
+            "RetrievalService"
+          ]
+        },
+        {
+          "source": "./services/rolePolicyService.js",
+          "specifiers": [
+            "RolePolicyService"
+          ]
+        },
+        {
+          "source": "./web/server.js",
+          "specifiers": [
+            "startWebhookServer"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 54,
+      "hasStructuralAnalysis": true
+    },
+    "src/lib/http.ts": {
+      "filePath": "src/lib/http.ts",
+      "contentHash": "efa10aee3e54763692554620a7db6bf0239ddbba6000df3ccfccd87d697c7ecd",
+      "functions": [
+        {
+          "name": "fetchJson",
+          "params": [
+            "input",
+            "init"
+          ],
+          "returnType": "Promise<TResponse>",
+          "exported": true,
+          "lineCount": 15
+        },
+        {
+          "name": "safeJsonParse",
+          "params": [
+            "value"
+          ],
+          "returnType": "unknown",
+          "exported": false,
+          "lineCount": 7
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "fetchJson"
+      ],
+      "totalLines": 24,
+      "hasStructuralAnalysis": true
+    },
+    "src/lib/logger.ts": {
+      "filePath": "src/lib/logger.ts",
+      "contentHash": "01d974cbc0d14d14726f1d692f65907754f0e2dbe018dc6fb77ba2ff547b8984",
+      "functions": [],
+      "classes": [
+        {
+          "name": "Logger",
+          "methods": [
+            "constructor",
+            "debug",
+            "info",
+            "warn",
+            "error",
+            "write"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 34
+        }
+      ],
+      "imports": [],
+      "exports": [
+        "Logger"
+      ],
+      "totalLines": 44,
+      "hasStructuralAnalysis": true
+    },
+    "src/lib/openai.ts": {
+      "filePath": "src/lib/openai.ts",
+      "contentHash": "28f44fd77f004b5c37949e306304d89712a21e2e285546bedf656f25d6b518f7",
+      "functions": [
+        {
+          "name": "createOpenAIClient",
+          "params": [
+            "env"
+          ],
+          "returnType": "OpenAI",
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "openai",
+          "specifiers": [
+            "OpenAI"
+          ]
+        },
+        {
+          "source": "../config/env.js",
+          "specifiers": [
+            "Env"
+          ]
+        }
+      ],
+      "exports": [
+        "createOpenAIClient"
+      ],
+      "totalLines": 10,
+      "hasStructuralAnalysis": true
+    },
+    "src/lib/supabase.ts": {
+      "filePath": "src/lib/supabase.ts",
+      "contentHash": "4924047921e2080289a8c5547b6ffd2c6624806c56960c260cc5ef940b87bcd6",
+      "functions": [
+        {
+          "name": "createSupabaseAdminClient",
+          "params": [
+            "env"
+          ],
+          "returnType": "SupabaseClient",
+          "exported": true,
+          "lineCount": 9
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@supabase/supabase-js",
+          "specifiers": [
+            "createClient",
+            "SupabaseClient"
+          ]
+        },
+        {
+          "source": "../config/env.js",
+          "specifiers": [
+            "Env"
+          ]
+        }
+      ],
+      "exports": [
+        "createSupabaseAdminClient"
+      ],
+      "totalLines": 14,
+      "hasStructuralAnalysis": true
+    },
+    "src/services/assignmentService.ts": {
+      "filePath": "src/services/assignmentService.ts",
+      "contentHash": "5b8cb4daa61a234433ee2a74bbd040b413a51392f5685b79070ab2fafbdcc261",
+      "functions": [],
+      "classes": [
+        {
+          "name": "AssignmentService",
+          "methods": [
+            "constructor",
+            "createAssignment",
+            "getAssignmentById",
+            "listAssignments",
+            "markPublished"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 81
+        }
+      ],
+      "imports": [
+        {
+          "source": "@supabase/supabase-js",
+          "specifiers": [
+            "SupabaseClient"
+          ]
+        }
+      ],
+      "exports": [
+        "AssignmentService"
+      ],
+      "totalLines": 109,
+      "hasStructuralAnalysis": true
+    },
+    "src/services/auditLogService.ts": {
+      "filePath": "src/services/auditLogService.ts",
+      "contentHash": "6d7eb3823ac4ab53b468776e43915124bba81226d71d2f84488592e81240c623",
+      "functions": [],
+      "classes": [
+        {
+          "name": "AuditLogService",
+          "methods": [
+            "constructor",
+            "record"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 18
+        }
+      ],
+      "imports": [
+        {
+          "source": "@supabase/supabase-js",
+          "specifiers": [
+            "SupabaseClient"
+          ]
+        }
+      ],
+      "exports": [
+        "AuditLogService"
+      ],
+      "totalLines": 30,
+      "hasStructuralAnalysis": true
+    },
+    "src/services/dmConversationService.ts": {
+      "filePath": "src/services/dmConversationService.ts",
+      "contentHash": "a91b34a5d469adbf5a7fc13e658788e72e7142eb903ab8bacb91dff67f06ff3e",
+      "functions": [
+        {
+          "name": "shouldPromptForScope",
+          "params": [
+            "query",
+            "scopeOptions"
+          ],
+          "returnType": "boolean",
+          "exported": false,
+          "lineCount": 9
+        }
+      ],
+      "classes": [
+        {
+          "name": "DmConversationService",
+          "methods": [
+            "constructor",
+            "handleMessage",
+            "matches",
+            "handleSelection",
+            "resolveAvailableScopes"
+          ],
+          "properties": [
+            "pendingSelections"
+          ],
+          "exported": true,
+          "lineCount": 150
+        }
+      ],
+      "imports": [
+        {
+          "source": "node:crypto",
+          "specifiers": [
+            "randomUUID"
+          ]
+        },
+        {
+          "source": "discord.js",
+          "specifiers": [
+            "ActionRowBuilder",
+            "StringSelectMenuBuilder",
+            "Client",
+            "Message",
+            "StringSelectMenuInteraction",
+            "User"
+          ]
+        },
+        {
+          "source": "../discord/types.js",
+          "specifiers": [
+            "BotContext"
+          ]
+        },
+        {
+          "source": "./rolePolicyService.js",
+          "specifiers": [
+            "CAPABILITIES"
+          ]
+        },
+        {
+          "source": "./messageHistoryService.js",
+          "specifiers": [
+            "resolveDmScope",
+            "resolvePrimaryGuildScope",
+            "HistoryScope"
+          ]
+        }
+      ],
+      "exports": [
+        "DmConversationService"
+      ],
+      "totalLines": 192,
+      "hasStructuralAnalysis": true
+    },
+    "src/services/messageHistoryService.ts": {
+      "filePath": "src/services/messageHistoryService.ts",
+      "contentHash": "6a9b0eb046b97ef76e8a87f503bdfa1d1ba154ad8f99baf105a7f6ee259f2eb5",
+      "functions": [
+        {
+          "name": "resolveScope",
+          "params": [
+            "message"
+          ],
+          "returnType": "{ dmUserId: string | null; guildId: string | null } | null",
+          "exported": false,
+          "lineCount": 20
+        },
+        {
+          "name": "resolveDmUserId",
+          "params": [
+            "message"
+          ],
+          "returnType": "Snowflake | null",
+          "exported": false,
+          "lineCount": 20
+        },
+        {
+          "name": "resolvePrimaryGuildScope",
+          "params": [
+            "guildId"
+          ],
+          "returnType": "HistoryScope",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "resolveDmScope",
+          "params": [
+            "user"
+          ],
+          "returnType": "HistoryScope",
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "classes": [
+        {
+          "name": "MessageHistoryService",
+          "methods": [
+            "constructor",
+            "storeDiscordMessage",
+            "listRecentMessages",
+            "countPhrase",
+            "searchSemantic"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 191
+        }
+      ],
+      "imports": [
+        {
+          "source": "discord.js",
+          "specifiers": [
+            "Message",
+            "Snowflake",
+            "User"
+          ]
+        },
+        {
+          "source": "openai",
+          "specifiers": [
+            "OpenAI"
+          ]
+        },
+        {
+          "source": "@supabase/supabase-js",
+          "specifiers": [
+            "SupabaseClient"
+          ]
+        },
+        {
+          "source": "../config/env.js",
+          "specifiers": [
+            "Env"
+          ]
+        },
+        {
+          "source": "../lib/logger.js",
+          "specifiers": [
+            "Logger"
+          ]
+        },
+        {
+          "source": "./rolePolicyService.js",
+          "specifiers": [
+            "RolePolicyService"
+          ]
+        }
+      ],
+      "exports": [
+        "MessageHistoryService",
+        "resolvePrimaryGuildScope",
+        "resolveDmScope"
+      ],
+      "totalLines": 282,
+      "hasStructuralAnalysis": true
+    },
+    "src/services/retrievalService.ts": {
+      "filePath": "src/services/retrievalService.ts",
+      "contentHash": "835460ac9aef4a39a29c4d11b6f0c2faf1379f3151919715dfddc5119775f2c3",
+      "functions": [
+        {
+          "name": "isHistoryAwareQuery",
+          "params": [
+            "query"
+          ],
+          "returnType": "boolean",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "parsePhraseCountIntent",
+          "params": [
+            "query",
+            "requesterUserId",
+            "botUserId"
+          ],
+          "returnType": "{ phrase: string; subjectLabel: string; subjectUserId: string } | null",
+          "exported": false,
+          "lineCount": 43
+        },
+        {
+          "name": "formatContext",
+          "params": [
+            "recent",
+            "semanticMatches"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 26
+        },
+        {
+          "name": "formatMessageLine",
+          "params": [
+            "message"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "scopeLabel",
+          "params": [
+            "scope"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 11
+        }
+      ],
+      "classes": [
+        {
+          "name": "RetrievalService",
+          "methods": [
+            "constructor",
+            "answerQuestion",
+            "answerDirect"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 82
+        }
+      ],
+      "imports": [
+        {
+          "source": "openai",
+          "specifiers": [
+            "OpenAI"
+          ]
+        },
+        {
+          "source": "../config/env.js",
+          "specifiers": [
+            "Env"
+          ]
+        },
+        {
+          "source": "./messageHistoryService.js",
+          "specifiers": [
+            "HistoryMessageRecord",
+            "HistoryScope",
+            "MessageHistoryService"
+          ]
+        }
+      ],
+      "exports": [
+        "RetrievalService"
+      ],
+      "totalLines": 188,
+      "hasStructuralAnalysis": true
+    },
+    "src/services/rolePolicyService.ts": {
+      "filePath": "src/services/rolePolicyService.ts",
+      "contentHash": "b30246c2ebc1e51f75fd7993ca677d0b762d2439277ae97f352436267f5a1b31",
+      "functions": [],
+      "classes": [
+        {
+          "name": "RolePolicyService",
+          "methods": [
+            "constructor",
+            "memberHasCapability",
+            "ensureGuild"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 45
+        }
+      ],
+      "imports": [
+        {
+          "source": "discord.js",
+          "specifiers": [
+            "PermissionFlagsBits",
+            "Guild",
+            "GuildMember"
+          ]
+        },
+        {
+          "source": "@supabase/supabase-js",
+          "specifiers": [
+            "SupabaseClient"
+          ]
+        }
+      ],
+      "exports": [
+        "CAPABILITIES",
+        "RolePolicyService"
+      ],
+      "totalLines": 64,
+      "hasStructuralAnalysis": true
+    },
+    "src/web/server.ts": {
+      "filePath": "src/web/server.ts",
+      "contentHash": "ca954bbe6b36ce69dfec88f4afd6897d747eddb99cbf23cda5edc82226e4747d",
+      "functions": [
+        {
+          "name": "startWebhookServer",
+          "params": [
+            "context"
+          ],
+          "returnType": "Server",
+          "exported": true,
+          "lineCount": 18
+        },
+        {
+          "name": "handleRequest",
+          "params": [
+            "request",
+            "response",
+            "context"
+          ],
+          "returnType": "Promise<void>",
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "writeJson",
+          "params": [
+            "response",
+            "statusCode",
+            "payload"
+          ],
+          "returnType": "void",
+          "exported": false,
+          "lineCount": 8
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:http",
+          "specifiers": [
+            "createServer",
+            "IncomingMessage",
+            "Server",
+            "ServerResponse"
+          ]
+        },
+        {
+          "source": "../discord/types.js",
+          "specifiers": [
+            "BotContext"
+          ]
+        }
+      ],
+      "exports": [
+        "startWebhookServer"
+      ],
+      "totalLines": 47,
+      "hasStructuralAnalysis": true
+    },
+    "supabase/migrations/001_initial_schema.sql": {
+      "filePath": "supabase/migrations/001_initial_schema.sql",
+      "contentHash": "d3a26da62b83518f5b0c7dc14317864f3f48572faa6f56ad8f22b15cf04f1938",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 42,
+      "hasStructuralAnalysis": true
+    },
+    "supabase/migrations/002_clawbot_control_plane.sql": {
+      "filePath": "supabase/migrations/002_clawbot_control_plane.sql",
+      "contentHash": "8ab8db7de81cddbc7bd509be479ff0e33391c42651834a482ddaed0858c10c7f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 57,
+      "hasStructuralAnalysis": true
+    },
+    "supabase/migrations/003_v1_retrieval.sql": {
+      "filePath": "supabase/migrations/003_v1_retrieval.sql",
+      "contentHash": "96398a92f39e38ef7dbac007f82b9021633904a04fae9e50c9c64659261a6653",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 129,
+      "hasStructuralAnalysis": true
+    },
+    "supabase/migrations/004_cleanup_legacy_clawbot_tables.sql": {
+      "filePath": "supabase/migrations/004_cleanup_legacy_clawbot_tables.sql",
+      "contentHash": "3f135e8c7ca144c5a6b6eece95ba2417c7005749623cea8b2c57f0b0f894d789",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 3,
+      "hasStructuralAnalysis": true
+    },
+    "terraform/main.tf": {
+      "filePath": "terraform/main.tf",
+      "contentHash": "278731895a420f3a03b9795795c446fdc78ccdf2d9cf8c62ffdf33c422964c40",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 108,
+      "hasStructuralAnalysis": true
+    },
+    "terraform/outputs.tf": {
+      "filePath": "terraform/outputs.tf",
+      "contentHash": "fc3ebb2e59ded782b23456a5f4dd555a084c4f23fba4724e466c31d155d89de5",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 36,
+      "hasStructuralAnalysis": true
+    },
+    "terraform/templates/bootstrap-user-data.sh.tftpl": {
+      "filePath": "terraform/templates/bootstrap-user-data.sh.tftpl",
+      "contentHash": "30f0ff3f301b1988ffabc3dee545ab79a06d6c42816b44da4528a990b6de64ce",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 29,
+      "hasStructuralAnalysis": false
+    },
+    "terraform/terraform.tfvars.example": {
+      "filePath": "terraform/terraform.tfvars.example",
+      "contentHash": "89d826e7dff44526d780250a47a7ab7fa293794dfe2c2dbbfee80883b9b0d5f0",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 20,
+      "hasStructuralAnalysis": false
+    },
+    "terraform/variables.tf": {
+      "filePath": "terraform/variables.tf",
+      "contentHash": "aaf949eab6e4f71da8eb3c44d935115eb81cba60b3c65ce89e62b4504ec48652",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 79,
+      "hasStructuralAnalysis": true
+    },
+    "terraform/versions.tf": {
+      "filePath": "terraform/versions.tf",
+      "contentHash": "9006c72b0098d1b53366d8b7c991c94663efcecdf3c7ee15412104dd63e31f00",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 15,
+      "hasStructuralAnalysis": true
+    },
+    "tsconfig.json": {
+      "filePath": "tsconfig.json",
+      "contentHash": "ee4c97e3de51cd8f4ea0a6ab89c4b9eb2deeca31a1f6a9533e4a03f9a5155422",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 21,
+      "hasStructuralAnalysis": true
+    }
+  }
+}

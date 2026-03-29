@@ -1,180 +1,124 @@
 import type { Message, Snowflake, User } from 'discord.js';
-import type OpenAI from 'openai';
-import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { Env } from '../config/env.js';
 import type { Logger } from '../lib/logger.js';
+import type { EmbeddingClient } from '../ports/ai.js';
+import type {
+  HistoryMessageRecord,
+  HistoryScope,
+  MessageHistoryRepository,
+  SemanticSearchHit
+} from '../ports/history.js';
+import type { ChannelIngestionPolicyService } from './channelIngestionPolicyService.js';
+import type { MessageIndexingService } from './messageIndexingService.js';
 import type { RolePolicyService } from './rolePolicyService.js';
 
-export interface HistoryScope {
-  kind: 'dm' | 'guild';
-  channelId?: string | null;
-  dmUserId?: string | null;
-  guildId?: string | null;
-}
+export type { HistoryMessageRecord, HistoryScope, SemanticSearchHit } from '../ports/history.js';
 
-export interface HistoryMessageRecord {
-  id: string;
-  guild_id: string | null;
-  channel_id: string;
-  thread_id: string | null;
-  dm_user_id: string | null;
-  author_user_id: string;
-  author_username: string;
-  author_is_bot: boolean;
-  content: string;
-  created_at: string;
+export interface MessageStoreResult {
+  reason: 'stored' | 'skipped_by_ingestion_policy' | 'unsupported_scope' | 'system_message';
+  stored: boolean;
 }
-
-export interface SemanticSearchHit extends HistoryMessageRecord {
-  similarity: number;
-}
-
-const MAX_EMBEDDING_INPUT_CHARS = 4000;
 
 export class MessageHistoryService {
   constructor(
     private readonly env: Env,
-    private readonly supabase: SupabaseClient,
-    private readonly openai: OpenAI,
+    private readonly history: MessageHistoryRepository,
+    private readonly embeddings: EmbeddingClient,
+    private readonly channelIngestionPolicies: ChannelIngestionPolicyService,
+    private readonly messageIndexing: MessageIndexingService,
     private readonly rolePolicies: RolePolicyService,
     private readonly logger: Logger
   ) {}
 
-  async storeDiscordMessage(message: Message): Promise<void> {
+  async storeDiscordMessage(message: Message): Promise<MessageStoreResult> {
     if (message.system) {
-      return;
+      return {
+        reason: 'system_message',
+        stored: false
+      };
     }
 
     const scope = resolveScope(message);
     if (!scope) {
-      return;
+      return {
+        reason: 'unsupported_scope',
+        stored: false
+      };
     }
 
     if (message.guild) {
       await this.rolePolicies.ensureGuild(message.guild);
+
+      const enabled = await this.channelIngestionPolicies.isChannelEnabled(message.guild.id, message.channelId);
+      if (!enabled) {
+        this.logger.debug('Skipped guild message storage because ingestion is disabled for the channel', {
+          channelId: message.channelId,
+          guildId: message.guild.id,
+          messageId: message.id
+        });
+
+        return {
+          reason: 'skipped_by_ingestion_policy',
+          stored: false
+        };
+      }
     }
 
     const content = message.content.trim();
     const attachments = [...message.attachments.values()];
 
-    const { error } = await this.supabase.from('messages').upsert(
-      {
-        id: message.id,
-        guild_id: scope.guildId,
-        channel_id: message.channelId,
-        thread_id: message.channel.isThread() ? message.channel.id : null,
-        dm_user_id: scope.dmUserId,
-        author_user_id: message.author.id,
-        author_username: message.author.username,
-        author_is_bot: message.author.bot,
-        content,
-        attachment_count: attachments.length,
-        created_at: message.createdAt.toISOString(),
-        edited_at: message.editedTimestamp ? new Date(message.editedTimestamp).toISOString() : null,
-        indexed_at: new Date().toISOString()
-      },
-      {
-        onConflict: 'id'
-      }
-    );
-
-    if (error) {
-      throw new Error(`Failed to store Discord message: ${error.message}`);
-    }
+    await this.history.saveMessage({
+      id: message.id,
+      guildId: scope.guildId,
+      channelId: message.channelId,
+      threadId: message.channel.isThread() ? message.channel.id : null,
+      dmUserId: scope.dmUserId,
+      authorUserId: message.author.id,
+      authorUsername: message.author.username,
+      authorIsBot: message.author.bot,
+      content,
+      attachmentCount: attachments.length,
+      createdAt: message.createdAt.toISOString(),
+      editedAt: message.editedTimestamp ? new Date(message.editedTimestamp).toISOString() : null,
+      indexedAt: new Date().toISOString()
+    });
 
     if (attachments.length > 0) {
-      const { error: attachmentError } = await this.supabase.from('message_attachments').upsert(
+      await this.history.saveMessageAttachments(
         attachments.map((attachment) => ({
           id: attachment.id,
-          message_id: message.id,
+          messageId: message.id,
           url: attachment.url,
           filename: attachment.name,
-          content_type: attachment.contentType,
-          size_bytes: attachment.size,
+          contentType: attachment.contentType ?? null,
+          sizeBytes: attachment.size,
           height: attachment.height ?? null,
           width: attachment.width ?? null
-        })),
-        {
-          onConflict: 'id'
-        }
+        }))
       );
-
-      if (attachmentError) {
-        throw new Error(`Failed to store message attachments: ${attachmentError.message}`);
-      }
     }
 
     if (content.length === 0) {
-      return;
+      return {
+        reason: 'stored',
+        stored: true
+      };
     }
 
-    try {
-      const embedding = await this.openai.embeddings.create({
-        model: this.env.OPENAI_EMBEDDING_MODEL,
-        input: content.slice(0, MAX_EMBEDDING_INPUT_CHARS)
-      });
+    this.messageIndexing.enqueue({
+      content,
+      messageId: message.id
+    });
 
-      const vector = embedding.data[0]?.embedding;
-      if (!vector) {
-        this.logger.warn('OpenAI embedding response was empty', {
-          messageId: message.id
-        });
-        return;
-      }
-
-      const { error: embeddingError } = await this.supabase.from('message_embeddings').upsert(
-        {
-          message_id: message.id,
-          embedding: vector,
-          model: this.env.OPENAI_EMBEDDING_MODEL,
-          embedded_text: content.slice(0, MAX_EMBEDDING_INPUT_CHARS),
-          updated_at: new Date().toISOString()
-        },
-        {
-          onConflict: 'message_id'
-        }
-      );
-
-      if (embeddingError) {
-        throw new Error(embeddingError.message);
-      }
-    } catch (error) {
-      const messageText = error instanceof Error ? error.message : 'Unknown embedding error';
-      this.logger.warn('Failed to embed Discord message', {
-        messageId: message.id,
-        error: messageText
-      });
-    }
+    return {
+      reason: 'stored',
+      stored: true
+    };
   }
 
   async listRecentMessages(scope: HistoryScope, limit = 8): Promise<HistoryMessageRecord[]> {
-    let query = this.supabase
-      .from('messages')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(limit);
-
-    if (scope.guildId) {
-      query = query.eq('guild_id', scope.guildId);
-    } else {
-      query = query.is('guild_id', null);
-    }
-
-    if (scope.dmUserId) {
-      query = query.eq('dm_user_id', scope.dmUserId);
-    }
-
-    if (scope.channelId) {
-      query = query.eq('channel_id', scope.channelId);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      throw new Error(`Failed to load recent messages: ${error.message}`);
-    }
-
-    return ((data ?? []) as HistoryMessageRecord[]).reverse();
+    return this.history.listRecentMessages(scope, limit);
   }
 
   async countPhrase(
@@ -182,45 +126,12 @@ export class MessageHistoryService {
     phrase: string,
     authorUserId: string | null
   ): Promise<number> {
-    const { data, error } = await this.supabase.rpc('count_message_phrase', {
-      filter_author_user_id: authorUserId,
-      filter_channel_id: scope.channelId ?? null,
-      filter_dm_user_id: scope.dmUserId ?? null,
-      filter_guild_id: scope.guildId ?? null,
-      phrase
-    });
-
-    if (error) {
-      throw new Error(`Failed to count phrase usage: ${error.message}`);
-    }
-
-    return Number(data ?? 0);
+    return this.history.countPhrase(scope, phrase, authorUserId);
   }
 
   async searchSemantic(scope: HistoryScope, query: string, limit = 8): Promise<SemanticSearchHit[]> {
-    const embedding = await this.openai.embeddings.create({
-      model: this.env.OPENAI_EMBEDDING_MODEL,
-      input: query.slice(0, MAX_EMBEDDING_INPUT_CHARS)
-    });
-
-    const vector = embedding.data[0]?.embedding;
-    if (!vector) {
-      return [];
-    }
-
-    const { data, error } = await this.supabase.rpc('match_message_embeddings', {
-      filter_channel_id: scope.channelId ?? null,
-      filter_dm_user_id: scope.dmUserId ?? null,
-      filter_guild_id: scope.guildId ?? null,
-      match_count: limit,
-      query_embedding: vector
-    });
-
-    if (error) {
-      throw new Error(`Failed to search message embeddings: ${error.message}`);
-    }
-
-    return (data ?? []) as SemanticSearchHit[];
+    const vector = await this.embeddings.createEmbedding(this.env.OPENAI_EMBEDDING_MODEL, query.slice(0, 4000));
+    return this.history.searchSemantic(scope, vector, limit);
   }
 }
 

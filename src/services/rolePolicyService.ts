@@ -1,63 +1,29 @@
 import {
-  PermissionFlagsBits,
   type Guild,
   type GuildMember
 } from 'discord.js';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { RolePolicyStore } from '../ports/controlPlane.js';
 
 export const CAPABILITIES = {
   assignmentAdmin: 'assignment_admin',
+  ingestionAdmin: 'ingestion_admin',
   historyGuildWide: 'history_guild_wide'
 } as const;
 
 export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
 
-interface RolePolicyRow {
-  discord_role_id: string;
-}
-
 export class RolePolicyService {
-  constructor(private readonly supabase: SupabaseClient) {}
+  constructor(private readonly store: RolePolicyStore) {}
 
   async memberHasCapability(
     guild: Guild,
     member: GuildMember,
     capability: Capability
   ): Promise<boolean> {
-    await this.ensureGuild(guild);
-
-    if (member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return true;
-    }
-
-    const { data, error } = await this.supabase
-      .from('role_policies')
-      .select('discord_role_id')
-      .eq('guild_id', guild.id)
-      .eq('capability', capability);
-
-    if (error) {
-      throw new Error(`Failed to load role policies: ${error.message}`);
-    }
-
-    const rows = (data ?? []) as RolePolicyRow[];
-    return rows.some((row) => member.roles.cache.has(row.discord_role_id));
+    return this.store.memberHasCapability(guild, member, capability);
   }
 
   async ensureGuild(guild: Guild): Promise<void> {
-    const { error } = await this.supabase.from('guilds').upsert(
-      {
-        id: guild.id,
-        name: guild.name,
-        updated_at: new Date().toISOString()
-      },
-      {
-        onConflict: 'id'
-      }
-    );
-
-    if (error) {
-      throw new Error(`Failed to upsert guild: ${error.message}`);
-    }
+    await this.store.ensureGuild(guild);
   }
 }

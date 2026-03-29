@@ -27,9 +27,18 @@ async function handleRequest(
   context: BotContext
 ): Promise<void> {
   const requestUrl = new URL(request.url ?? '/', 'http://localhost');
+  const runtimeSnapshot = context.runtime.getSnapshot(context.services.messageIndexing.getStatus());
 
   if (request.method === 'GET' && requestUrl.pathname === '/healthz') {
-    writeJson(response, 200, { ok: true });
+    writeJson(response, 200, {
+      ok: true,
+      runtime: runtimeSnapshot
+    });
+    return;
+  }
+
+  if (request.method === 'GET' && requestUrl.pathname === '/readyz') {
+    writeJson(response, runtimeSnapshot.ready ? 200 : 503, runtimeSnapshot);
     return;
   }
 

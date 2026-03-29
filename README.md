@@ -51,10 +51,14 @@ Do not commit `.env`.
 - Create a Supabase project
 - Copy the project URL into `SUPABASE_URL`
 - Copy the server-side service role key into `SUPABASE_SERVICE_ROLE_KEY`
-- Run the SQL migration files in order:
-  - [supabase/migrations/001_initial_schema.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/001_initial_schema.sql)
-  - [supabase/migrations/002_clawbot_control_plane.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/002_clawbot_control_plane.sql)
-  - [supabase/migrations/003_v1_retrieval.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/003_v1_retrieval.sql)
+- Install the Supabase CLI
+- Install Docker Desktop or another Docker-compatible runtime if you want the local Supabase stack
+- This repo now includes `supabase/config.toml` and keeps database changes under `supabase/migrations/`
+- Existing `001` to `005` files are the preserved baseline migrations for this project
+- `004_cleanup_legacy_clawbot_tables.sql` is intentionally a no-op placeholder so the baseline history stays contiguous without dropping active tables
+- For a linked remote project, apply them with `supabase db push`
+- For local development, run `npm run supabase:start` and `npm run supabase:db:reset`
+- Future schema changes should use `supabase migration new <name>` so new files follow the CLI-managed workflow
 
 ### 5. Configure OpenAI
 
@@ -71,7 +75,7 @@ Do not commit `.env`.
 npm run dev
 ```
 
-The bot registers slash commands at startup, starts a local health server on port `8080`, stores visible DM and guild message history, and responds to direct messages agentically.
+The bot can register slash commands at startup, starts a local health server on port `8080`, stores DM history immediately, stores guild history only for channels with ingestion explicitly enabled, and responds to direct messages agentically.
 
 ## EC2 Deployment
 
@@ -112,6 +116,9 @@ CD setup instructions and required GitHub secrets are in [docs/ci-cd.md](/Users/
 ## Available Commands and Interaction Modes
 
 - `/ping`
+- `/ingestion enable`
+- `/ingestion disable`
+- `/ingestion status`
 - `/assignment create`
 - `/assignment publish`
 - `/assignment list`
@@ -130,6 +137,7 @@ The bot checks Discord `Administrator` first, then capability mappings in `role_
 Capabilities used by the current command set:
 
 - `assignment_admin`
+- `ingestion_admin`
 - `history_guild_wide`
 
 Example:
@@ -138,6 +146,7 @@ Example:
 insert into role_policies (guild_id, capability, discord_role_id)
 values
   ('your-discord-guild-id', 'assignment_admin', 'your-assignment-admin-role-id'),
+  ('your-discord-guild-id', 'ingestion_admin', 'your-ingestion-admin-role-id'),
   ('your-discord-guild-id', 'history_guild_wide', 'your-history-enabled-role-id');
 ```
 
@@ -146,6 +155,10 @@ values
 V1 uses a reduced retrieval-first architecture:
 
 - raw Discord messages are the source of truth
+- DM history is always eligible for storage
+- guild-channel ingestion is opt-in through `channel_ingestion_policies`
+- ingestion policy changes and permission denials are written to `audit_logs`
+- DM scope-selection prompts are persisted briefly in Supabase so restarts do not invalidate active menus
 - exact analytics use SQL/text search first
 - semantic questions use OpenAI embeddings over stored messages
 - image attachments are stored as metadata only
@@ -158,6 +171,12 @@ npm run dev
 npm run build
 npm run typecheck
 npm run register:commands
+npm run supabase:start
+npm run supabase:stop
+npm run supabase:status
+npm run supabase:db:reset
+npm run supabase:db:push
+npm run supabase:migration:new -- add_feature_name
 ```
 
 ## Testing Guidance
@@ -169,9 +188,12 @@ Before opening a PR or deploying:
 - Run `terraform fmt -check` inside `terraform/` when infrastructure files change
 - Run `terraform validate` inside `terraform/` after `terraform init -backend=false` when infrastructure files change
 - Verify `/ping`
+- Verify `/ingestion status`, `/ingestion enable`, and `/ingestion disable` in a development Discord server
 - Verify `/assignment create` and `/assignment publish` in a development Discord server
 - DM the bot with one direct question and one history-based question
-- Confirm visible messages are stored in Supabase
+- Confirm DM messages are stored in Supabase
+- If you enable a row in `channel_ingestion_policies`, confirm guild messages for that channel are stored
+- Check `GET /readyz` as well as `GET /healthz`
 - Re-check all modified lines for secrets and private data leaks
 
 ## Project Structure
@@ -190,8 +212,13 @@ deploy/
 scripts/            EC2 bootstrap and deploy helpers
 supabase/
   migrations/       SQL schema for the app
+.codex/
+  skills/           Repo-local agent workflow skills
 docs/
+  diagrams/         Durable architecture and flow diagrams
   discord-bot-plan.md
+  agent-skills.md
+  project-visualization-workflow.md
   setup.md
   credits.md
 ```
@@ -199,6 +226,8 @@ docs/
 ## Documentation
 
 - [docs/discord-bot-plan.md](/Users/giancedrick/dev/projects/gigi/docs/discord-bot-plan.md)
+- [docs/agent-skills.md](/Users/giancedrick/dev/projects/gigi/docs/agent-skills.md)
+- [docs/project-visualization-workflow.md](/Users/giancedrick/dev/projects/gigi/docs/project-visualization-workflow.md)
 - [docs/architecture-v1.md](/Users/giancedrick/dev/projects/gigi/docs/architecture-v1.md)
 - [docs/roadmap.md](/Users/giancedrick/dev/projects/gigi/docs/roadmap.md)
 - [docs/setup.md](/Users/giancedrick/dev/projects/gigi/docs/setup.md)

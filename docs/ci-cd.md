@@ -38,6 +38,7 @@ On pushes to `main`, after CI passes, the workflow:
 5. installs production dependencies on the server
 6. restarts `gigi-discord-bot`
 7. checks `http://127.0.0.1:8080/healthz`
+8. optionally verify `http://127.0.0.1:8080/readyz` during operational debugging
 
 This avoids:
 
@@ -94,6 +95,7 @@ Important:
 6. Verify on the EC2:
    - `sudo systemctl status gigi-discord-bot --no-pager`
    - `curl http://127.0.0.1:8080/healthz`
+   - `curl http://127.0.0.1:8080/readyz`
 7. Verify in Discord:
    - `/ping`
 

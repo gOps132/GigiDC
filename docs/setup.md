@@ -6,6 +6,8 @@
 
 - Node.js 22.12.0 or newer
 - npm
+- Docker Desktop or another Docker-compatible runtime for `supabase start`
+- Supabase CLI
 - A Discord application and bot
 - A Supabase project
 - An OpenAI API key
@@ -23,6 +25,7 @@ Required variables:
 - `DISCORD_CLIENT_ID`
 - `DISCORD_GUILD_ID`
 - `PRIMARY_GUILD_ID`
+- `REGISTER_COMMANDS_ON_STARTUP`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `OPENAI_API_KEY`
@@ -40,11 +43,31 @@ Required variables:
 ## Supabase Setup
 
 1. Create the Supabase project
-2. Open the SQL editor
-3. Run [supabase/migrations/001_initial_schema.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/001_initial_schema.sql)
-4. Run [supabase/migrations/002_clawbot_control_plane.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/002_clawbot_control_plane.sql)
-5. Run [supabase/migrations/003_v1_retrieval.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/003_v1_retrieval.sql)
-6. Create `role_policies` rows when you are ready to delegate assignment and guild-wide history access beyond Discord administrators
+2. Authenticate the CLI with `supabase login`
+3. Link this repo to your remote project with `supabase link --project-ref <your-project-ref>`
+4. Apply the baseline migrations with `supabase db push`
+5. For local development, start the local stack with `npm run supabase:start`
+6. Reset the local database from the checked-in migrations with `npm run supabase:db:reset`
+7. Create `role_policies` rows when you are ready to delegate assignment and guild-wide history access beyond Discord administrators
+8. If you want guild-channel history storage, add rows to `channel_ingestion_policies` for the channels that should be ingested
+
+Current checked-in baseline migrations:
+
+- [supabase/migrations/001_initial_schema.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/001_initial_schema.sql)
+- [supabase/migrations/002_clawbot_control_plane.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/002_clawbot_control_plane.sql)
+- [supabase/migrations/003_v1_retrieval.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/003_v1_retrieval.sql)
+- [supabase/migrations/004_cleanup_legacy_clawbot_tables.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/004_cleanup_legacy_clawbot_tables.sql)
+- [supabase/migrations/005_pending_dm_scope_selections.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/005_pending_dm_scope_selections.sql)
+
+Use the CLI for all new migrations:
+
+```bash
+npm run supabase:migration:new -- add_feature_name
+```
+
+Do not rename or renumber the existing baseline migrations just to match the timestamp format. They are the current project history. New migrations can use the CLI-generated timestamp naming from here forward.
+
+`004_cleanup_legacy_clawbot_tables.sql` is intentionally a no-op placeholder. Keep it in the history, but do not reintroduce destructive cleanup there.
 
 Example role policy shape:
 
@@ -52,7 +75,16 @@ Example role policy shape:
 insert into role_policies (guild_id, capability, discord_role_id)
 values
   ('your-discord-guild-id', 'assignment_admin', 'your-assignment-admin-role-id'),
+  ('your-discord-guild-id', 'ingestion_admin', 'your-ingestion-admin-role-id'),
   ('your-discord-guild-id', 'history_guild_wide', 'your-history-enabled-role-id');
+```
+
+Example ingestion policy shape:
+
+```sql
+insert into channel_ingestion_policies (guild_id, channel_id, enabled, updated_by_user_id)
+values
+  ('your-discord-guild-id', 'your-channel-id', true, 'your-discord-user-id');
 ```
 
 ## OpenAI Setup
@@ -70,21 +102,31 @@ Run:
 npm install
 npm run typecheck
 npm run build
+npm run supabase:start
+npm run supabase:db:reset
 npm run dev
 ```
 
 Then validate:
 
 - `/ping` responds
+- `/ingestion status` shows whether the current channel is enabled
+- `/ingestion enable` turns ingestion on for the current or selected channel
+- `/ingestion disable` turns ingestion off again
 - `/assignment create` creates a draft notice record
 - `/assignment list` returns recent assignments
 - `/assignment publish` posts to the selected channel or current channel and mentions affected roles
 - DM the bot with a general question
 - DM the bot with a history question like `How many times did I say "ship it"?`
-- Confirm raw messages and embeddings are being written for visible text messages
+- Confirm DM messages are being written immediately
+- Confirm embeddings are written shortly after message storage rather than inline on the message hot path
+- If you enabled `channel_ingestion_policies`, confirm only enabled guild channels are stored
+- Confirm ingestion policy changes create `audit_logs` rows without storing secrets or private message content
+- Check both `/healthz` and `/readyz`
 
 ## Safety Notes
 
 - Never expose `SUPABASE_SERVICE_ROLE_KEY` or `OPENAI_API_KEY`
 - Do not paste real secrets into docs, issues, or pull requests
 - Review logs and generated output for sensitive data before sharing
+- Do not commit linked-project credentials or copy remote database passwords into scripts

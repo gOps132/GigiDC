@@ -1,0 +1,3202 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "gigi-discord-bot",
+    "languages": [
+      "json",
+      "markdown",
+      "shell",
+      "sql",
+      "terraform",
+      "typescript"
+    ],
+    "frameworks": [
+      "Node.js",
+      "TypeScript",
+      "discord.js",
+      "Supabase",
+      "OpenAI",
+      "Terraform"
+    ],
+    "description": "DM-first Discord bot for assignment notices and retrieval-backed chat workflows.",
+    "analyzedAt": "2026-03-29T12:31:57.830Z",
+    "gitCommitHash": "fe87a41b5d3db412a4113a869acfa71ee223ac2c"
+  },
+  "nodes": [
+    {
+      "id": "document:.codex/skills/project-visualization/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".codex/skills/project-visualization/SKILL.md",
+      "summary": "Project file SKILL.md.",
+      "tags": [
+        "markdown"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:AGENTS.md",
+      "type": "document",
+      "name": "AGENTS.md",
+      "filePath": "AGENTS.md",
+      "summary": "Repo-local agent workflow, attribution, testing, and safety rules.",
+      "tags": [
+        "markdown"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/agent-skills.md",
+      "type": "document",
+      "name": "agent-skills.md",
+      "filePath": "docs/agent-skills.md",
+      "summary": "Project documentation file agent-skills.md.",
+      "tags": [
+        "documentation",
+        "markdown"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/architecture-v1.md",
+      "type": "document",
+      "name": "architecture-v1.md",
+      "filePath": "docs/architecture-v1.md",
+      "summary": "Project documentation file architecture-v1.md.",
+      "tags": [
+        "documentation",
+        "markdown"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/ci-cd.md",
+      "type": "document",
+      "name": "ci-cd.md",
+      "filePath": "docs/ci-cd.md",
+      "summary": "Project documentation file ci-cd.md.",
+      "tags": [
+        "documentation",
+        "markdown"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/credits.md",
+      "type": "document",
+      "name": "credits.md",
+      "filePath": "docs/credits.md",
+      "summary": "Project documentation file credits.md.",
+      "tags": [
+        "documentation",
+        "markdown"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/deploy-ec2.md",
+      "type": "document",
+      "name": "deploy-ec2.md",
+      "filePath": "docs/deploy-ec2.md",
+      "summary": "Project documentation file deploy-ec2.md.",
+      "tags": [
+        "documentation",
+        "markdown"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/diagrams/dm-retrieval-flow.md",
+      "type": "document",
+      "name": "dm-retrieval-flow.md",
+      "filePath": "docs/diagrams/dm-retrieval-flow.md",
+      "summary": "Architecture diagram document dm-retrieval-flow.md.",
+      "tags": [
+        "retrieval",
+        "documentation",
+        "markdown"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/diagrams/README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": "docs/diagrams/README.md",
+      "summary": "Architecture diagram document README.md.",
+      "tags": [
+        "documentation",
+        "markdown"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/diagrams/system-overview.md",
+      "type": "document",
+      "name": "system-overview.md",
+      "filePath": "docs/diagrams/system-overview.md",
+      "summary": "Architecture diagram document system-overview.md.",
+      "tags": [
+        "documentation",
+        "markdown"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/discord-bot-plan.md",
+      "type": "document",
+      "name": "discord-bot-plan.md",
+      "filePath": "docs/discord-bot-plan.md",
+      "summary": "Project documentation file discord-bot-plan.md.",
+      "tags": [
+        "documentation",
+        "markdown"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/documentation-commit-message-template.md",
+      "type": "document",
+      "name": "documentation-commit-message-template.md",
+      "filePath": "docs/documentation-commit-message-template.md",
+      "summary": "Project documentation file documentation-commit-message-template.md.",
+      "tags": [
+        "documentation",
+        "markdown"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/project-visualization-workflow.md",
+      "type": "document",
+      "name": "project-visualization-workflow.md",
+      "filePath": "docs/project-visualization-workflow.md",
+      "summary": "Project documentation file project-visualization-workflow.md.",
+      "tags": [
+        "documentation",
+        "markdown"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/roadmap.md",
+      "type": "document",
+      "name": "roadmap.md",
+      "filePath": "docs/roadmap.md",
+      "summary": "Project documentation file roadmap.md.",
+      "tags": [
+        "documentation",
+        "markdown"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/setup.md",
+      "type": "document",
+      "name": "setup.md",
+      "filePath": "docs/setup.md",
+      "summary": "Project documentation file setup.md.",
+      "tags": [
+        "documentation",
+        "markdown"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/terraform.md",
+      "type": "document",
+      "name": "terraform.md",
+      "filePath": "docs/terraform.md",
+      "summary": "Project documentation file terraform.md.",
+      "tags": [
+        "documentation",
+        "markdown"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:package.json",
+      "type": "config",
+      "name": "package.json",
+      "filePath": "package.json",
+      "summary": "Node.js package manifest describing runtime dependencies and scripts.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": "README.md",
+      "summary": "Top-level project overview and setup guide.",
+      "tags": [
+        "markdown"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "pipeline:scripts/bootstrap-ec2.sh",
+      "type": "pipeline",
+      "name": "bootstrap-ec2.sh",
+      "filePath": "scripts/bootstrap-ec2.sh",
+      "summary": "Operational shell script bootstrap-ec2.sh.",
+      "tags": [
+        "operations"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "pipeline:scripts/deploy-discord-bot.sh",
+      "type": "pipeline",
+      "name": "deploy-discord-bot.sh",
+      "filePath": "scripts/deploy-discord-bot.sh",
+      "summary": "Operational shell script deploy-discord-bot.sh.",
+      "tags": [
+        "operations"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "pipeline:scripts/install-release.sh",
+      "type": "pipeline",
+      "name": "install-release.sh",
+      "filePath": "scripts/install-release.sh",
+      "summary": "Operational shell script install-release.sh.",
+      "tags": [
+        "operations"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "pipeline:scripts/setup-understand-anything.sh",
+      "type": "pipeline",
+      "name": "setup-understand-anything.sh",
+      "filePath": "scripts/setup-understand-anything.sh",
+      "summary": "Operational shell script setup-understand-anything.sh.",
+      "tags": [
+        "operations"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/commands/assignment.ts",
+      "type": "file",
+      "name": "assignment.ts",
+      "filePath": "src/commands/assignment.ts",
+      "summary": "Slash-command handler defined in assignment.ts.",
+      "tags": [
+        "runtime",
+        "slash-commands",
+        "assignments"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/commands/assignment.ts:handleCreate",
+      "type": "function",
+      "name": "handleCreate",
+      "filePath": "src/commands/assignment.ts",
+      "lineRange": [
+        119,
+        175
+      ],
+      "summary": "Function in assignment.ts with 2 parameters.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/commands/assignment.ts:handlePublish",
+      "type": "function",
+      "name": "handlePublish",
+      "filePath": "src/commands/assignment.ts",
+      "lineRange": [
+        177,
+        248
+      ],
+      "summary": "Function in assignment.ts with 3 parameters.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/commands/assignment.ts:handleList",
+      "type": "function",
+      "name": "handleList",
+      "filePath": "src/commands/assignment.ts",
+      "lineRange": [
+        250,
+        299
+      ],
+      "summary": "Function in assignment.ts with 2 parameters.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/commands/assignment.ts:parseDueAt",
+      "type": "function",
+      "name": "parseDueAt",
+      "filePath": "src/commands/assignment.ts",
+      "lineRange": [
+        301,
+        308
+      ],
+      "summary": "Function in assignment.ts with 1 parameter.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/commands/assignment.ts:buildAssignmentEmbed",
+      "type": "function",
+      "name": "buildAssignmentEmbed",
+      "filePath": "src/commands/assignment.ts",
+      "lineRange": [
+        310,
+        347
+      ],
+      "summary": "Function in assignment.ts with 2 parameters.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/commands/assignment.ts:resolveTargetChannel",
+      "type": "function",
+      "name": "resolveTargetChannel",
+      "filePath": "src/commands/assignment.ts",
+      "lineRange": [
+        349,
+        367
+      ],
+      "summary": "Function in assignment.ts with 2 parameters.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/commands/assignment.ts:parseMentionedRoleIds",
+      "type": "function",
+      "name": "parseMentionedRoleIds",
+      "filePath": "src/commands/assignment.ts",
+      "lineRange": [
+        369,
+        376
+      ],
+      "summary": "Function in assignment.ts with 1 parameter.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/commands/hehe.ts",
+      "type": "file",
+      "name": "hehe.ts",
+      "filePath": "src/commands/hehe.ts",
+      "summary": "Slash-command handler defined in hehe.ts.",
+      "tags": [
+        "runtime",
+        "slash-commands"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/commands/ping.ts",
+      "type": "file",
+      "name": "ping.ts",
+      "filePath": "src/commands/ping.ts",
+      "summary": "Slash-command handler defined in ping.ts.",
+      "tags": [
+        "runtime",
+        "slash-commands"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/config/env.ts",
+      "type": "file",
+      "name": "env.ts",
+      "filePath": "src/config/env.ts",
+      "summary": "Environment and runtime configuration module.",
+      "tags": [
+        "runtime"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/config/env.ts:loadEnv",
+      "type": "function",
+      "name": "loadEnv",
+      "filePath": "src/config/env.ts",
+      "lineRange": [
+        23,
+        35
+      ],
+      "summary": "Function in env.ts with 0 parameters.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/discord/client.ts",
+      "type": "file",
+      "name": "client.ts",
+      "filePath": "src/discord/client.ts",
+      "summary": "Discord runtime module for client.",
+      "tags": [
+        "runtime"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/discord/client.ts:createDiscordClient",
+      "type": "function",
+      "name": "createDiscordClient",
+      "filePath": "src/discord/client.ts",
+      "lineRange": [
+        6,
+        107
+      ],
+      "summary": "Function in client.ts with 1 parameter.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/discord/commands.ts",
+      "type": "file",
+      "name": "commands.ts",
+      "filePath": "src/discord/commands.ts",
+      "summary": "Discord runtime module for commands.",
+      "tags": [
+        "runtime"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/discord/registerCommands.ts",
+      "type": "file",
+      "name": "registerCommands.ts",
+      "filePath": "src/discord/registerCommands.ts",
+      "summary": "Discord runtime module for registerCommands.",
+      "tags": [
+        "runtime"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/discord/registerCommands.ts:registerApplicationCommands",
+      "type": "function",
+      "name": "registerApplicationCommands",
+      "filePath": "src/discord/registerCommands.ts",
+      "lineRange": [
+        6,
+        20
+      ],
+      "summary": "Function in registerCommands.ts with 0 parameters.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/discord/types.ts",
+      "type": "file",
+      "name": "types.ts",
+      "filePath": "src/discord/types.ts",
+      "summary": "Discord runtime module for types.",
+      "tags": [
+        "runtime"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/index.ts",
+      "type": "file",
+      "name": "index.ts",
+      "filePath": "src/index.ts",
+      "summary": "Application entrypoint that wires environment, services, command registration, the Discord client, and the health server.",
+      "tags": [
+        "runtime"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/index.ts:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "src/index.ts",
+      "lineRange": [
+        15,
+        47
+      ],
+      "summary": "Function in index.ts with 0 parameters.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/lib/http.ts",
+      "type": "file",
+      "name": "http.ts",
+      "filePath": "src/lib/http.ts",
+      "summary": "Integration helper for http.",
+      "tags": [
+        "runtime"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/lib/http.ts:fetchJson",
+      "type": "function",
+      "name": "fetchJson",
+      "filePath": "src/lib/http.ts",
+      "lineRange": [
+        1,
+        15
+      ],
+      "summary": "Function in http.ts with 2 parameters.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/lib/http.ts:safeJsonParse",
+      "type": "function",
+      "name": "safeJsonParse",
+      "filePath": "src/lib/http.ts",
+      "lineRange": [
+        17,
+        23
+      ],
+      "summary": "Function in http.ts with 1 parameter.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/lib/logger.ts",
+      "type": "file",
+      "name": "logger.ts",
+      "filePath": "src/lib/logger.ts",
+      "summary": "Integration helper for logger.",
+      "tags": [
+        "runtime"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:src/lib/logger.ts:Logger",
+      "type": "class",
+      "name": "Logger",
+      "filePath": "src/lib/logger.ts",
+      "lineRange": [
+        10,
+        43
+      ],
+      "summary": "Class in logger.ts with 6 methods.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/lib/openai.ts",
+      "type": "file",
+      "name": "openai.ts",
+      "filePath": "src/lib/openai.ts",
+      "summary": "Integration helper for openai.",
+      "tags": [
+        "runtime"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/lib/openai.ts:createOpenAIClient",
+      "type": "function",
+      "name": "createOpenAIClient",
+      "filePath": "src/lib/openai.ts",
+      "lineRange": [
+        5,
+        9
+      ],
+      "summary": "Function in openai.ts with 1 parameter.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/lib/supabase.ts",
+      "type": "file",
+      "name": "supabase.ts",
+      "filePath": "src/lib/supabase.ts",
+      "summary": "Integration helper for supabase.",
+      "tags": [
+        "runtime"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/lib/supabase.ts:createSupabaseAdminClient",
+      "type": "function",
+      "name": "createSupabaseAdminClient",
+      "filePath": "src/lib/supabase.ts",
+      "lineRange": [
+        5,
+        13
+      ],
+      "summary": "Function in supabase.ts with 1 parameter.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/services/assignmentService.ts",
+      "type": "file",
+      "name": "assignmentService.ts",
+      "filePath": "src/services/assignmentService.ts",
+      "summary": "Application service implementing assignmentService.",
+      "tags": [
+        "runtime",
+        "service",
+        "assignments"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:src/services/assignmentService.ts:AssignmentService",
+      "type": "class",
+      "name": "AssignmentService",
+      "filePath": "src/services/assignmentService.ts",
+      "lineRange": [
+        28,
+        108
+      ],
+      "summary": "Class in assignmentService.ts with 5 methods.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/services/auditLogService.ts",
+      "type": "file",
+      "name": "auditLogService.ts",
+      "filePath": "src/services/auditLogService.ts",
+      "summary": "Application service implementing auditLogService.",
+      "tags": [
+        "runtime",
+        "service"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:src/services/auditLogService.ts:AuditLogService",
+      "type": "class",
+      "name": "AuditLogService",
+      "filePath": "src/services/auditLogService.ts",
+      "lineRange": [
+        12,
+        29
+      ],
+      "summary": "Class in auditLogService.ts with 2 methods.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/services/dmConversationService.ts",
+      "type": "file",
+      "name": "dmConversationService.ts",
+      "filePath": "src/services/dmConversationService.ts",
+      "summary": "Application service implementing dmConversationService.",
+      "tags": [
+        "runtime",
+        "service"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/services/dmConversationService.ts:shouldPromptForScope",
+      "type": "function",
+      "name": "shouldPromptForScope",
+      "filePath": "src/services/dmConversationService.ts",
+      "lineRange": [
+        183,
+        191
+      ],
+      "summary": "Function in dmConversationService.ts with 2 parameters.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:src/services/dmConversationService.ts:DmConversationService",
+      "type": "class",
+      "name": "DmConversationService",
+      "filePath": "src/services/dmConversationService.ts",
+      "lineRange": [
+        32,
+        181
+      ],
+      "summary": "Class in dmConversationService.ts with 5 methods.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/services/messageHistoryService.ts",
+      "type": "file",
+      "name": "messageHistoryService.ts",
+      "filePath": "src/services/messageHistoryService.ts",
+      "summary": "Application service implementing messageHistoryService.",
+      "tags": [
+        "runtime",
+        "service"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/services/messageHistoryService.ts:resolveScope",
+      "type": "function",
+      "name": "resolveScope",
+      "filePath": "src/services/messageHistoryService.ts",
+      "lineRange": [
+        227,
+        246
+      ],
+      "summary": "Function in messageHistoryService.ts with 1 parameter.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/services/messageHistoryService.ts:resolveDmUserId",
+      "type": "function",
+      "name": "resolveDmUserId",
+      "filePath": "src/services/messageHistoryService.ts",
+      "lineRange": [
+        248,
+        267
+      ],
+      "summary": "Function in messageHistoryService.ts with 1 parameter.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/services/messageHistoryService.ts:resolvePrimaryGuildScope",
+      "type": "function",
+      "name": "resolvePrimaryGuildScope",
+      "filePath": "src/services/messageHistoryService.ts",
+      "lineRange": [
+        269,
+        274
+      ],
+      "summary": "Function in messageHistoryService.ts with 1 parameter.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/services/messageHistoryService.ts:resolveDmScope",
+      "type": "function",
+      "name": "resolveDmScope",
+      "filePath": "src/services/messageHistoryService.ts",
+      "lineRange": [
+        276,
+        281
+      ],
+      "summary": "Function in messageHistoryService.ts with 1 parameter.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:src/services/messageHistoryService.ts:MessageHistoryService",
+      "type": "class",
+      "name": "MessageHistoryService",
+      "filePath": "src/services/messageHistoryService.ts",
+      "lineRange": [
+        35,
+        225
+      ],
+      "summary": "Class in messageHistoryService.ts with 5 methods.",
+      "tags": [],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/services/retrievalService.ts",
+      "type": "file",
+      "name": "retrievalService.ts",
+      "filePath": "src/services/retrievalService.ts",
+      "summary": "Application service implementing retrievalService.",
+      "tags": [
+        "runtime",
+        "service",
+        "retrieval"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/services/retrievalService.ts:isHistoryAwareQuery",
+      "type": "function",
+      "name": "isHistoryAwareQuery",
+      "filePath": "src/services/retrievalService.ts",
+      "lineRange": [
+        94,
+        98
+      ],
+      "summary": "Function in retrievalService.ts with 1 parameter.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/services/retrievalService.ts:parsePhraseCountIntent",
+      "type": "function",
+      "name": "parsePhraseCountIntent",
+      "filePath": "src/services/retrievalService.ts",
+      "lineRange": [
+        100,
+        142
+      ],
+      "summary": "Function in retrievalService.ts with 3 parameters.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/services/retrievalService.ts:formatContext",
+      "type": "function",
+      "name": "formatContext",
+      "filePath": "src/services/retrievalService.ts",
+      "lineRange": [
+        144,
+        169
+      ],
+      "summary": "Function in retrievalService.ts with 2 parameters.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/services/retrievalService.ts:formatMessageLine",
+      "type": "function",
+      "name": "formatMessageLine",
+      "filePath": "src/services/retrievalService.ts",
+      "lineRange": [
+        171,
+        175
+      ],
+      "summary": "Function in retrievalService.ts with 1 parameter.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/services/retrievalService.ts:scopeLabel",
+      "type": "function",
+      "name": "scopeLabel",
+      "filePath": "src/services/retrievalService.ts",
+      "lineRange": [
+        177,
+        187
+      ],
+      "summary": "Function in retrievalService.ts with 1 parameter.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:src/services/retrievalService.ts:RetrievalService",
+      "type": "class",
+      "name": "RetrievalService",
+      "filePath": "src/services/retrievalService.ts",
+      "lineRange": [
+        11,
+        92
+      ],
+      "summary": "Class in retrievalService.ts with 3 methods.",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/services/rolePolicyService.ts",
+      "type": "file",
+      "name": "rolePolicyService.ts",
+      "filePath": "src/services/rolePolicyService.ts",
+      "summary": "Application service implementing rolePolicyService.",
+      "tags": [
+        "runtime",
+        "service",
+        "permissions"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:src/services/rolePolicyService.ts:RolePolicyService",
+      "type": "class",
+      "name": "RolePolicyService",
+      "filePath": "src/services/rolePolicyService.ts",
+      "lineRange": [
+        19,
+        63
+      ],
+      "summary": "Class in rolePolicyService.ts with 3 methods.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/web/server.ts",
+      "type": "file",
+      "name": "server.ts",
+      "filePath": "src/web/server.ts",
+      "summary": "HTTP healthcheck endpoint for runtime monitoring.",
+      "tags": [
+        "runtime"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/web/server.ts:startWebhookServer",
+      "type": "function",
+      "name": "startWebhookServer",
+      "filePath": "src/web/server.ts",
+      "lineRange": [
+        5,
+        22
+      ],
+      "summary": "Function in server.ts with 1 parameter.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/web/server.ts:handleRequest",
+      "type": "function",
+      "name": "handleRequest",
+      "filePath": "src/web/server.ts",
+      "lineRange": [
+        24,
+        37
+      ],
+      "summary": "Function in server.ts with 3 parameters.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/web/server.ts:writeJson",
+      "type": "function",
+      "name": "writeJson",
+      "filePath": "src/web/server.ts",
+      "lineRange": [
+        39,
+        46
+      ],
+      "summary": "Function in server.ts with 3 parameters.",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "schema:supabase/migrations/001_initial_schema.sql",
+      "type": "schema",
+      "name": "001_initial_schema.sql",
+      "filePath": "supabase/migrations/001_initial_schema.sql",
+      "summary": "Database migration defining guilds, role_policies, assignments and related retrieval or control-plane objects.",
+      "tags": [
+        "database",
+        "sql"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "table:supabase/migrations/001_initial_schema.sql:guilds",
+      "type": "table",
+      "name": "guilds",
+      "filePath": "supabase/migrations/001_initial_schema.sql",
+      "lineRange": [
+        3,
+        8
+      ],
+      "summary": "table: guilds (4 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "table:supabase/migrations/001_initial_schema.sql:role_policies",
+      "type": "table",
+      "name": "role_policies",
+      "filePath": "supabase/migrations/001_initial_schema.sql",
+      "lineRange": [
+        10,
+        17
+      ],
+      "summary": "table: role_policies (5 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "table:supabase/migrations/001_initial_schema.sql:assignments",
+      "type": "table",
+      "name": "assignments",
+      "filePath": "supabase/migrations/001_initial_schema.sql",
+      "lineRange": [
+        22,
+        35
+      ],
+      "summary": "table: assignments (11 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "index:supabase/migrations/001_initial_schema.sql:role_policies_guild_capability_idx",
+      "type": "table",
+      "name": "role_policies_guild_capability_idx",
+      "filePath": "supabase/migrations/001_initial_schema.sql",
+      "lineRange": [
+        19,
+        19
+      ],
+      "summary": "index: role_policies_guild_capability_idx (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "index:supabase/migrations/001_initial_schema.sql:assignments_guild_created_at_idx",
+      "type": "table",
+      "name": "assignments_guild_created_at_idx",
+      "filePath": "supabase/migrations/001_initial_schema.sql",
+      "lineRange": [
+        37,
+        37
+      ],
+      "summary": "index: assignments_guild_created_at_idx (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "index:supabase/migrations/001_initial_schema.sql:assignments_guild_status_idx",
+      "type": "table",
+      "name": "assignments_guild_status_idx",
+      "filePath": "supabase/migrations/001_initial_schema.sql",
+      "lineRange": [
+        40,
+        40
+      ],
+      "summary": "index: assignments_guild_status_idx (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "schema:supabase/migrations/002_clawbot_control_plane.sql",
+      "type": "schema",
+      "name": "002_clawbot_control_plane.sql",
+      "filePath": "supabase/migrations/002_clawbot_control_plane.sql",
+      "summary": "Database migration defining channel_ingestion_policies, clawbot_jobs, audit_logs and related retrieval or control-plane objects.",
+      "tags": [
+        "database",
+        "sql"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "table:supabase/migrations/002_clawbot_control_plane.sql:channel_ingestion_policies",
+      "type": "table",
+      "name": "channel_ingestion_policies",
+      "filePath": "supabase/migrations/002_clawbot_control_plane.sql",
+      "lineRange": [
+        1,
+        10
+      ],
+      "summary": "table: channel_ingestion_policies (7 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "table:supabase/migrations/002_clawbot_control_plane.sql:clawbot_jobs",
+      "type": "table",
+      "name": "clawbot_jobs",
+      "filePath": "supabase/migrations/002_clawbot_control_plane.sql",
+      "lineRange": [
+        15,
+        36
+      ],
+      "summary": "table: clawbot_jobs (17 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "table:supabase/migrations/002_clawbot_control_plane.sql:audit_logs",
+      "type": "table",
+      "name": "audit_logs",
+      "filePath": "supabase/migrations/002_clawbot_control_plane.sql",
+      "lineRange": [
+        44,
+        53
+      ],
+      "summary": "table: audit_logs (8 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "index:supabase/migrations/002_clawbot_control_plane.sql:channel_ingestion_policies_guild_idx",
+      "type": "table",
+      "name": "channel_ingestion_policies_guild_idx",
+      "filePath": "supabase/migrations/002_clawbot_control_plane.sql",
+      "lineRange": [
+        12,
+        12
+      ],
+      "summary": "index: channel_ingestion_policies_guild_idx (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "index:supabase/migrations/002_clawbot_control_plane.sql:clawbot_jobs_guild_idx",
+      "type": "table",
+      "name": "clawbot_jobs_guild_idx",
+      "filePath": "supabase/migrations/002_clawbot_control_plane.sql",
+      "lineRange": [
+        38,
+        38
+      ],
+      "summary": "index: clawbot_jobs_guild_idx (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "index:supabase/migrations/002_clawbot_control_plane.sql:clawbot_jobs_clawbot_job_idx",
+      "type": "table",
+      "name": "clawbot_jobs_clawbot_job_idx",
+      "filePath": "supabase/migrations/002_clawbot_control_plane.sql",
+      "lineRange": [
+        41,
+        41
+      ],
+      "summary": "index: clawbot_jobs_clawbot_job_idx (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "index:supabase/migrations/002_clawbot_control_plane.sql:audit_logs_guild_created_at_idx",
+      "type": "table",
+      "name": "audit_logs_guild_created_at_idx",
+      "filePath": "supabase/migrations/002_clawbot_control_plane.sql",
+      "lineRange": [
+        55,
+        55
+      ],
+      "summary": "index: audit_logs_guild_created_at_idx (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "schema:supabase/migrations/003_v1_retrieval.sql",
+      "type": "schema",
+      "name": "003_v1_retrieval.sql",
+      "filePath": "supabase/migrations/003_v1_retrieval.sql",
+      "summary": "Database migration defining messages, message_attachments, message_embeddings and related retrieval or control-plane objects.",
+      "tags": [
+        "retrieval",
+        "database",
+        "sql"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "table:supabase/migrations/003_v1_retrieval.sql:messages",
+      "type": "table",
+      "name": "messages",
+      "filePath": "supabase/migrations/003_v1_retrieval.sql",
+      "lineRange": [
+        7,
+        25
+      ],
+      "summary": "table: messages (12 fields)",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "table:supabase/migrations/003_v1_retrieval.sql:message_attachments",
+      "type": "table",
+      "name": "message_attachments",
+      "filePath": "supabase/migrations/003_v1_retrieval.sql",
+      "lineRange": [
+        41,
+        51
+      ],
+      "summary": "table: message_attachments (9 fields)",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "table:supabase/migrations/003_v1_retrieval.sql:message_embeddings",
+      "type": "table",
+      "name": "message_embeddings",
+      "filePath": "supabase/migrations/003_v1_retrieval.sql",
+      "lineRange": [
+        56,
+        63
+      ],
+      "summary": "table: message_embeddings (6 fields)",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "index:supabase/migrations/003_v1_retrieval.sql:messages_dm_user_created_at_idx",
+      "type": "table",
+      "name": "messages_dm_user_created_at_idx",
+      "filePath": "supabase/migrations/003_v1_retrieval.sql",
+      "lineRange": [
+        27,
+        27
+      ],
+      "summary": "index: messages_dm_user_created_at_idx (0 fields)",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "index:supabase/migrations/003_v1_retrieval.sql:messages_guild_created_at_idx",
+      "type": "table",
+      "name": "messages_guild_created_at_idx",
+      "filePath": "supabase/migrations/003_v1_retrieval.sql",
+      "lineRange": [
+        31,
+        31
+      ],
+      "summary": "index: messages_guild_created_at_idx (0 fields)",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "index:supabase/migrations/003_v1_retrieval.sql:messages_channel_created_at_idx",
+      "type": "table",
+      "name": "messages_channel_created_at_idx",
+      "filePath": "supabase/migrations/003_v1_retrieval.sql",
+      "lineRange": [
+        35,
+        35
+      ],
+      "summary": "index: messages_channel_created_at_idx (0 fields)",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "index:supabase/migrations/003_v1_retrieval.sql:messages_content_trgm_idx",
+      "type": "table",
+      "name": "messages_content_trgm_idx",
+      "filePath": "supabase/migrations/003_v1_retrieval.sql",
+      "lineRange": [
+        38,
+        38
+      ],
+      "summary": "index: messages_content_trgm_idx (0 fields)",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "index:supabase/migrations/003_v1_retrieval.sql:message_attachments_message_idx",
+      "type": "table",
+      "name": "message_attachments_message_idx",
+      "filePath": "supabase/migrations/003_v1_retrieval.sql",
+      "lineRange": [
+        53,
+        53
+      ],
+      "summary": "index: message_attachments_message_idx (0 fields)",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "schema:supabase/migrations/004_cleanup_legacy_clawbot_tables.sql",
+      "type": "schema",
+      "name": "004_cleanup_legacy_clawbot_tables.sql",
+      "filePath": "supabase/migrations/004_cleanup_legacy_clawbot_tables.sql",
+      "summary": "Database migration for Supabase/Postgres state.",
+      "tags": [
+        "database",
+        "sql"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:terraform/main.tf",
+      "type": "config",
+      "name": "main.tf",
+      "filePath": "terraform/main.tf",
+      "summary": "Terraform configuration file main.tf.",
+      "tags": [
+        "infrastructure",
+        "terraform"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "resource:terraform/main.tf:aws_security_group.discord_bot",
+      "type": "resource",
+      "name": "aws_security_group.discord_bot",
+      "filePath": "terraform/main.tf",
+      "lineRange": [
+        40,
+        83
+      ],
+      "summary": "Resource: aws_security_group.discord_bot (aws_security_group)",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "resource:terraform/main.tf:aws_instance.discord_bot",
+      "type": "resource",
+      "name": "aws_instance.discord_bot",
+      "filePath": "terraform/main.tf",
+      "lineRange": [
+        85,
+        107
+      ],
+      "summary": "Resource: aws_instance.discord_bot (aws_instance)",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "resource:terraform/main.tf:data.aws_vpc.selected",
+      "type": "resource",
+      "name": "data.aws_vpc.selected",
+      "filePath": "terraform/main.tf",
+      "lineRange": [
+        12,
+        14
+      ],
+      "summary": "Resource: data.aws_vpc.selected (data.aws_vpc)",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "resource:terraform/main.tf:data.aws_subnet.public",
+      "type": "resource",
+      "name": "data.aws_subnet.public",
+      "filePath": "terraform/main.tf",
+      "lineRange": [
+        16,
+        18
+      ],
+      "summary": "Resource: data.aws_subnet.public (data.aws_subnet)",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "resource:terraform/main.tf:data.aws_ami.ubuntu",
+      "type": "resource",
+      "name": "data.aws_ami.ubuntu",
+      "filePath": "terraform/main.tf",
+      "lineRange": [
+        20,
+        38
+      ],
+      "summary": "Resource: data.aws_ami.ubuntu (data.aws_ami)",
+      "tags": [],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:terraform/outputs.tf",
+      "type": "config",
+      "name": "outputs.tf",
+      "filePath": "terraform/outputs.tf",
+      "summary": "Terraform configuration file outputs.tf.",
+      "tags": [
+        "infrastructure",
+        "terraform"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "output:terraform/outputs.tf:discord_bot_instance_id",
+      "type": "config",
+      "name": "discord_bot_instance_id",
+      "filePath": "terraform/outputs.tf",
+      "lineRange": [
+        1,
+        4
+      ],
+      "summary": "output: discord_bot_instance_id (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "output:terraform/outputs.tf:discord_bot_public_ip",
+      "type": "config",
+      "name": "discord_bot_public_ip",
+      "filePath": "terraform/outputs.tf",
+      "lineRange": [
+        6,
+        9
+      ],
+      "summary": "output: discord_bot_public_ip (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "output:terraform/outputs.tf:discord_bot_private_ip",
+      "type": "config",
+      "name": "discord_bot_private_ip",
+      "filePath": "terraform/outputs.tf",
+      "lineRange": [
+        11,
+        14
+      ],
+      "summary": "output: discord_bot_private_ip (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "output:terraform/outputs.tf:discord_bot_security_group_id",
+      "type": "config",
+      "name": "discord_bot_security_group_id",
+      "filePath": "terraform/outputs.tf",
+      "lineRange": [
+        16,
+        19
+      ],
+      "summary": "output: discord_bot_security_group_id (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "output:terraform/outputs.tf:discord_bot_base_url",
+      "type": "config",
+      "name": "discord_bot_base_url",
+      "filePath": "terraform/outputs.tf",
+      "lineRange": [
+        21,
+        24
+      ],
+      "summary": "output: discord_bot_base_url (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "output:terraform/outputs.tf:next_step_summary",
+      "type": "config",
+      "name": "next_step_summary",
+      "filePath": "terraform/outputs.tf",
+      "lineRange": [
+        26,
+        35
+      ],
+      "summary": "output: next_step_summary (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "pipeline:terraform/templates/bootstrap-user-data.sh.tftpl",
+      "type": "pipeline",
+      "name": "bootstrap-user-data.sh.tftpl",
+      "filePath": "terraform/templates/bootstrap-user-data.sh.tftpl",
+      "summary": "Terraform configuration file bootstrap-user-data.sh.tftpl.",
+      "tags": [
+        "infrastructure"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:terraform/terraform.tfvars.example",
+      "type": "config",
+      "name": "terraform.tfvars.example",
+      "filePath": "terraform/terraform.tfvars.example",
+      "summary": "Terraform configuration file terraform.tfvars.example.",
+      "tags": [
+        "infrastructure"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:terraform/variables.tf",
+      "type": "config",
+      "name": "variables.tf",
+      "filePath": "terraform/variables.tf",
+      "summary": "Terraform configuration file variables.tf.",
+      "tags": [
+        "infrastructure",
+        "terraform"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "variable:terraform/variables.tf:region",
+      "type": "config",
+      "name": "region",
+      "filePath": "terraform/variables.tf",
+      "lineRange": [
+        1,
+        4
+      ],
+      "summary": "variable: region (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "variable:terraform/variables.tf:name_prefix",
+      "type": "config",
+      "name": "name_prefix",
+      "filePath": "terraform/variables.tf",
+      "lineRange": [
+        6,
+        10
+      ],
+      "summary": "variable: name_prefix (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "variable:terraform/variables.tf:vpc_id",
+      "type": "config",
+      "name": "vpc_id",
+      "filePath": "terraform/variables.tf",
+      "lineRange": [
+        12,
+        15
+      ],
+      "summary": "variable: vpc_id (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "variable:terraform/variables.tf:public_subnet_id",
+      "type": "config",
+      "name": "public_subnet_id",
+      "filePath": "terraform/variables.tf",
+      "lineRange": [
+        17,
+        20
+      ],
+      "summary": "variable: public_subnet_id (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "variable:terraform/variables.tf:key_name",
+      "type": "config",
+      "name": "key_name",
+      "filePath": "terraform/variables.tf",
+      "lineRange": [
+        22,
+        25
+      ],
+      "summary": "variable: key_name (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "variable:terraform/variables.tf:admin_cidr_blocks",
+      "type": "config",
+      "name": "admin_cidr_blocks",
+      "filePath": "terraform/variables.tf",
+      "lineRange": [
+        27,
+        30
+      ],
+      "summary": "variable: admin_cidr_blocks (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "variable:terraform/variables.tf:callback_ingress_cidr_blocks",
+      "type": "config",
+      "name": "callback_ingress_cidr_blocks",
+      "filePath": "terraform/variables.tf",
+      "lineRange": [
+        32,
+        36
+      ],
+      "summary": "variable: callback_ingress_cidr_blocks (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "variable:terraform/variables.tf:instance_type",
+      "type": "config",
+      "name": "instance_type",
+      "filePath": "terraform/variables.tf",
+      "lineRange": [
+        38,
+        42
+      ],
+      "summary": "variable: instance_type (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "variable:terraform/variables.tf:associate_public_ip_address",
+      "type": "config",
+      "name": "associate_public_ip_address",
+      "filePath": "terraform/variables.tf",
+      "lineRange": [
+        44,
+        48
+      ],
+      "summary": "variable: associate_public_ip_address (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "variable:terraform/variables.tf:root_volume_size_gb",
+      "type": "config",
+      "name": "root_volume_size_gb",
+      "filePath": "terraform/variables.tf",
+      "lineRange": [
+        50,
+        54
+      ],
+      "summary": "variable: root_volume_size_gb (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "variable:terraform/variables.tf:app_user",
+      "type": "config",
+      "name": "app_user",
+      "filePath": "terraform/variables.tf",
+      "lineRange": [
+        56,
+        60
+      ],
+      "summary": "variable: app_user (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "variable:terraform/variables.tf:app_dir",
+      "type": "config",
+      "name": "app_dir",
+      "filePath": "terraform/variables.tf",
+      "lineRange": [
+        62,
+        66
+      ],
+      "summary": "variable: app_dir (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "variable:terraform/variables.tf:enable_https_ingress",
+      "type": "config",
+      "name": "enable_https_ingress",
+      "filePath": "terraform/variables.tf",
+      "lineRange": [
+        68,
+        72
+      ],
+      "summary": "variable: enable_https_ingress (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "variable:terraform/variables.tf:tags",
+      "type": "config",
+      "name": "tags",
+      "filePath": "terraform/variables.tf",
+      "lineRange": [
+        74,
+        78
+      ],
+      "summary": "variable: tags (0 fields)",
+      "tags": [],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:terraform/versions.tf",
+      "type": "config",
+      "name": "versions.tf",
+      "filePath": "terraform/versions.tf",
+      "summary": "Terraform configuration file versions.tf.",
+      "tags": [
+        "infrastructure",
+        "terraform"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:tsconfig.json",
+      "type": "config",
+      "name": "tsconfig.json",
+      "filePath": "tsconfig.json",
+      "summary": "TypeScript compiler configuration.",
+      "tags": [],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:src/commands/assignment.ts",
+      "target": "function:src/commands/assignment.ts:handleCreate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/commands/assignment.ts",
+      "target": "function:src/commands/assignment.ts:handlePublish",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/commands/assignment.ts",
+      "target": "function:src/commands/assignment.ts:handleList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/commands/assignment.ts",
+      "target": "function:src/commands/assignment.ts:parseDueAt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/commands/assignment.ts",
+      "target": "function:src/commands/assignment.ts:buildAssignmentEmbed",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/commands/assignment.ts",
+      "target": "function:src/commands/assignment.ts:resolveTargetChannel",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/commands/assignment.ts",
+      "target": "function:src/commands/assignment.ts:parseMentionedRoleIds",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/config/env.ts",
+      "target": "function:src/config/env.ts:loadEnv",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/discord/client.ts",
+      "target": "function:src/discord/client.ts:createDiscordClient",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/discord/registerCommands.ts",
+      "target": "function:src/discord/registerCommands.ts:registerApplicationCommands",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "function:src/index.ts:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/lib/http.ts",
+      "target": "function:src/lib/http.ts:fetchJson",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/lib/http.ts",
+      "target": "function:src/lib/http.ts:safeJsonParse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/lib/logger.ts",
+      "target": "class:src/lib/logger.ts:Logger",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/lib/openai.ts",
+      "target": "function:src/lib/openai.ts:createOpenAIClient",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/lib/supabase.ts",
+      "target": "function:src/lib/supabase.ts:createSupabaseAdminClient",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/assignmentService.ts",
+      "target": "class:src/services/assignmentService.ts:AssignmentService",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/auditLogService.ts",
+      "target": "class:src/services/auditLogService.ts:AuditLogService",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/dmConversationService.ts",
+      "target": "function:src/services/dmConversationService.ts:shouldPromptForScope",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/dmConversationService.ts",
+      "target": "class:src/services/dmConversationService.ts:DmConversationService",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/messageHistoryService.ts",
+      "target": "function:src/services/messageHistoryService.ts:resolveScope",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/messageHistoryService.ts",
+      "target": "function:src/services/messageHistoryService.ts:resolveDmUserId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/messageHistoryService.ts",
+      "target": "function:src/services/messageHistoryService.ts:resolvePrimaryGuildScope",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/messageHistoryService.ts",
+      "target": "function:src/services/messageHistoryService.ts:resolveDmScope",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/messageHistoryService.ts",
+      "target": "class:src/services/messageHistoryService.ts:MessageHistoryService",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/retrievalService.ts",
+      "target": "function:src/services/retrievalService.ts:isHistoryAwareQuery",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/retrievalService.ts",
+      "target": "function:src/services/retrievalService.ts:parsePhraseCountIntent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/retrievalService.ts",
+      "target": "function:src/services/retrievalService.ts:formatContext",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/retrievalService.ts",
+      "target": "function:src/services/retrievalService.ts:formatMessageLine",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/retrievalService.ts",
+      "target": "function:src/services/retrievalService.ts:scopeLabel",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/retrievalService.ts",
+      "target": "class:src/services/retrievalService.ts:RetrievalService",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/rolePolicyService.ts",
+      "target": "class:src/services/rolePolicyService.ts:RolePolicyService",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/web/server.ts",
+      "target": "function:src/web/server.ts:startWebhookServer",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/web/server.ts",
+      "target": "function:src/web/server.ts:handleRequest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/web/server.ts",
+      "target": "function:src/web/server.ts:writeJson",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/001_initial_schema.sql",
+      "target": "table:supabase/migrations/001_initial_schema.sql:guilds",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/001_initial_schema.sql",
+      "target": "table:supabase/migrations/001_initial_schema.sql:role_policies",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/001_initial_schema.sql",
+      "target": "table:supabase/migrations/001_initial_schema.sql:assignments",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/001_initial_schema.sql",
+      "target": "index:supabase/migrations/001_initial_schema.sql:role_policies_guild_capability_idx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/001_initial_schema.sql",
+      "target": "index:supabase/migrations/001_initial_schema.sql:assignments_guild_created_at_idx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/001_initial_schema.sql",
+      "target": "index:supabase/migrations/001_initial_schema.sql:assignments_guild_status_idx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/002_clawbot_control_plane.sql",
+      "target": "table:supabase/migrations/002_clawbot_control_plane.sql:channel_ingestion_policies",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/002_clawbot_control_plane.sql",
+      "target": "table:supabase/migrations/002_clawbot_control_plane.sql:clawbot_jobs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/002_clawbot_control_plane.sql",
+      "target": "table:supabase/migrations/002_clawbot_control_plane.sql:audit_logs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/002_clawbot_control_plane.sql",
+      "target": "index:supabase/migrations/002_clawbot_control_plane.sql:channel_ingestion_policies_guild_idx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/002_clawbot_control_plane.sql",
+      "target": "index:supabase/migrations/002_clawbot_control_plane.sql:clawbot_jobs_guild_idx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/002_clawbot_control_plane.sql",
+      "target": "index:supabase/migrations/002_clawbot_control_plane.sql:clawbot_jobs_clawbot_job_idx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/002_clawbot_control_plane.sql",
+      "target": "index:supabase/migrations/002_clawbot_control_plane.sql:audit_logs_guild_created_at_idx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/003_v1_retrieval.sql",
+      "target": "table:supabase/migrations/003_v1_retrieval.sql:messages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/003_v1_retrieval.sql",
+      "target": "table:supabase/migrations/003_v1_retrieval.sql:message_attachments",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/003_v1_retrieval.sql",
+      "target": "table:supabase/migrations/003_v1_retrieval.sql:message_embeddings",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/003_v1_retrieval.sql",
+      "target": "index:supabase/migrations/003_v1_retrieval.sql:messages_dm_user_created_at_idx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/003_v1_retrieval.sql",
+      "target": "index:supabase/migrations/003_v1_retrieval.sql:messages_guild_created_at_idx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/003_v1_retrieval.sql",
+      "target": "index:supabase/migrations/003_v1_retrieval.sql:messages_channel_created_at_idx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/003_v1_retrieval.sql",
+      "target": "index:supabase/migrations/003_v1_retrieval.sql:messages_content_trgm_idx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "schema:supabase/migrations/003_v1_retrieval.sql",
+      "target": "index:supabase/migrations/003_v1_retrieval.sql:message_attachments_message_idx",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/main.tf",
+      "target": "resource:terraform/main.tf:aws_security_group.discord_bot",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/main.tf",
+      "target": "resource:terraform/main.tf:aws_instance.discord_bot",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/main.tf",
+      "target": "resource:terraform/main.tf:data.aws_vpc.selected",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/main.tf",
+      "target": "resource:terraform/main.tf:data.aws_subnet.public",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/main.tf",
+      "target": "resource:terraform/main.tf:data.aws_ami.ubuntu",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/outputs.tf",
+      "target": "output:terraform/outputs.tf:discord_bot_instance_id",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/outputs.tf",
+      "target": "output:terraform/outputs.tf:discord_bot_public_ip",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/outputs.tf",
+      "target": "output:terraform/outputs.tf:discord_bot_private_ip",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/outputs.tf",
+      "target": "output:terraform/outputs.tf:discord_bot_security_group_id",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/outputs.tf",
+      "target": "output:terraform/outputs.tf:discord_bot_base_url",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/outputs.tf",
+      "target": "output:terraform/outputs.tf:next_step_summary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/variables.tf",
+      "target": "variable:terraform/variables.tf:region",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/variables.tf",
+      "target": "variable:terraform/variables.tf:name_prefix",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/variables.tf",
+      "target": "variable:terraform/variables.tf:vpc_id",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/variables.tf",
+      "target": "variable:terraform/variables.tf:public_subnet_id",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/variables.tf",
+      "target": "variable:terraform/variables.tf:key_name",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/variables.tf",
+      "target": "variable:terraform/variables.tf:admin_cidr_blocks",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/variables.tf",
+      "target": "variable:terraform/variables.tf:callback_ingress_cidr_blocks",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/variables.tf",
+      "target": "variable:terraform/variables.tf:instance_type",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/variables.tf",
+      "target": "variable:terraform/variables.tf:associate_public_ip_address",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/variables.tf",
+      "target": "variable:terraform/variables.tf:root_volume_size_gb",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/variables.tf",
+      "target": "variable:terraform/variables.tf:app_user",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/variables.tf",
+      "target": "variable:terraform/variables.tf:app_dir",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/variables.tf",
+      "target": "variable:terraform/variables.tf:enable_https_ingress",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:terraform/variables.tf",
+      "target": "variable:terraform/variables.tf:tags",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "document:docs/agent-skills.md",
+      "target": "document:docs/project-visualization-workflow.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/ci-cd.md",
+      "target": "pipeline:scripts/install-release.sh",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/ci-cd.md",
+      "target": "document:docs/deploy-ec2.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/deploy-ec2.md",
+      "target": "document:docs/terraform.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/deploy-ec2.md",
+      "target": "document:docs/ci-cd.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/discord-bot-plan.md",
+      "target": "document:docs/architecture-v1.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/discord-bot-plan.md",
+      "target": "document:docs/roadmap.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/project-visualization-workflow.md",
+      "target": "document:docs/architecture-v1.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/project-visualization-workflow.md",
+      "target": "document:docs/credits.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/setup.md",
+      "target": "schema:supabase/migrations/001_initial_schema.sql",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/setup.md",
+      "target": "schema:supabase/migrations/002_clawbot_control_plane.sql",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/setup.md",
+      "target": "schema:supabase/migrations/003_v1_retrieval.sql",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/setup.md",
+      "target": "document:docs/deploy-ec2.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/terraform.md",
+      "target": "config:terraform/terraform.tfvars.example",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/terraform.md",
+      "target": "document:docs/deploy-ec2.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "schema:supabase/migrations/001_initial_schema.sql",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "schema:supabase/migrations/002_clawbot_control_plane.sql",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "schema:supabase/migrations/003_v1_retrieval.sql",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "document:docs/deploy-ec2.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "document:docs/ci-cd.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "document:docs/terraform.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "pipeline:scripts/bootstrap-ec2.sh",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "pipeline:scripts/deploy-discord-bot.sh",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "pipeline:scripts/install-release.sh",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "config:terraform/terraform.tfvars.example",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "document:docs/discord-bot-plan.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "document:docs/agent-skills.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "document:docs/project-visualization-workflow.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "document:docs/architecture-v1.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "document:docs/roadmap.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "document:docs/setup.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "document:docs/credits.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:README.md",
+      "target": "document:AGENTS.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:src/commands/assignment.ts",
+      "target": "file:src/services/assignmentService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/commands/assignment.ts",
+      "target": "file:src/services/rolePolicyService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/commands/assignment.ts",
+      "target": "file:src/discord/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/commands/hehe.ts",
+      "target": "file:src/discord/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/commands/ping.ts",
+      "target": "file:src/discord/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/client.ts",
+      "target": "file:src/discord/commands.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/client.ts",
+      "target": "file:src/discord/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/commands.ts",
+      "target": "file:src/commands/assignment.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/commands.ts",
+      "target": "file:src/commands/hehe.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/commands.ts",
+      "target": "file:src/commands/ping.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/commands.ts",
+      "target": "file:src/discord/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/registerCommands.ts",
+      "target": "file:src/config/env.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/registerCommands.ts",
+      "target": "file:src/discord/commands.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/types.ts",
+      "target": "file:src/config/env.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/types.ts",
+      "target": "file:src/lib/logger.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/types.ts",
+      "target": "file:src/services/assignmentService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/types.ts",
+      "target": "file:src/services/auditLogService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/types.ts",
+      "target": "file:src/services/dmConversationService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/types.ts",
+      "target": "file:src/services/messageHistoryService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/types.ts",
+      "target": "file:src/services/retrievalService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/discord/types.ts",
+      "target": "file:src/services/rolePolicyService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/config/env.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/discord/client.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/discord/registerCommands.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/lib/logger.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/lib/openai.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/lib/supabase.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/services/assignmentService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/services/auditLogService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/services/dmConversationService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/services/messageHistoryService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/services/retrievalService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/services/rolePolicyService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/web/server.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/lib/openai.ts",
+      "target": "file:src/config/env.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/lib/supabase.ts",
+      "target": "file:src/config/env.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/services/dmConversationService.ts",
+      "target": "file:src/discord/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/services/dmConversationService.ts",
+      "target": "file:src/services/rolePolicyService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/services/dmConversationService.ts",
+      "target": "file:src/services/messageHistoryService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/services/messageHistoryService.ts",
+      "target": "file:src/config/env.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/services/messageHistoryService.ts",
+      "target": "file:src/lib/logger.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/services/messageHistoryService.ts",
+      "target": "file:src/services/rolePolicyService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/services/retrievalService.ts",
+      "target": "file:src/config/env.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/services/retrievalService.ts",
+      "target": "file:src/services/messageHistoryService.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/web/server.ts",
+      "target": "file:src/discord/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/services/assignmentService.ts",
+      "target": "table:supabase/migrations/001_initial_schema.sql:assignments",
+      "type": "writes_to",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/auditLogService.ts",
+      "target": "table:supabase/migrations/002_clawbot_control_plane.sql:audit_logs",
+      "type": "writes_to",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/messageHistoryService.ts",
+      "target": "table:supabase/migrations/003_v1_retrieval.sql:messages",
+      "type": "writes_to",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/messageHistoryService.ts",
+      "target": "table:supabase/migrations/003_v1_retrieval.sql:message_attachments",
+      "type": "writes_to",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/messageHistoryService.ts",
+      "target": "table:supabase/migrations/003_v1_retrieval.sql:message_embeddings",
+      "type": "writes_to",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/messageHistoryService.ts",
+      "target": "table:supabase/migrations/003_v1_retrieval.sql:messages",
+      "type": "reads_from",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/messageHistoryService.ts",
+      "target": "schema:supabase/migrations/003_v1_retrieval.sql",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.65
+    },
+    {
+      "source": "file:src/services/rolePolicyService.ts",
+      "target": "table:supabase/migrations/001_initial_schema.sql:role_policies",
+      "type": "writes_to",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/rolePolicyService.ts",
+      "target": "table:supabase/migrations/001_initial_schema.sql:guilds",
+      "type": "writes_to",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:runtime-entrypoints",
+      "name": "Runtime Entrypoints",
+      "description": "Discord-facing entrypoints, command dispatch, and the healthcheck server.",
+      "nodeIds": [
+        "file:src/commands/assignment.ts",
+        "file:src/commands/hehe.ts",
+        "file:src/commands/ping.ts",
+        "file:src/discord/client.ts",
+        "file:src/discord/commands.ts",
+        "file:src/discord/registerCommands.ts",
+        "file:src/discord/types.ts",
+        "file:src/index.ts",
+        "file:src/web/server.ts"
+      ]
+    },
+    {
+      "id": "layer:application-services",
+      "name": "Application Services",
+      "description": "Business logic for assignments, permissions, DM orchestration, history indexing, and retrieval.",
+      "nodeIds": [
+        "file:src/services/assignmentService.ts",
+        "file:src/services/auditLogService.ts",
+        "file:src/services/dmConversationService.ts",
+        "file:src/services/messageHistoryService.ts",
+        "file:src/services/retrievalService.ts",
+        "file:src/services/rolePolicyService.ts"
+      ]
+    },
+    {
+      "id": "layer:platform-integrations",
+      "name": "Platform Integrations",
+      "description": "Environment loading, shared clients, and runtime integration helpers.",
+      "nodeIds": [
+        "config:package.json",
+        "file:src/config/env.ts",
+        "file:src/lib/http.ts",
+        "file:src/lib/logger.ts",
+        "file:src/lib/openai.ts",
+        "file:src/lib/supabase.ts",
+        "config:tsconfig.json"
+      ]
+    },
+    {
+      "id": "layer:data-schema",
+      "name": "Data Schema",
+      "description": "Supabase/Postgres migrations and schema artifacts that back control-plane and retrieval behavior.",
+      "nodeIds": [
+        "schema:supabase/migrations/001_initial_schema.sql",
+        "table:supabase/migrations/001_initial_schema.sql:guilds",
+        "table:supabase/migrations/001_initial_schema.sql:role_policies",
+        "table:supabase/migrations/001_initial_schema.sql:assignments",
+        "index:supabase/migrations/001_initial_schema.sql:role_policies_guild_capability_idx",
+        "index:supabase/migrations/001_initial_schema.sql:assignments_guild_created_at_idx",
+        "index:supabase/migrations/001_initial_schema.sql:assignments_guild_status_idx",
+        "schema:supabase/migrations/002_clawbot_control_plane.sql",
+        "table:supabase/migrations/002_clawbot_control_plane.sql:channel_ingestion_policies",
+        "table:supabase/migrations/002_clawbot_control_plane.sql:clawbot_jobs",
+        "table:supabase/migrations/002_clawbot_control_plane.sql:audit_logs",
+        "index:supabase/migrations/002_clawbot_control_plane.sql:channel_ingestion_policies_guild_idx",
+        "index:supabase/migrations/002_clawbot_control_plane.sql:clawbot_jobs_guild_idx",
+        "index:supabase/migrations/002_clawbot_control_plane.sql:clawbot_jobs_clawbot_job_idx",
+        "index:supabase/migrations/002_clawbot_control_plane.sql:audit_logs_guild_created_at_idx",
+        "schema:supabase/migrations/003_v1_retrieval.sql",
+        "table:supabase/migrations/003_v1_retrieval.sql:messages",
+        "table:supabase/migrations/003_v1_retrieval.sql:message_attachments",
+        "table:supabase/migrations/003_v1_retrieval.sql:message_embeddings",
+        "index:supabase/migrations/003_v1_retrieval.sql:messages_dm_user_created_at_idx",
+        "index:supabase/migrations/003_v1_retrieval.sql:messages_guild_created_at_idx",
+        "index:supabase/migrations/003_v1_retrieval.sql:messages_channel_created_at_idx",
+        "index:supabase/migrations/003_v1_retrieval.sql:messages_content_trgm_idx",
+        "index:supabase/migrations/003_v1_retrieval.sql:message_attachments_message_idx",
+        "schema:supabase/migrations/004_cleanup_legacy_clawbot_tables.sql"
+      ]
+    },
+    {
+      "id": "layer:delivery-operations",
+      "name": "Delivery & Operations",
+      "description": "Terraform and shell automation used to bootstrap, deploy, and operate the bot.",
+      "nodeIds": [
+        "pipeline:scripts/bootstrap-ec2.sh",
+        "pipeline:scripts/deploy-discord-bot.sh",
+        "pipeline:scripts/install-release.sh",
+        "pipeline:scripts/setup-understand-anything.sh",
+        "config:terraform/main.tf",
+        "resource:terraform/main.tf:aws_security_group.discord_bot",
+        "resource:terraform/main.tf:aws_instance.discord_bot",
+        "resource:terraform/main.tf:data.aws_vpc.selected",
+        "resource:terraform/main.tf:data.aws_subnet.public",
+        "resource:terraform/main.tf:data.aws_ami.ubuntu",
+        "config:terraform/outputs.tf",
+        "output:terraform/outputs.tf:discord_bot_instance_id",
+        "output:terraform/outputs.tf:discord_bot_public_ip",
+        "output:terraform/outputs.tf:discord_bot_private_ip",
+        "output:terraform/outputs.tf:discord_bot_security_group_id",
+        "output:terraform/outputs.tf:discord_bot_base_url",
+        "output:terraform/outputs.tf:next_step_summary",
+        "pipeline:terraform/templates/bootstrap-user-data.sh.tftpl",
+        "config:terraform/terraform.tfvars.example",
+        "config:terraform/variables.tf",
+        "variable:terraform/variables.tf:region",
+        "variable:terraform/variables.tf:name_prefix",
+        "variable:terraform/variables.tf:vpc_id",
+        "variable:terraform/variables.tf:public_subnet_id",
+        "variable:terraform/variables.tf:key_name",
+        "variable:terraform/variables.tf:admin_cidr_blocks",
+        "variable:terraform/variables.tf:callback_ingress_cidr_blocks",
+        "variable:terraform/variables.tf:instance_type",
+        "variable:terraform/variables.tf:associate_public_ip_address",
+        "variable:terraform/variables.tf:root_volume_size_gb",
+        "variable:terraform/variables.tf:app_user",
+        "variable:terraform/variables.tf:app_dir",
+        "variable:terraform/variables.tf:enable_https_ingress",
+        "variable:terraform/variables.tf:tags",
+        "config:terraform/versions.tf"
+      ]
+    },
+    {
+      "id": "layer:project-docs",
+      "name": "Project Docs",
+      "description": "Human-facing documentation, architecture notes, diagrams, and repo-local workflow guidance.",
+      "nodeIds": [
+        "document:.codex/skills/project-visualization/SKILL.md",
+        "document:AGENTS.md",
+        "document:docs/agent-skills.md",
+        "document:docs/architecture-v1.md",
+        "document:docs/ci-cd.md",
+        "document:docs/credits.md",
+        "document:docs/deploy-ec2.md",
+        "document:docs/diagrams/dm-retrieval-flow.md",
+        "document:docs/diagrams/README.md",
+        "document:docs/diagrams/system-overview.md",
+        "document:docs/discord-bot-plan.md",
+        "document:docs/documentation-commit-message-template.md",
+        "document:docs/project-visualization-workflow.md",
+        "document:docs/roadmap.md",
+        "document:docs/setup.md",
+        "document:docs/terraform.md",
+        "document:README.md"
+      ]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "Project Docs",
+      "description": "Human-facing documentation, architecture notes, diagrams, and repo-local workflow guidance.. Key files: SKILL.md, dm-retrieval-flow.md, README.md, system-overview.md, documentation-commit-message-template.md, README.md, discord-bot-plan.md, agent-skills.md, setup.md, AGENTS.md, roadmap.md, project-visualization-workflow.md, architecture-v1.md, credits.md, ci-cd.md, deploy-ec2.md, terraform.md.",
+      "nodeIds": [
+        "document:.codex/skills/project-visualization/SKILL.md",
+        "document:docs/diagrams/dm-retrieval-flow.md",
+        "document:docs/diagrams/README.md",
+        "document:docs/diagrams/system-overview.md",
+        "document:docs/documentation-commit-message-template.md",
+        "document:README.md",
+        "document:docs/discord-bot-plan.md",
+        "document:docs/agent-skills.md",
+        "document:docs/setup.md",
+        "document:AGENTS.md",
+        "document:docs/roadmap.md",
+        "document:docs/project-visualization-workflow.md",
+        "document:docs/architecture-v1.md",
+        "document:docs/credits.md",
+        "document:docs/ci-cd.md",
+        "document:docs/deploy-ec2.md",
+        "document:docs/terraform.md"
+      ]
+    },
+    {
+      "order": 2,
+      "title": "Platform Integrations",
+      "description": "Environment loading, shared clients, and runtime integration helpers.. Key files: package.json, http.ts, tsconfig.json, openai.ts, supabase.ts, env.ts, logger.ts.",
+      "nodeIds": [
+        "config:package.json",
+        "file:src/lib/http.ts",
+        "config:tsconfig.json",
+        "file:src/lib/openai.ts",
+        "file:src/lib/supabase.ts",
+        "file:src/config/env.ts",
+        "file:src/lib/logger.ts"
+      ]
+    },
+    {
+      "order": 3,
+      "title": "Delivery & Operations",
+      "description": "Terraform and shell automation used to bootstrap, deploy, and operate the bot.. Key files: setup-understand-anything.sh, main.tf, outputs.tf, bootstrap-user-data.sh.tftpl, variables.tf, versions.tf, bootstrap-ec2.sh, deploy-discord-bot.sh, aws_security_group.discord_bot, aws_instance.discord_bot, data.aws_vpc.selected, data.aws_subnet.public, data.aws_ami.ubuntu, discord_bot_instance_id, discord_bot_public_ip, discord_bot_private_ip, discord_bot_security_group_id, discord_bot_base_url, next_step_summary, region, name_prefix, vpc_id, public_subnet_id, key_name, admin_cidr_blocks, callback_ingress_cidr_blocks, instance_type, associate_public_ip_address, root_volume_size_gb, app_user, app_dir, enable_https_ingress, tags, install-release.sh, terraform.tfvars.example.",
+      "nodeIds": [
+        "pipeline:scripts/setup-understand-anything.sh",
+        "config:terraform/main.tf",
+        "config:terraform/outputs.tf",
+        "pipeline:terraform/templates/bootstrap-user-data.sh.tftpl",
+        "config:terraform/variables.tf",
+        "config:terraform/versions.tf",
+        "pipeline:scripts/bootstrap-ec2.sh",
+        "pipeline:scripts/deploy-discord-bot.sh",
+        "resource:terraform/main.tf:aws_security_group.discord_bot",
+        "resource:terraform/main.tf:aws_instance.discord_bot",
+        "resource:terraform/main.tf:data.aws_vpc.selected",
+        "resource:terraform/main.tf:data.aws_subnet.public",
+        "resource:terraform/main.tf:data.aws_ami.ubuntu",
+        "output:terraform/outputs.tf:discord_bot_instance_id",
+        "output:terraform/outputs.tf:discord_bot_public_ip",
+        "output:terraform/outputs.tf:discord_bot_private_ip",
+        "output:terraform/outputs.tf:discord_bot_security_group_id",
+        "output:terraform/outputs.tf:discord_bot_base_url",
+        "output:terraform/outputs.tf:next_step_summary",
+        "variable:terraform/variables.tf:region",
+        "variable:terraform/variables.tf:name_prefix",
+        "variable:terraform/variables.tf:vpc_id",
+        "variable:terraform/variables.tf:public_subnet_id",
+        "variable:terraform/variables.tf:key_name",
+        "variable:terraform/variables.tf:admin_cidr_blocks",
+        "variable:terraform/variables.tf:callback_ingress_cidr_blocks",
+        "variable:terraform/variables.tf:instance_type",
+        "variable:terraform/variables.tf:associate_public_ip_address",
+        "variable:terraform/variables.tf:root_volume_size_gb",
+        "variable:terraform/variables.tf:app_user",
+        "variable:terraform/variables.tf:app_dir",
+        "variable:terraform/variables.tf:enable_https_ingress",
+        "variable:terraform/variables.tf:tags",
+        "pipeline:scripts/install-release.sh",
+        "config:terraform/terraform.tfvars.example"
+      ]
+    },
+    {
+      "order": 4,
+      "title": "Runtime Entrypoints",
+      "description": "Discord-facing entrypoints, command dispatch, and the healthcheck server.. Key files: index.ts, client.ts, registerCommands.ts, server.ts, commands.ts, assignment.ts, hehe.ts, ping.ts, types.ts.",
+      "nodeIds": [
+        "file:src/index.ts",
+        "file:src/discord/client.ts",
+        "file:src/discord/registerCommands.ts",
+        "file:src/web/server.ts",
+        "file:src/discord/commands.ts",
+        "file:src/commands/assignment.ts",
+        "file:src/commands/hehe.ts",
+        "file:src/commands/ping.ts",
+        "file:src/discord/types.ts"
+      ]
+    },
+    {
+      "order": 5,
+      "title": "Data Schema",
+      "description": "Supabase/Postgres migrations and schema artifacts that back control-plane and retrieval behavior.. Key files: 004_cleanup_legacy_clawbot_tables.sql, 001_initial_schema.sql, 002_clawbot_control_plane.sql, role_policies_guild_capability_idx, assignments_guild_created_at_idx, assignments_guild_status_idx, channel_ingestion_policies, clawbot_jobs, channel_ingestion_policies_guild_idx, clawbot_jobs_guild_idx, clawbot_jobs_clawbot_job_idx, audit_logs_guild_created_at_idx, guilds, role_policies, assignments, audit_logs, 003_v1_retrieval.sql, messages, message_attachments, message_embeddings, messages_dm_user_created_at_idx, messages_guild_created_at_idx, messages_channel_created_at_idx, messages_content_trgm_idx, message_attachments_message_idx.",
+      "nodeIds": [
+        "schema:supabase/migrations/004_cleanup_legacy_clawbot_tables.sql",
+        "schema:supabase/migrations/001_initial_schema.sql",
+        "schema:supabase/migrations/002_clawbot_control_plane.sql",
+        "index:supabase/migrations/001_initial_schema.sql:role_policies_guild_capability_idx",
+        "index:supabase/migrations/001_initial_schema.sql:assignments_guild_created_at_idx",
+        "index:supabase/migrations/001_initial_schema.sql:assignments_guild_status_idx",
+        "table:supabase/migrations/002_clawbot_control_plane.sql:channel_ingestion_policies",
+        "table:supabase/migrations/002_clawbot_control_plane.sql:clawbot_jobs",
+        "index:supabase/migrations/002_clawbot_control_plane.sql:channel_ingestion_policies_guild_idx",
+        "index:supabase/migrations/002_clawbot_control_plane.sql:clawbot_jobs_guild_idx",
+        "index:supabase/migrations/002_clawbot_control_plane.sql:clawbot_jobs_clawbot_job_idx",
+        "index:supabase/migrations/002_clawbot_control_plane.sql:audit_logs_guild_created_at_idx",
+        "table:supabase/migrations/001_initial_schema.sql:guilds",
+        "table:supabase/migrations/001_initial_schema.sql:role_policies",
+        "table:supabase/migrations/001_initial_schema.sql:assignments",
+        "table:supabase/migrations/002_clawbot_control_plane.sql:audit_logs",
+        "schema:supabase/migrations/003_v1_retrieval.sql",
+        "table:supabase/migrations/003_v1_retrieval.sql:messages",
+        "table:supabase/migrations/003_v1_retrieval.sql:message_attachments",
+        "table:supabase/migrations/003_v1_retrieval.sql:message_embeddings",
+        "index:supabase/migrations/003_v1_retrieval.sql:messages_dm_user_created_at_idx",
+        "index:supabase/migrations/003_v1_retrieval.sql:messages_guild_created_at_idx",
+        "index:supabase/migrations/003_v1_retrieval.sql:messages_channel_created_at_idx",
+        "index:supabase/migrations/003_v1_retrieval.sql:messages_content_trgm_idx",
+        "index:supabase/migrations/003_v1_retrieval.sql:message_attachments_message_idx"
+      ]
+    },
+    {
+      "order": 6,
+      "title": "Application Services",
+      "description": "Business logic for assignments, permissions, DM orchestration, history indexing, and retrieval.. Key files: assignmentService.ts, auditLogService.ts, dmConversationService.ts, messageHistoryService.ts, retrievalService.ts, rolePolicyService.ts.",
+      "nodeIds": [
+        "file:src/services/assignmentService.ts",
+        "file:src/services/auditLogService.ts",
+        "file:src/services/dmConversationService.ts",
+        "file:src/services/messageHistoryService.ts",
+        "file:src/services/retrievalService.ts",
+        "file:src/services/rolePolicyService.ts"
+      ]
+    },
+    {
+      "order": 7,
+      "title": "Supporting Components",
+      "description": "Additional supporting files: main, fetchJson, safeJsonParse, createDiscordClient, registerApplicationCommands, createOpenAIClient, createSupabaseAdminClient, startWebhookServer, handleRequest, writeJson, handleCreate, handlePublish, handleList, parseDueAt, buildAssignmentEmbed, resolveTargetChannel, parseMentionedRoleIds, loadEnv, Logger, AssignmentService, AuditLogService, shouldPromptForScope, DmConversationService, resolveScope, resolveDmUserId, resolvePrimaryGuildScope, resolveDmScope, MessageHistoryService, isHistoryAwareQuery, parsePhraseCountIntent, formatContext, formatMessageLine, scopeLabel, RetrievalService, RolePolicyService.",
+      "nodeIds": [
+        "function:src/index.ts:main",
+        "function:src/lib/http.ts:fetchJson",
+        "function:src/lib/http.ts:safeJsonParse",
+        "function:src/discord/client.ts:createDiscordClient",
+        "function:src/discord/registerCommands.ts:registerApplicationCommands",
+        "function:src/lib/openai.ts:createOpenAIClient",
+        "function:src/lib/supabase.ts:createSupabaseAdminClient",
+        "function:src/web/server.ts:startWebhookServer",
+        "function:src/web/server.ts:handleRequest",
+        "function:src/web/server.ts:writeJson",
+        "function:src/commands/assignment.ts:handleCreate",
+        "function:src/commands/assignment.ts:handlePublish",
+        "function:src/commands/assignment.ts:handleList",
+        "function:src/commands/assignment.ts:parseDueAt",
+        "function:src/commands/assignment.ts:buildAssignmentEmbed",
+        "function:src/commands/assignment.ts:resolveTargetChannel",
+        "function:src/commands/assignment.ts:parseMentionedRoleIds",
+        "function:src/config/env.ts:loadEnv",
+        "class:src/lib/logger.ts:Logger",
+        "class:src/services/assignmentService.ts:AssignmentService",
+        "class:src/services/auditLogService.ts:AuditLogService",
+        "function:src/services/dmConversationService.ts:shouldPromptForScope",
+        "class:src/services/dmConversationService.ts:DmConversationService",
+        "function:src/services/messageHistoryService.ts:resolveScope",
+        "function:src/services/messageHistoryService.ts:resolveDmUserId",
+        "function:src/services/messageHistoryService.ts:resolvePrimaryGuildScope",
+        "function:src/services/messageHistoryService.ts:resolveDmScope",
+        "class:src/services/messageHistoryService.ts:MessageHistoryService",
+        "function:src/services/retrievalService.ts:isHistoryAwareQuery",
+        "function:src/services/retrievalService.ts:parsePhraseCountIntent",
+        "function:src/services/retrievalService.ts:formatContext",
+        "function:src/services/retrievalService.ts:formatMessageLine",
+        "function:src/services/retrievalService.ts:scopeLabel",
+        "class:src/services/retrievalService.ts:RetrievalService",
+        "class:src/services/rolePolicyService.ts:RolePolicyService"
+      ]
+    }
+  ]
+}

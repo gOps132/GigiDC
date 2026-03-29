@@ -8,7 +8,7 @@ This project requires explicit attribution for external resources used in implem
   - Use: Discord gateway client, slash command registration, and interaction handling
   - Source: https://discord.js.org/
 - `Supabase`
-  - Use: Postgres-backed storage for Discord control-plane state, role policy persistence, and local job references
+  - Use: Postgres-backed storage for Discord control-plane state, role policy persistence, local job references, and the CLI-managed migration workflow
   - Source: https://supabase.com/
 - `OpenAI`
   - Use: DM reasoning and semantic retrieval embeddings in the V1 architecture
@@ -55,3 +55,27 @@ This project requires explicit attribution for external resources used in implem
 - `claude-skills / discord-bot`
   - Use: Local Codex skill used to guide Discord bot scaffolding workflow
   - Source: https://github.com/inbharatai/claude-skills/tree/main/skills/discord-bot
+- `VoltAgent / awesome-agent-skills`
+  - Use: Discovery index used to evaluate stack-specific skills for this repo's workflow
+  - Source: https://github.com/VoltAgent/awesome-agent-skills
+- `OpenAI Skills / security-best-practices`
+  - Use: Repo-local skill for security reviews and secure-by-default changes in the TypeScript bot, integrations, and data-handling paths
+  - Source: https://github.com/openai/skills/tree/main/skills/.curated/security-best-practices
+- `OpenAI Skills / gh-fix-ci`
+  - Use: Repo-local skill for diagnosing and fixing failing GitHub Actions checks
+  - Source: https://github.com/openai/skills/tree/main/skills/.curated/gh-fix-ci
+- `OpenAI Skills / gh-address-comments`
+  - Use: Repo-local skill for resolving GitHub PR review comments with `gh`
+  - Source: https://github.com/openai/skills/tree/main/skills/.curated/gh-address-comments
+- `Supabase Agent Skills / supabase-postgres-best-practices`
+  - Use: Repo-local skill for Postgres query, schema, performance, and RLS guidance
+  - Source: https://github.com/supabase/agent-skills/tree/main/skills/supabase-postgres-best-practices
+- `HashiCorp Agent Skills / terraform-style-guide`
+  - Use: Repo-local skill for Terraform authoring conventions and review guidance
+  - Source: https://github.com/hashicorp/agent-skills/tree/main/terraform/code-generation/skills/terraform-style-guide
+- `Callstack Agent Skills / github`
+  - Use: Repo-local skill for `gh`-based GitHub workflow patterns, pull requests, and merge flow
+  - Source: https://github.com/callstackincubator/agent-skills/tree/main/skills/github
+- `Lum1104 / Understand-Anything`
+  - Use: Codebase knowledge graph, dashboard exploration, onboarding, and diff-impact analysis for ongoing project visualization
+  - Source: https://github.com/Lum1104/Understand-Anything

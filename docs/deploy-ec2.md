@@ -101,6 +101,7 @@ sudo systemctl reload nginx
 This exposes:
 
 - `GET /healthz`
+- `GET /readyz`
 
 and proxies them to the Node app on `127.0.0.1:8080`.
 
@@ -139,7 +140,9 @@ After the first manual setup, you can switch to the GitHub Actions CD path in [d
 Run these checks after deployment:
 
 - `curl http://127.0.0.1:8080/healthz`
+- `curl http://127.0.0.1:8080/readyz`
 - `curl http://YOUR_DISCORD_BOT_PUBLIC_IP/healthz`
+- `curl http://YOUR_DISCORD_BOT_PUBLIC_IP/readyz`
 - `sudo systemctl status gigi-discord-bot --no-pager`
 - `sudo journalctl -u gigi-discord-bot -n 100 --no-pager`
 - verify `/ping`
