@@ -77,6 +77,7 @@ Example role policy shape:
 insert into role_policies (guild_id, capability, discord_role_id)
 values
   ('your-discord-guild-id', 'agent_action_dispatch', 'your-shared-action-role-id'),
+  ('your-discord-guild-id', 'agent_action_receive', 'your-gigi-dm-recipient-role-id'),
   ('your-discord-guild-id', 'assignment_admin', 'your-assignment-admin-role-id'),
   ('your-discord-guild-id', 'ingestion_admin', 'your-ingestion-admin-role-id'),
   ('your-discord-guild-id', 'history_guild_wide', 'your-history-enabled-role-id');
@@ -117,6 +118,7 @@ Then validate:
 - `/ingestion enable` turns ingestion on for the current or selected channel
 - `/ingestion disable` turns ingestion off again
 - `/relay dm` sends a participant-visible shared action through Gigi and creates an `agent_actions` row
+- `/relay dm` only succeeds when the sender has `agent_action_dispatch` and the recipient has `agent_action_receive`
 - `/task create` creates a follow-up task in `agent_actions`
 - `/task list` shows open tasks visible to the requester
 - `/task complete` closes a task and records the result summary
@@ -124,6 +126,8 @@ Then validate:
 - `/assignment list` returns recent assignments
 - `/assignment publish` posts to the selected channel or current channel and mentions affected roles
 - DM the bot with a general question
+- DM the bot with `what tools can you call?` and confirm the answer stays limited to the actual bot runtime
+- DM the bot with `can you give me a code execution environment?` and confirm it refuses unsupported tools cleanly
 - DM the bot with a history question like `How many times did I say "ship it"?`
 - After `/relay dm`, ask the bot in DM what the requester wanted and confirm the answer can come from `agent_actions`
 - Ask the bot in DM what tasks are still open and confirm the answer can come from open task records

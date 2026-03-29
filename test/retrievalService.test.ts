@@ -224,6 +224,167 @@ test('RetrievalService falls back to direct answering when semantic search fails
   assert.equal(warnings[0]?.message, 'Semantic search failed during retrieval');
 });
 
+test('RetrievalService answers capability questions deterministically from the real bot surface', async () => {
+  const responseInputs: Array<{ instructions: string; model: string; text: string }> = [];
+
+  const service = new RetrievalService(
+    {
+      OPENAI_RESPONSE_MODEL: 'gpt-test'
+    } as never,
+    {
+      async createTextResponse(input) {
+        responseInputs.push(input);
+        return 'should not be used';
+      }
+    },
+    {
+      async countPhrase() {
+        return 0;
+      },
+      async listRecentMessages() {
+        return [];
+      },
+      async searchSemantic() {
+        return [];
+      }
+    } as never,
+    {
+      async listRelevantVisibleActionsForUser() {
+        return [];
+      },
+      async listOpenTasksForUser() {
+        return [];
+      }
+    } as never,
+    {
+      warn() {},
+      debug() {},
+      error() {},
+      info() {}
+    } as never
+  );
+
+  const answer = await service.answerQuestion(
+    'what tools can you call?',
+    {
+      dmUserId: 'user-2',
+      kind: 'dm'
+    },
+    'user-2',
+    'bot-user'
+  );
+
+  assert.equal(answer.source, 'direct');
+  assert.match(answer.answer, /DM history/i);
+  assert.match(answer.answer, /create, list, and complete tasks/i);
+  assert.match(answer.answer, /cannot browse the web, run code/i);
+  assert.equal(responseInputs.length, 0);
+});
+
+test('RetrievalService refuses unsupported code-execution claims', async () => {
+  const service = new RetrievalService(
+    {
+      OPENAI_RESPONSE_MODEL: 'gpt-test'
+    } as never,
+    {
+      async createTextResponse() {
+        return 'should not be used';
+      }
+    },
+    {
+      async countPhrase() {
+        return 0;
+      },
+      async listRecentMessages() {
+        return [];
+      },
+      async searchSemantic() {
+        return [];
+      }
+    } as never,
+    {
+      async listRelevantVisibleActionsForUser() {
+        return [];
+      },
+      async listOpenTasksForUser() {
+        return [];
+      }
+    } as never,
+    {
+      warn() {},
+      debug() {},
+      error() {},
+      info() {}
+    } as never
+  );
+
+  const answer = await service.answerQuestion(
+    'can you give me a code execution environment?',
+    {
+      dmUserId: 'user-2',
+      kind: 'dm'
+    },
+    'user-2',
+    'bot-user'
+  );
+
+  assert.equal(answer.source, 'direct');
+  assert.match(answer.answer, /cannot run code/i);
+  assert.match(answer.answer, /task create\/list\/complete/i);
+});
+
+test('RetrievalService gives a grounded DM answer for ingestion status questions', async () => {
+  const service = new RetrievalService(
+    {
+      OPENAI_RESPONSE_MODEL: 'gpt-test'
+    } as never,
+    {
+      async createTextResponse() {
+        return 'should not be used';
+      }
+    },
+    {
+      async countPhrase() {
+        return 0;
+      },
+      async listRecentMessages() {
+        return [];
+      },
+      async searchSemantic() {
+        return [];
+      }
+    } as never,
+    {
+      async listRelevantVisibleActionsForUser() {
+        return [];
+      },
+      async listOpenTasksForUser() {
+        return [];
+      }
+    } as never,
+    {
+      warn() {},
+      debug() {},
+      error() {},
+      info() {}
+    } as never
+  );
+
+  const answer = await service.answerQuestion(
+    'how is ingestion going?',
+    {
+      dmUserId: 'user-2',
+      kind: 'dm'
+    },
+    'user-2',
+    'bot-user'
+  );
+
+  assert.equal(answer.source, 'direct');
+  assert.match(answer.answer, /\/ingestion status/i);
+  assert.match(answer.answer, /stored DM history/i);
+});
+
 test('RetrievalService returns a clean fallback when response generation fails', async () => {
   const errors: Array<Record<string, unknown>> = [];
 

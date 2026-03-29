@@ -92,6 +92,55 @@ export const relayCommand: SlashCommand = {
     const targetUser = interaction.options.getUser('user', true);
     const relayMessage = interaction.options.getString('message', true).trim();
     const relayContext = interaction.options.getString('context')?.trim() ?? null;
+    const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+
+    if (!targetMember) {
+      await context.services.auditLogs.record({
+        guildId: guild.id,
+        actorUserId: interaction.user.id,
+        action: 'relay.dm.recipient_permission_denied',
+        targetType: 'agent_action',
+        targetId: null,
+        metadata: {
+          reason: 'recipient_not_in_guild',
+          recipientUserId: targetUser.id,
+          recipientUsername: targetUser.username
+        }
+      });
+
+      await interaction.reply({
+        content: 'I can only DM users through Gigi if they are in this server and have relay-receive permission.',
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    const recipientAllowed = await context.services.rolePolicies.memberHasCapability(
+      guild,
+      targetMember,
+      CAPABILITIES.agentActionReceive
+    );
+
+    if (!recipientAllowed) {
+      await context.services.auditLogs.record({
+        guildId: guild.id,
+        actorUserId: interaction.user.id,
+        action: 'relay.dm.recipient_permission_denied',
+        targetType: 'agent_action',
+        targetId: null,
+        metadata: {
+          reason: 'recipient_missing_capability',
+          recipientUserId: targetUser.id,
+          recipientUsername: targetUser.username
+        }
+      });
+
+      await interaction.reply({
+        content: 'I can only DM users through Gigi if that user has `agent_action_receive` permission.',
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
 
     if (relayMessage.length === 0) {
       await interaction.reply({

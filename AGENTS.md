@@ -216,3 +216,8 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Root cause: The DM path previously depended on `storeDiscordMessage` succeeding before conversation handling, and retrieval attempted semantic search before it could fall back to a simple direct answer.
   Fix or required workflow: Let DM conversation handling continue even if history persistence fails, degrade retrieval gracefully when semantic search is unavailable, and send a best-effort fallback error reply when DM handling still throws.
   Verification step: Run `npm run test` and confirm the Discord DM handler and retrieval fallback tests pass, especially the storage-failure and semantic-search-failure cases.
+
+- Issue or symptom: Gigi can hallucinate unsupported tools or broader runtime capabilities in DM if capability questions are left entirely to the language model.
+  Root cause: A generic assistant prompt invites the model to answer from prior expectations instead of the actual bot runtime surface.
+  Fix or required workflow: Ground capability and unsupported-tool questions with deterministic responses, and keep the retrieval prompt explicit about the real bot surface: DM chat, retrieval, tasks, and permission-gated relays only.
+  Verification step: Run `npm run test` and confirm the retrieval capability tests pass, especially `what tools can you call?`, unsupported code-execution questions, and ingestion-status questions.

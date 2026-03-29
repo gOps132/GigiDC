@@ -89,6 +89,7 @@ This layer holds the actual bot behavior:
 - `AgentToolService`
   - turns explicit DM requests into up to three internal tool calls
   - enforces capability checks and participant access before executing task or relay operations
+  - rejects Gigi-mediated DM relays unless the recipient also has explicit receive permission
   - resolves Discord users conservatively from self references, mentions, or exact guild names
   - records audit events for tool execution, denial, and failure paths
 - `AgentActionService`
@@ -217,6 +218,13 @@ It currently supports:
 - list open tasks
 - complete task
 - send DM relay
+
+It does not support:
+
+- web browsing or web search
+- code execution or shell access
+- image generation
+- arbitrary external tools
 
 The runtime shape is:
 
@@ -358,6 +366,8 @@ Channel-ingestion administration is role-gated by `ingestion_admin`.
 
 Shared Gigi relay and task dispatch is role-gated by `agent_action_dispatch`.
 
+Receiving a Gigi-mediated DM relay is role-gated by `agent_action_receive`.
+
 Participant-visible action and task recall does not require guild-wide history access. Retrieval can use `agent_actions` for the requester or recipient/assignee of a Gigi-mediated relay or task while still keeping unrelated guild history gated.
 
 DM tool execution uses the same permission boundaries:
@@ -365,6 +375,7 @@ DM tool execution uses the same permission boundaries:
 - listing your own tasks is allowed without dispatch capability
 - completing a task is allowed for visible participants
 - creating shared tasks or sending relays still requires `agent_action_dispatch`
+- sending a relay also requires the recipient to have `agent_action_receive`
 - listing another user's tasks still requires `agent_action_dispatch`
 
 ## Current Risks
@@ -377,6 +388,7 @@ The current shared-identity foundation is intentionally narrow, but the repo sho
 - the lack of a durable indexing worker means semantic recall can lag behind raw-history recall after restarts
 - broader shared-memory features should not be added by simply widening retrieval scope; they need explicit visibility rules and task boundaries
 - the current DM tool planner can misclassify natural language or fail to resolve people unless the request is explicit
+- unsupported-capability questions still need explicit grounding rules or the language model will invent broader tool access than the bot actually has
 - multi-tool execution is still bounded to short synchronous internal actions and should not be mistaken for a general agent-worker system
 
 ## Runtime Health

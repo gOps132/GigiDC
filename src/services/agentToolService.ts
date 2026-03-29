@@ -319,6 +319,20 @@ export class AgentToolService {
       };
     }
 
+    const recipientAllowed = await this.canReceiveSharedActions(recipient.id, context);
+    if (!recipientAllowed) {
+      await this.recordAudit(context, 'dm.tools.send_dm_relay.recipient_permission_denied', null, {
+        recipientUserId: recipient.id,
+        recipientUsername: recipient.username
+      });
+
+      return {
+        handled: true,
+        summary: 'I can only DM users through Gigi if that user has `agent_action_receive` permission in the primary server.',
+        toolName: toolCall.name
+      };
+    }
+
     const action = await this.agentActions.createDirectMessageRelay({
       guildId: context.guild?.id ?? null,
       channelId: context.currentChannelId,
@@ -403,6 +417,26 @@ export class AgentToolService {
       context.guild,
       context.requesterMember,
       CAPABILITIES.agentActionDispatch
+    );
+  }
+
+  private async canReceiveSharedActions(
+    recipientUserId: string,
+    context: ExecutionContext
+  ): Promise<boolean> {
+    if (!context.guild) {
+      return false;
+    }
+
+    const recipientMember = await context.guild.members.fetch(recipientUserId).catch(() => null);
+    if (!recipientMember) {
+      return false;
+    }
+
+    return this.rolePolicies.memberHasCapability(
+      context.guild,
+      recipientMember,
+      CAPABILITIES.agentActionReceive
     );
   }
 

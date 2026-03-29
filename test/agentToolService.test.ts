@@ -5,12 +5,13 @@ import { AgentToolService } from '../src/services/agentToolService.js';
 import { AGENT_ACTION_SCOPES, AGENT_ACTION_STATUSES, AGENT_ACTION_TYPES } from '../src/services/agentActionService.js';
 
 function createService(overrides?: {
-  capabilityAllowed?: boolean;
+  dispatchAllowed?: boolean;
   getActionByIdResult?: Record<string, unknown> | null;
   listOpenTasksResult?: Array<Record<string, unknown>>;
   plan?: {
     toolCalls: Array<Record<string, unknown>>;
   };
+  recipientAllowed?: boolean;
 }) {
   const auditCalls: Array<Record<string, unknown>> = [];
   const createTaskCalls: Array<Record<string, unknown>> = [];
@@ -48,7 +49,20 @@ function createService(overrides?: {
           displayName: 'Erick'
         };
       },
-      async search() {
+      async search({ query }: { query: string }) {
+        const normalized = query.toLowerCase();
+        if (normalized === 'mina') {
+          return new Map([
+            ['recipient-1', {
+              displayName: 'Mina',
+              user: {
+                id: 'recipient-1',
+                username: 'mina'
+              }
+            }]
+          ]);
+        }
+
         return new Map();
       }
     }
@@ -137,8 +151,12 @@ function createService(overrides?: {
       }
     } as never,
     {
-      async memberHasCapability() {
-        return overrides?.capabilityAllowed ?? false;
+      async memberHasCapability(_guild: unknown, _member: unknown, capability: string) {
+        if (capability === 'agent_action_receive') {
+          return overrides?.recipientAllowed ?? false;
+        }
+
+        return overrides?.dispatchAllowed ?? false;
       }
     } as never,
     {
@@ -161,7 +179,7 @@ function createService(overrides?: {
 
 test('AgentToolService can execute multiple planned tool calls in one DM turn', async () => {
   const { client, createTaskCalls, listOpenTaskCalls, service } = createService({
-    capabilityAllowed: true,
+    dispatchAllowed: true,
     plan: {
       toolCalls: [
         {
@@ -199,7 +217,7 @@ test('AgentToolService can execute multiple planned tool calls in one DM turn', 
 
 test('AgentToolService denies DM relay execution without shared dispatch capability', async () => {
   const { auditCalls, client, service } = createService({
-    capabilityAllowed: false,
+    dispatchAllowed: false,
     plan: {
       toolCalls: [
         {
@@ -229,7 +247,7 @@ test('AgentToolService denies DM relay execution without shared dispatch capabil
 
 test('AgentToolService can complete a task by title reference', async () => {
   const { client, markCompletedCalls, service } = createService({
-    capabilityAllowed: false,
+    dispatchAllowed: false,
     getActionByIdResult: null,
     plan: {
       toolCalls: [
@@ -255,4 +273,35 @@ test('AgentToolService can complete a task by title reference', async () => {
   assert.ok(result);
   assert.equal(markCompletedCalls.length, 1);
   assert.match(result.reply, /Marked task `task-1` complete/i);
+});
+
+test('AgentToolService denies DM relay execution when the recipient lacks receive permission', async () => {
+  const { auditCalls, client, service } = createService({
+    dispatchAllowed: true,
+    recipientAllowed: false,
+    plan: {
+      toolCalls: [
+        {
+          context: null,
+          message: 'Please review the checklist.',
+          name: 'send_dm_relay',
+          recipientReference: 'mina'
+        }
+      ]
+    }
+  });
+
+  const result = await service.maybeHandleDmQuery(
+    'Send Mina a DM to review the checklist.',
+    {
+      id: 'requester-1',
+      username: 'erick'
+    } as never,
+    client as never,
+    'dm-channel-1'
+  );
+
+  assert.ok(result);
+  assert.match(result.reply, /agent_action_receive/i);
+  assert.equal(auditCalls[0]?.action, 'dm.tools.send_dm_relay.recipient_permission_denied');
 });

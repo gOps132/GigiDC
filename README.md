@@ -140,6 +140,13 @@ DM the bot for:
 - explicit tool-style requests like `create a task for me to review launch notes tomorrow and show me my open tasks`
 - explicit relay requests like `send Mina a DM saying the release moved to Friday`
 
+The DM runtime does not provide:
+
+- web browsing or web search
+- code execution or a sandbox
+- image generation
+- arbitrary external tools
+
 ## Authorization Model
 
 The bot checks Discord `Administrator` first, then capability mappings in `role_policies`.
@@ -147,6 +154,7 @@ The bot checks Discord `Administrator` first, then capability mappings in `role_
 Capabilities used by the current command set:
 
 - `agent_action_dispatch`
+- `agent_action_receive`
 - `assignment_admin`
 - `ingestion_admin`
 - `history_guild_wide`
@@ -157,6 +165,7 @@ Example:
 insert into role_policies (guild_id, capability, discord_role_id)
 values
   ('your-discord-guild-id', 'agent_action_dispatch', 'your-shared-action-role-id'),
+  ('your-discord-guild-id', 'agent_action_receive', 'your-gigi-dm-recipient-role-id'),
   ('your-discord-guild-id', 'assignment_admin', 'your-assignment-admin-role-id'),
   ('your-discord-guild-id', 'ingestion_admin', 'your-ingestion-admin-role-id'),
   ('your-discord-guild-id', 'history_guild_wide', 'your-history-enabled-role-id');
@@ -171,6 +180,7 @@ V1 uses a reduced retrieval-first architecture:
 - guild-channel ingestion is opt-in through `channel_ingestion_policies`
 - participant-visible Gigi actions and follow-up tasks are persisted in `agent_actions`
 - explicit tool-style DM requests can be planned into up to three internal tool calls before falling back to retrieval
+- Gigi-mediated DM relays require sender dispatch permission and recipient receive permission
 - ingestion policy changes and permission denials are written to `audit_logs`
 - relay dispatch attempts and outcomes are written to `audit_logs`
 - task creation and completion events are written to `audit_logs`

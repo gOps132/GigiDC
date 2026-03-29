@@ -24,6 +24,14 @@ export class RetrievalService {
     requesterUserId: string,
     botUserId: string
   ): Promise<RetrievalAnswer> {
+    const capabilityAnswer = parseCapabilityIntent(query);
+    if (capabilityAnswer) {
+      return {
+        answer: capabilityAnswer,
+        source: 'direct'
+      };
+    }
+
     const phraseCountIntent = parsePhraseCountIntent(query, requesterUserId, botUserId);
 
     if (phraseCountIntent) {
@@ -80,6 +88,9 @@ export class RetrievalService {
         model: this.env.OPENAI_RESPONSE_MODEL,
         instructions: [
           'You are GigiDC, a Discord assistant.',
+          'Only describe the capabilities that actually exist in this bot runtime.',
+          'Actual supported capabilities are DM chat, DM history recall, permitted guild-history recall, phrase counting, participant-visible task memory, participant-visible relay memory, task create/list/complete, and permission-gated DM relays.',
+          'Do not claim to have web search, browsing, code execution, a sandbox, image generation, translation tools, or arbitrary external tool access.',
           'If chat history context is supplied, use it carefully.',
           'Be concise and practical.',
           'If the context is insufficient for a history-based question, say so plainly instead of guessing.'
@@ -152,6 +163,43 @@ function isTaskAwareQuery(query: string): boolean {
   return /\b(task|tasks|todo|to-do|supposed|assigned|assignment|deadline|due|follow up|follow-up|need to do|open task)\b/i.test(
     query
   );
+}
+
+function parseCapabilityIntent(query: string): string | null {
+  const normalized = query.trim().toLowerCase();
+
+  if (
+    /\b(what tools can you call|what tools do you have|what can you do|what capabilities do you have|what are your capabilities)\b/i.test(
+      normalized
+    )
+  ) {
+    return [
+      'In this bot runtime I can:',
+      '- chat in DM',
+      '- answer from your DM history',
+      '- answer from permitted primary-server history when you have access',
+      '- count exact phrases from stored history',
+      '- recall participant-visible relays and tasks',
+      '- create, list, and complete tasks',
+      '- send Gigi-mediated DMs when permission checks pass',
+      '',
+      'I cannot browse the web, run code, provide a sandbox, generate images, or use arbitrary external tools here.'
+    ].join('\n');
+  }
+
+  if (
+    /\b(code execution|execute code|run code|sandbox|shell access|terminal access|browser|browse the web|web search|search the web|image generation|generate images|translation|translate)\b/i.test(
+      normalized
+    )
+  ) {
+    return 'No. In this bot runtime I cannot run code, provide a sandbox, browse the web, generate images, or use arbitrary external tools. The only internal tools I can use here are task create/list/complete and permission-gated DM relays.';
+  }
+
+  if (/\b(ingestion status|how.?s ingestion going|how is ingestion going|what.?s ingestion status)\b/i.test(normalized)) {
+    return 'I do not have live ingestion-status reporting in DM. Use `/ingestion status` in a server channel. In DM I can only answer from stored DM history, permitted server history, and shared task/action memory.';
+  }
+
+  return null;
 }
 
 function isHistoryAwareQuery(query: string): boolean {

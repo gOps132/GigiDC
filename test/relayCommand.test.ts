@@ -7,9 +7,11 @@ import { relayCommand } from '../src/commands/relay.js';
 import type { BotContext } from '../src/discord/types.js';
 
 function createInteraction(overrides?: {
-  allowed?: boolean;
+  dispatchAllowed?: boolean;
   context?: string | null;
   message?: string;
+  recipientAllowed?: boolean;
+  recipientInGuild?: boolean;
   sendError?: Error | null;
   targetUserId?: string;
   targetUsername?: string;
@@ -52,6 +54,17 @@ function createInteraction(overrides?: {
       name: 'Gigi HQ',
       members: {
         async fetch(userId: string) {
+          if (userId === (overrides?.targetUserId ?? 'target-1')) {
+            if (overrides?.recipientInGuild === false) {
+              throw new Error('Unknown guild member');
+            }
+
+            return {
+              displayName: overrides?.targetUsername ?? 'mina',
+              id: userId
+            };
+          }
+
           return {
             displayName: 'Erick',
             id: userId
@@ -152,8 +165,14 @@ function createInteraction(overrides?: {
       messageIndexing: {},
       retrieval: {},
       rolePolicies: {
-        async memberHasCapability() {
-          return overrides?.allowed ?? true;
+        async memberHasCapability(_guild: unknown, member: { id: string }, capability: string) {
+          if (capability === 'agent_action_receive') {
+            return member.id === (overrides?.targetUserId ?? 'target-1')
+              ? overrides?.recipientAllowed ?? true
+              : false;
+          }
+
+          return overrides?.dispatchAllowed ?? true;
         }
       }
     }
@@ -174,7 +193,7 @@ function createInteraction(overrides?: {
 
 test('relay command denies users without dispatch capability', async () => {
   const { auditCalls, context, interaction, replyCalls } = createInteraction({
-    allowed: false
+    dispatchAllowed: false
   });
 
   await relayCommand.execute(interaction as never, context);
@@ -182,6 +201,19 @@ test('relay command denies users without dispatch capability', async () => {
   assert.equal(auditCalls.length, 1);
   assert.equal(auditCalls[0]?.action, 'relay.dm.permission_denied');
   assert.equal(replyCalls[0]?.content, 'You do not have permission to dispatch shared Gigi actions.');
+  assert.equal(replyCalls[0]?.flags, MessageFlags.Ephemeral);
+});
+
+test('relay command denies relays when the recipient lacks receive permission', async () => {
+  const { auditCalls, context, interaction, replyCalls } = createInteraction({
+    dispatchAllowed: true,
+    recipientAllowed: false
+  });
+
+  await relayCommand.execute(interaction as never, context);
+
+  assert.equal(auditCalls[0]?.action, 'relay.dm.recipient_permission_denied');
+  assert.match(replyCalls[0]?.content ?? '', /agent_action_receive/i);
   assert.equal(replyCalls[0]?.flags, MessageFlags.Ephemeral);
 });
 
@@ -219,6 +251,7 @@ test('relay command marks the action failed when Discord rejects the DM', async 
     interaction,
     replyCalls
   } = createInteraction({
+    dispatchAllowed: true,
     sendError: new Error('Cannot send messages to this user')
   });
 
