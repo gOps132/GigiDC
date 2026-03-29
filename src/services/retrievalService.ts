@@ -75,18 +75,28 @@ export class RetrievalService {
   }
 
   private async answerDirect(query: string, contextBlocks: string[]): Promise<string> {
-    return this.responses.createTextResponse({
-      model: this.env.OPENAI_RESPONSE_MODEL,
-      instructions: [
-        'You are GigiDC, a Discord assistant.',
-        'If chat history context is supplied, use it carefully.',
-        'Be concise and practical.',
-        'If the context is insufficient for a history-based question, say so plainly instead of guessing.'
-      ].join(' '),
-      text: contextBlocks.length > 0
-        ? `Question: ${query}\n\nChat history context:\n${contextBlocks.join('\n\n')}`
-        : `Question: ${query}`
-    });
+    try {
+      return await this.responses.createTextResponse({
+        model: this.env.OPENAI_RESPONSE_MODEL,
+        instructions: [
+          'You are GigiDC, a Discord assistant.',
+          'If chat history context is supplied, use it carefully.',
+          'Be concise and practical.',
+          'If the context is insufficient for a history-based question, say so plainly instead of guessing.'
+        ].join(' '),
+        text: contextBlocks.length > 0
+          ? `Question: ${query}\n\nChat history context:\n${contextBlocks.join('\n\n')}`
+          : `Question: ${query}`
+      });
+    } catch (error) {
+      this.logger.error('OpenAI text response failed during retrieval', {
+        error: error instanceof Error ? error.message : 'Unknown response-generation error',
+        hasContext: contextBlocks.length > 0,
+        query
+      });
+
+      return 'I could not reach my reasoning backend right now. Try again in a moment.';
+    }
   }
 
   private async loadRecentMessages(scope: HistoryScope): Promise<HistoryMessageRecord[]> {

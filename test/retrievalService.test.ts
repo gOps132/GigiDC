@@ -223,3 +223,62 @@ test('RetrievalService falls back to direct answering when semantic search fails
   assert.equal(responseInputs.length, 1);
   assert.equal(warnings[0]?.message, 'Semantic search failed during retrieval');
 });
+
+test('RetrievalService returns a clean fallback when response generation fails', async () => {
+  const errors: Array<Record<string, unknown>> = [];
+
+  const service = new RetrievalService(
+    {
+      OPENAI_RESPONSE_MODEL: 'gpt-test'
+    } as never,
+    {
+      async createTextResponse() {
+        throw new Error('invalid_api_key');
+      }
+    },
+    {
+      async countPhrase() {
+        return 0;
+      },
+      async listRecentMessages() {
+        return [];
+      },
+      async searchSemantic() {
+        return [];
+      }
+    } as never,
+    {
+      async listRelevantVisibleActionsForUser() {
+        return [];
+      },
+      async listOpenTasksForUser() {
+        return [];
+      }
+    } as never,
+    {
+      warn() {},
+      debug() {},
+      error(message: string, metadata: Record<string, unknown>) {
+        errors.push({
+          message,
+          ...metadata
+        });
+      },
+      info() {}
+    } as never
+  );
+
+  const answer = await service.answerQuestion(
+    'hi',
+    {
+      dmUserId: 'user-2',
+      kind: 'dm'
+    },
+    'user-2',
+    'bot-user'
+  );
+
+  assert.equal(answer.answer, 'I could not reach my reasoning backend right now. Try again in a moment.');
+  assert.equal(answer.source, 'direct');
+  assert.equal(errors[0]?.message, 'OpenAI text response failed during retrieval');
+});
