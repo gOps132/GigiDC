@@ -256,14 +256,76 @@ function createContext(overrides?: {
   };
 }
 
-test('DmConversationService persists scope selection prompts instead of keeping them in memory', async () => {
+test('DmConversationService defaults DM retrieval to the primary server when guild-wide history is allowed', async () => {
+  const store = new InMemoryPendingDmScopeSelectionStore();
+  const { answerCalls, client, context, message, replyCalls, storedBotMessages } = createContext({
+    allowGuildWideHistory: true,
+    primaryGuildId: 'guild-1',
+    retrievalAnswer: 'server-first answer'
+  });
+  const service = new DmConversationService(context, store);
+
+  await service.handleMessage(message as never, client as never);
+
+  assert.equal(store.saved.length, 0);
+  assert.equal(answerCalls.length, 1);
+  assert.deepEqual(answerCalls[0]?.scope, {
+    guildId: 'guild-1',
+    kind: 'guild'
+  });
+  assert.equal(replyCalls.length, 1);
+  assert.equal(replyCalls[0]?.content, 'server-first answer');
+  assert.deepEqual(storedBotMessages, ['bot-reply-1']);
+});
+
+test('DmConversationService keeps explicit DM-scoped questions inside the DM history even when guild-wide history is allowed', async () => {
+  const store = new InMemoryPendingDmScopeSelectionStore();
+  const { answerCalls, client, context, message, replyCalls, storedBotMessages } = createContext({
+    allowGuildWideHistory: true,
+    primaryGuildId: 'guild-1',
+    retrievalAnswer: 'dm-scoped answer'
+  });
+  message.content = 'What did we talk about in this DM yesterday?';
+
+  const service = new DmConversationService(context, store);
+  await service.handleMessage(message as never, client as never);
+
+  assert.equal(store.saved.length, 0);
+  assert.equal(answerCalls.length, 1);
+  assert.deepEqual(answerCalls[0]?.scope, {
+    dmUserId: 'user-1',
+    kind: 'dm'
+  });
+  assert.equal(replyCalls[0]?.content, 'dm-scoped answer');
+  assert.deepEqual(storedBotMessages, ['bot-reply-1']);
+});
+
+test('DmConversationService refuses explicit primary-server requests when guild-wide history is not allowed', async () => {
+  const store = new InMemoryPendingDmScopeSelectionStore();
+  const { answerCalls, client, context, message, replyCalls, storedBotMessages } = createContext({
+    allowGuildWideHistory: false,
+    retrievalAnswer: 'should not be used'
+  });
+  message.content = 'What did they say in the server yesterday?';
+
+  const service = new DmConversationService(context, store);
+  await service.handleMessage(message as never, client as never);
+
+  assert.equal(store.saved.length, 0);
+  assert.equal(answerCalls.length, 0);
+  assert.match(replyCalls[0]?.content ?? '', /cannot use primary server history/i);
+  assert.deepEqual(storedBotMessages, ['bot-reply-1']);
+});
+
+test('DmConversationService persists scope selection prompts only when the user explicitly asks across DM and server context', async () => {
   const store = new InMemoryPendingDmScopeSelectionStore();
   const { client, context, message, replyCalls, storedBotMessages } = createContext({
     allowGuildWideHistory: true,
     primaryGuildId: 'guild-1'
   });
-  const service = new DmConversationService(context, store);
+  message.content = 'What did we say in this DM versus the server yesterday?';
 
+  const service = new DmConversationService(context, store);
   await service.handleMessage(message as never, client as never);
 
   assert.equal(store.saved.length, 1);

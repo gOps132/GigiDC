@@ -9,7 +9,7 @@ description: Detailed architecture model for the current GigiDC runtime, memory,
 
 V1 is a reduced Discord bot architecture built for:
 
-- DM-first agentic interaction
+- DM-first agentic interaction tied to one configured primary server
 - mention-based channel conversation with current-channel history scope
 - participant-visible shared Gigi tasks and actions for relay and follow-up continuity
 - bounded multi-tool DM execution on top of that shared task/action substrate
@@ -94,9 +94,11 @@ This layer holds the actual bot behavior:
   - handles guild mentions through a public-safe mention path that uses the current channel as retrieval scope
   - routes explicit tool-style DM requests through a bounded planner/executor path before retrieval
   - routes free-text confirm/cancel turns through the persisted action-confirmation path
-  - decides whether a DM question needs a scope picker
+  - defaults DM retrieval to the configured primary server for members with guild-wide history access
+  - keeps explicit `this DM` or other private-chat phrasing on DM-only history instead of silently widening the scope
+  - only asks for a scope picker when the user explicitly mixes DM and server scope in the same request
   - persists pending scope-selection state so Discord select menus survive process restarts
-  - resolves `This DM` vs guild-wide history access
+  - resolves primary-server history vs explicit DM history
   - persists bot-authored DM prompts and answers immediately so canonical history does not depend on gateway echo timing
   - keeps mention replies public-safe by refusing sensitive-data flows and redirecting public tool/admin/action requests back to DM or slash commands
   - calls retrieval and sends the final Discord reply
@@ -247,7 +249,11 @@ Use them for:
 - scoped follow-up questions
 - bounded task and relay execution when the request is explicit enough to plan safely
 
-If multiple scopes are possible and allowed, the bot asks the user to choose via a Discord select menu.
+For members with `history_guild_wide`, DM retrieval is primary-server-first by default.
+
+Explicit private phrasing such as `in this DM` keeps retrieval on the DM thread.
+
+If a user explicitly mixes both contexts in one request, the bot asks them to choose via a Discord select menu.
 
 The DM flow is effectively:
 
@@ -257,7 +263,8 @@ Discord DM
   -> deterministic DM intent routing
   -> optional persisted action confirmation
   -> optional tool planner + internal tool execution
-  -> optional persisted scope selection
+  -> primary-server-first scope choice with explicit DM override
+  -> optional persisted scope selection for explicit DM/server conflicts
   -> retrieval strategy selection
   -> participant-visible agent action lookup
   -> requester-centric user-memory snapshot lookup
@@ -457,10 +464,12 @@ That behavior is controlled by `REGISTER_COMMANDS_ON_STARTUP`, which keeps boot 
 
 V1 supports:
 
-- `This DM`
-- `Guild-wide` in the configured primary guild
+- `Guild-wide` in the configured primary guild as the default DM retrieval scope for permitted members
+- `This DM` as an explicit private-history override
 
 Guild-wide history access is role-gated by `history_guild_wide`.
+
+If a DM user explicitly asks for primary-server history without that capability, the runtime refuses instead of silently falling back to DM-only history.
 
 Channel-ingestion administration is role-gated by `ingestion_admin`.
 
@@ -475,6 +484,7 @@ Authority is intentionally surface-agnostic:
 - slash commands, DM text, and confirmation buttons are only interfaces
 - guild identity plus capability determines whether an action is allowed
 - DM never grants extra authority, but it also does not remove authority the user already has in the primary guild
+- DM is the private interface to the configured primary guild, not a separate multi-server persona
 
 DM tool execution uses the same permission boundaries:
 
@@ -493,6 +503,7 @@ DM tool execution uses the same permission boundaries:
 The current shared-identity foundation is intentionally narrow, but the repo should treat these as active architectural risks:
 
 - retrieval quality can decay as DM and bot-authored history grows unless ranking and summarization improve
+- primary-server-first DM retrieval can surprise users who expected a private-thread answer unless private-scope wording stays explicit in the UX and docs
 - canonical storage now contains more private conversational material, which increases retention and deletion pressure
 - duplicated signal across `messages` and `agent_actions` can create noisy context assembly
 - stale `user_memory_snapshots` can create soft context rot unless refresh, expiry, and traceability stay disciplined

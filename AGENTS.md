@@ -293,6 +293,11 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Fix or required workflow: Add deterministic fallbacks for high-signal DM admin requests when planner misses would otherwise degrade into generic chat, especially for bounded actions like usage summaries.
   Verification step: DM Gigi with a phrasing like `what is your current usage` and confirm it returns the real usage summary path instead of a generic assistant answer.
 
+- Issue or symptom: DM conversation can feel detached from Gigi's single-server identity when ordinary DM retrieval defaults to `This DM` even for members who should primarily be asking about the main server.
+  Root cause: The earlier DM retrieval flow treated `This DM` as the default scope and only offered guild-wide history as an optional picker, which made Gigi feel like a separate DM assistant instead of the private interface to the primary guild.
+  Fix or required workflow: For members with `history_guild_wide`, default DM retrieval to the configured primary server, keep explicit `this DM` or private-chat phrasing on DM-only history, and only show the persisted scope picker when a user explicitly mixes DM and server context in one request.
+  Verification step: DM Gigi with `what did we talk about yesterday?` and confirm it uses the primary server scope, then DM `what did we talk about in this DM yesterday?` and confirm it stays on DM-only history.
+
 - Issue or symptom: A user can visibly type a relay target in Discord DM but the bot still cannot safely resolve which guild member should receive the relay.
   Root cause: Discord UI text, display-name styling, and partial freeform references are not always reliable structured identity signals, so relying only on planner text or a single exact lookup can still fail safe requests.
   Fix or required workflow: Prefer structured mentions when Discord provides them, and when relay recipient text is still ambiguous persist a `pending_dm_recipient_selections` picker so the requester chooses the exact guild user before the real confirmation step is created.

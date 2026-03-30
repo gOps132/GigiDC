@@ -34,6 +34,18 @@ Examples:
 - `what did Erick want again?`
 - `how many times did I say "ship it"?`
 
+Current DM retrieval behavior:
+
+- For members with `history_guild_wide`, DM retrieval defaults to the configured primary server.
+- If you want only the private DM thread, say so explicitly.
+- If you ask across both contexts, Gigi can ask you to pick the scope.
+
+Examples:
+
+- `what did Erick want again?`
+- `what did we talk about in this DM yesterday?`
+- `what did we say in this DM versus the server yesterday?`
+
 ### Tasks
 
 Examples:
@@ -134,6 +146,8 @@ At a high level, Gigi follows this shape:
 ## Good Usage Patterns
 
 - Mention Gigi in-channel for public channel-specific questions.
+- Use DM for private conversation that should still understand the primary server.
+- Say `in this DM` when you want the private DM thread instead of the primary server context.
 - Use explicit mentions for people.
 - Use task IDs when completing tasks.
 - Use full ISO-8601 timestamps for due dates.
@@ -143,6 +157,7 @@ At a high level, Gigi follows this shape:
 ## Failure Cases You Should Expect
 
 - Permission-denied replies when you lack the required capability
+- A refusal when you explicitly ask for primary-server history in DM but your account does not have that history access
 - Refusals when a user or task cannot be resolved safely
 - DM-only enforcement for sensitive-data retrieval
 - Public mention replies that refuse to run private or administrative actions in-channel

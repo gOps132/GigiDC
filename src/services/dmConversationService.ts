@@ -7,6 +7,8 @@ import {
   type Message,
   type ButtonInteraction,
   type StringSelectMenuInteraction,
+  type Guild,
+  type GuildMember,
   type User
 } from 'discord.js';
 
@@ -23,6 +25,7 @@ import {
 
 const DM_SCOPE_SELECT_PREFIX = 'dm-scope';
 const PENDING_SCOPE_TTL_MS = 15 * 60 * 1000;
+type ScopePreference = 'ambiguous' | 'dm' | 'guild' | null;
 
 export class DmConversationService {
   private readonly intentRouter = new DmIntentRouter();
@@ -110,9 +113,19 @@ export class DmConversationService {
       }
     }
 
-    const scopeOptions = await this.resolveAvailableScopes(client, message.author);
+    const scopeOptions = await this.resolveAvailableScopes(primaryGuild, primaryMember, message.author);
+    const scopePreference = detectScopePreference(query);
+    const unavailableScopeReply = buildUnavailableScopeReply(scopePreference, scopeOptions);
 
-    if (shouldPromptForScope(query, scopeOptions)) {
+    if (unavailableScopeReply) {
+      const reply = await message.reply({
+        content: unavailableScopeReply
+      });
+      await this.captureOutboundReply(reply, 'dm unavailable scope reply');
+      return;
+    }
+
+    if (shouldPromptForScope(scopePreference, scopeOptions)) {
       const selectionId = randomUUID();
       await this.pendingSelections.deleteExpired(new Date());
       await this.pendingSelections.save({
@@ -143,12 +156,8 @@ export class DmConversationService {
       return;
     }
 
-    const answer = await this.context.services.retrieval.answerQuestion(
-      query,
-      scopeOptions[0]?.scope ?? resolveDmScope(message.author),
-      message.author.id,
-      client.user?.id ?? ''
-    );
+    const preferredScope = pickScopeOption(scopeOptions, scopePreference)?.scope ?? resolveDmScope(message.author);
+    const answer = await this.context.services.retrieval.answerQuestion(query, preferredScope, message.author.id, client.user?.id ?? '');
 
     const reply = await message.reply({
       content: answer.answer
@@ -293,47 +302,39 @@ export class DmConversationService {
     await this.context.services.actionConfirmations.handleButton(interaction, client);
   }
 
-  private async resolveAvailableScopes(client: Client, user: User): Promise<ScopeOption[]> {
-    const scopes: ScopeOption[] = [
-      {
-        label: 'This DM',
-        value: 'dm',
-        scope: resolveDmScope(user)
-      }
-    ];
+  private async resolveAvailableScopes(
+    primaryGuild: Guild | null,
+    primaryMember: GuildMember | null,
+    user: User
+  ): Promise<ScopeOption[]> {
+    const dmScope: ScopeOption = {
+      label: 'This DM',
+      value: 'dm',
+      scope: resolveDmScope(user)
+    };
 
-    const primaryGuildId = this.context.env.PRIMARY_GUILD_ID ?? this.context.env.DISCORD_GUILD_ID;
-    if (!primaryGuildId) {
-      return scopes;
-    }
-
-    const guild = client.guilds.cache.get(primaryGuildId) ?? (await client.guilds.fetch(primaryGuildId).catch(() => null));
-    if (!guild) {
-      return scopes;
-    }
-
-    const member = await guild.members.fetch(user.id).catch(() => null);
-    if (!member) {
-      return scopes;
+    if (!primaryGuild || !primaryMember) {
+      return [dmScope];
     }
 
     const allowed = await this.context.services.rolePolicies.memberHasCapability(
-      guild,
-      member,
+      primaryGuild,
+      primaryMember,
       CAPABILITIES.historyGuildWide
     );
 
     if (!allowed) {
-      return scopes;
+      return [dmScope];
     }
 
-    scopes.push({
-      label: `${guild.name} server`,
-      value: `guild:${guild.id}`,
-      scope: resolvePrimaryGuildScope(guild.id)
-    });
-
-    return scopes;
+    return [
+      {
+        label: `${primaryGuild.name} server`,
+        value: `guild:${primaryGuild.id}`,
+        scope: resolvePrimaryGuildScope(primaryGuild.id)
+      },
+      dmScope
+    ];
   }
 
   private async resolvePrimaryGuild(client: Client) {
@@ -360,14 +361,60 @@ export class DmConversationService {
   }
 }
 
-function shouldPromptForScope(query: string, scopeOptions: ScopeOption[]): boolean {
+function shouldPromptForScope(scopePreference: ScopePreference, scopeOptions: ScopeOption[]): boolean {
   if (scopeOptions.length <= 1) {
     return false;
   }
 
-  return /\b(remember|history|chat|message|messages|said|mention|mentioned|talking|talked|discuss|discussed|asked|want|wanted|relay|again|last week|yesterday|before|server|guild)\b/i.test(
+  return scopePreference === 'ambiguous';
+}
+
+function detectScopePreference(query: string): ScopePreference {
+  const wantsDm = /\b(this dm|our dm|this direct message|our direct messages|direct message|direct messages|private chat|private messages|private thread|in dm|in this dm|here in dm)\b/i.test(
     query
   );
+  const wantsGuild = /\b(primary server|the server|this server|server history|guild history|guild chat|server chat|from the server|from the guild|in the server|in the guild)\b/i.test(
+    query
+  );
+
+  if (wantsDm && wantsGuild) {
+    return 'ambiguous';
+  }
+
+  if (wantsDm) {
+    return 'dm';
+  }
+
+  if (wantsGuild) {
+    return 'guild';
+  }
+
+  return null;
+}
+
+function pickScopeOption(scopeOptions: ScopeOption[], preference: ScopePreference): ScopeOption | null {
+  if (preference === 'dm') {
+    return scopeOptions.find((scopeOption) => scopeOption.scope.kind === 'dm') ?? null;
+  }
+
+  if (preference === 'guild') {
+    return scopeOptions.find((scopeOption) => scopeOption.scope.kind === 'guild') ?? null;
+  }
+
+  return scopeOptions[0] ?? null;
+}
+
+function buildUnavailableScopeReply(scopePreference: ScopePreference, scopeOptions: ScopeOption[]): string | null {
+  if (scopePreference !== 'guild' && scopePreference !== 'ambiguous') {
+    return null;
+  }
+
+  const hasGuildScope = scopeOptions.some((scopeOption) => scopeOption.scope.kind === 'guild');
+  if (hasGuildScope) {
+    return null;
+  }
+
+  return 'I can answer from this DM, but I cannot use primary server history for your account right now.';
 }
 
 function normalizeGuildMentionQuery(content: string, botUserId: string): string {
