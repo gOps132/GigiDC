@@ -33,6 +33,7 @@ class InMemoryPendingDmScopeSelectionStore implements PendingDmScopeSelectionSto
 }
 
 function createContext(overrides?: {
+  confirmationReply?: string | null;
   allowGuildWideHistory?: boolean;
   botReplyId?: string;
   guildName?: string;
@@ -75,6 +76,23 @@ function createContext(overrides?: {
     },
     runtime: {},
     services: {
+      actionConfirmations: {
+        async handleButton() {
+          return;
+        },
+        matches() {
+          return false;
+        },
+        async maybeHandleTextConfirmation() {
+          if (!overrides?.confirmationReply) {
+            return null;
+          }
+
+          return {
+            reply: overrides.confirmationReply
+          };
+        }
+      },
       agentActions: {},
       agentTools: {
         async maybeHandleDmQuery(query: string, requester: { id: string }, _client: unknown, channelId: string) {
@@ -130,6 +148,11 @@ function createContext(overrides?: {
       rolePolicies: {
         async memberHasCapability() {
           return overrides?.allowGuildWideHistory ?? false;
+        }
+      },
+      userMemory: {
+        async syncProfile() {
+          return;
         }
       }
     }
@@ -299,4 +322,33 @@ test('DmConversationService routes tool-style DM requests through the tool servi
   assert.equal(answerCalls.length, 0);
   assert.equal(replyCalls[0]?.content, 'Created task `task-1` and listed your open tasks.');
   assert.deepEqual(storedBotMessages, ['bot-reply-1']);
+});
+
+test('DmConversationService handles free-text confirmations through the confirmation service before retrieval', async () => {
+  const store = new InMemoryPendingDmScopeSelectionStore();
+  const { answerCalls, client, context, message, replyCalls, storedBotMessages, toolCalls } = createContext({
+    confirmationReply: 'Confirmed and sent a DM relay to mina.'
+  });
+  message.content = 'confirm!';
+
+  const service = new DmConversationService(context, store);
+  await service.handleMessage(message as never, client as never);
+
+  assert.equal(toolCalls.length, 0);
+  assert.equal(answerCalls.length, 0);
+  assert.equal(replyCalls[0]?.content, 'Confirmed and sent a DM relay to mina.');
+  assert.deepEqual(storedBotMessages, ['bot-reply-1']);
+});
+
+test('DmConversationService answers deterministic capability questions before retrieval', async () => {
+  const store = new InMemoryPendingDmScopeSelectionStore();
+  const { answerCalls, client, context, message, replyCalls } = createContext();
+  message.content = 'what tools can you call?';
+
+  const service = new DmConversationService(context, store);
+  await service.handleMessage(message as never, client as never);
+
+  assert.equal(answerCalls.length, 0);
+  assert.match(replyCalls[0]?.content ?? '', /I cannot browse the web/i);
+  assert.match(replyCalls[0]?.content ?? '', /request and confirm permission-gated Gigi-mediated DMs/i);
 });

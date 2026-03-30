@@ -17,6 +17,7 @@ export const AGENT_ACTION_VISIBILITIES = {
 } as const;
 
 export const AGENT_ACTION_STATUSES = {
+  awaitingConfirmation: 'awaiting_confirmation',
   cancelled: 'cancelled',
   completed: 'completed',
   failed: 'failed',
@@ -47,9 +48,14 @@ export interface AgentActionRecord {
   error_message: string | null;
   metadata: Record<string, unknown>;
   due_at: string | null;
+  confirmation_requested_at: string | null;
+  confirmation_expires_at: string | null;
+  confirmed_at: string | null;
+  confirmed_by_user_id: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+  cancelled_at: string | null;
 }
 
 export interface CreateAgentActionInput {
@@ -65,6 +71,9 @@ export interface CreateAgentActionInput {
   title: string;
   instructions: string;
   dueAt?: string | null;
+  initialStatus?: AgentActionStatus;
+  confirmationRequestedAt?: string | null;
+  confirmationExpiresAt?: string | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -75,11 +84,19 @@ export interface UpdateAgentActionStatusInput {
   errorMessage?: string | null;
   metadata?: Record<string, unknown>;
   completedAt?: string | null;
+  confirmedAt?: string | null;
+  confirmedByUserId?: string | null;
+  confirmationRequestedAt?: string | null;
+  confirmationExpiresAt?: string | null;
+  cancelledAt?: string | null;
 }
 
 export interface CreateDirectMessageRelayInput {
+  confirmationExpiresAt?: string | null;
+  confirmationRequestedAt?: string | null;
   guildId: string | null;
   channelId: string | null;
+  initialStatus?: AgentActionStatus;
   requesterUserId: string;
   requesterUsername: string;
   recipientUserId: string;
@@ -124,6 +141,9 @@ export class AgentActionService {
       title: `DM relay from ${input.requesterUsername} to ${input.recipientUsername}`,
       instructions: input.message,
       dueAt: null,
+      initialStatus: input.initialStatus ?? AGENT_ACTION_STATUSES.requested,
+      confirmationRequestedAt: input.confirmationRequestedAt ?? null,
+      confirmationExpiresAt: input.confirmationExpiresAt ?? null,
       metadata: {
         ...(input.context ? { context: input.context } : {}),
         ...(input.metadata ?? {})
@@ -149,6 +169,9 @@ export class AgentActionService {
       title: input.title,
       instructions: input.instructions,
       dueAt: input.dueAt ?? null,
+      initialStatus: AGENT_ACTION_STATUSES.requested,
+      confirmationRequestedAt: null,
+      confirmationExpiresAt: null,
       metadata: {
         ...(input.metadata ?? {})
       }
@@ -172,7 +195,8 @@ export class AgentActionService {
         ...(input.metadata ?? {})
       },
       resultSummary: input.resultSummary ?? null,
-      status: AGENT_ACTION_STATUSES.completed
+      status: AGENT_ACTION_STATUSES.completed,
+      cancelledAt: null
     });
   }
 
@@ -190,7 +214,54 @@ export class AgentActionService {
         ...(metadata ?? {})
       },
       resultSummary: null,
-      status: AGENT_ACTION_STATUSES.failed
+      status: AGENT_ACTION_STATUSES.failed,
+      cancelledAt: null
+    });
+  }
+
+  async markInProgress(
+    action: AgentActionRecord,
+    input: {
+      confirmedByUserId?: string | null;
+      metadata?: Record<string, unknown>;
+    } = {}
+  ): Promise<AgentActionRecord> {
+    return this.store.updateActionStatus({
+      actionId: action.id,
+      completedAt: null,
+      confirmationExpiresAt: action.confirmation_expires_at,
+      confirmationRequestedAt: action.confirmation_requested_at,
+      confirmedAt: new Date().toISOString(),
+      confirmedByUserId: input.confirmedByUserId ?? null,
+      errorMessage: null,
+      metadata: {
+        ...(action.metadata ?? {}),
+        ...(input.metadata ?? {})
+      },
+      resultSummary: null,
+      status: AGENT_ACTION_STATUSES.inProgress,
+      cancelledAt: null
+    });
+  }
+
+  async markCancelled(
+    action: AgentActionRecord,
+    input: {
+      metadata?: Record<string, unknown>;
+      resultSummary?: string | null;
+    } = {}
+  ): Promise<AgentActionRecord> {
+    return this.store.updateActionStatus({
+      actionId: action.id,
+      completedAt: null,
+      errorMessage: null,
+      metadata: {
+        ...(action.metadata ?? {}),
+        ...(input.metadata ?? {})
+      },
+      resultSummary: input.resultSummary ?? null,
+      status: AGENT_ACTION_STATUSES.cancelled,
+      cancelledAt: new Date().toISOString()
     });
   }
 
@@ -230,6 +301,18 @@ export class AgentActionService {
 
     return open
       .sort((left, right) => compareByDueDate(left, right))
+      .slice(0, limit);
+  }
+
+  async listPendingConfirmationsForRequester(userId: string, limit = 6): Promise<AgentActionRecord[]> {
+    const pending = await this.store.listVisibleRecentForUser(userId, 20, {
+      actionScope: AGENT_ACTION_SCOPES.action,
+      statuses: [AGENT_ACTION_STATUSES.awaitingConfirmation]
+    });
+
+    return pending
+      .filter((action) => action.requester_user_id === userId)
+      .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))
       .slice(0, limit);
   }
 }

@@ -26,9 +26,14 @@ test('RetrievalService can answer from shared action history when message histor
       context: 'This was about the release train.'
     },
     due_at: null,
+    confirmation_requested_at: null,
+    confirmation_expires_at: null,
+    confirmed_at: null,
+    confirmed_by_user_id: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    completed_at: new Date().toISOString()
+    completed_at: new Date().toISOString(),
+    cancelled_at: null
   };
 
   const service = new RetrievalService(
@@ -57,6 +62,11 @@ test('RetrievalService can answer from shared action history when message histor
         return [action];
       },
       async listOpenTasksForUser() {
+        return [];
+      }
+    } as never,
+    {
+      async buildContext() {
         return [];
       }
     } as never,
@@ -104,9 +114,14 @@ test('RetrievalService can answer from open tasks when the question is task-orie
     error_message: null,
     metadata: {},
     due_at: '2026-04-01T09:00:00Z',
+    confirmation_requested_at: null,
+    confirmation_expires_at: null,
+    confirmed_at: null,
+    confirmed_by_user_id: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    completed_at: null
+    completed_at: null,
+    cancelled_at: null
   };
 
   const service = new RetrievalService(
@@ -136,6 +151,11 @@ test('RetrievalService can answer from open tasks when the question is task-orie
       },
       async listOpenTasksForUser() {
         return [task];
+      }
+    } as never,
+    {
+      async buildContext() {
+        return [];
       }
     } as never,
     {
@@ -196,6 +216,11 @@ test('RetrievalService falls back to direct answering when semantic search fails
       }
     } as never,
     {
+      async buildContext() {
+        return [];
+      }
+    } as never,
+    {
       warn(message: string, metadata: Record<string, unknown>) {
         warnings.push({
           message,
@@ -224,17 +249,18 @@ test('RetrievalService falls back to direct answering when semantic search fails
   assert.equal(warnings[0]?.message, 'Semantic search failed during retrieval');
 });
 
-test('RetrievalService answers capability questions deterministically from the real bot surface', async () => {
+test('RetrievalService includes requester-centric user-memory snapshots in the answer context', async () => {
   const responseInputs: Array<{ instructions: string; model: string; text: string }> = [];
 
   const service = new RetrievalService(
     {
+      DISCORD_GUILD_ID: 'guild-1',
       OPENAI_RESPONSE_MODEL: 'gpt-test'
     } as never,
     {
       async createTextResponse(input) {
         responseInputs.push(input);
-        return 'should not be used';
+        return 'You usually ask me for release planning help.';
       }
     },
     {
@@ -257,57 +283,11 @@ test('RetrievalService answers capability questions deterministically from the r
       }
     } as never,
     {
-      warn() {},
-      debug() {},
-      error() {},
-      info() {}
-    } as never
-  );
-
-  const answer = await service.answerQuestion(
-    'what tools can you call?',
-    {
-      dmUserId: 'user-2',
-      kind: 'dm'
-    },
-    'user-2',
-    'bot-user'
-  );
-
-  assert.equal(answer.source, 'direct');
-  assert.match(answer.answer, /DM history/i);
-  assert.match(answer.answer, /create, list, and complete tasks/i);
-  assert.match(answer.answer, /cannot browse the web, run code/i);
-  assert.equal(responseInputs.length, 0);
-});
-
-test('RetrievalService refuses unsupported code-execution claims', async () => {
-  const service = new RetrievalService(
-    {
-      OPENAI_RESPONSE_MODEL: 'gpt-test'
-    } as never,
-    {
-      async createTextResponse() {
-        return 'should not be used';
-      }
-    },
-    {
-      async countPhrase() {
-        return 0;
-      },
-      async listRecentMessages() {
-        return [];
-      },
-      async searchSemantic() {
-        return [];
-      }
-    } as never,
-    {
-      async listRelevantVisibleActionsForUser() {
-        return [];
-      },
-      async listOpenTasksForUser() {
-        return [];
+      async buildContext() {
+        return [
+          'User profile: username=erick | display_name=Erick',
+          'Working context: Open work: Prepare release notes due 2026-04-01T09:00:00Z'
+        ];
       }
     } as never,
     {
@@ -319,7 +299,7 @@ test('RetrievalService refuses unsupported code-execution claims', async () => {
   );
 
   const answer = await service.answerQuestion(
-    'can you give me a code execution environment?',
+    'what am i working on lately?',
     {
       dmUserId: 'user-2',
       kind: 'dm'
@@ -329,60 +309,9 @@ test('RetrievalService refuses unsupported code-execution claims', async () => {
   );
 
   assert.equal(answer.source, 'direct');
-  assert.match(answer.answer, /cannot run code/i);
-  assert.match(answer.answer, /task create\/list\/complete/i);
-});
-
-test('RetrievalService gives a grounded DM answer for ingestion status questions', async () => {
-  const service = new RetrievalService(
-    {
-      OPENAI_RESPONSE_MODEL: 'gpt-test'
-    } as never,
-    {
-      async createTextResponse() {
-        return 'should not be used';
-      }
-    },
-    {
-      async countPhrase() {
-        return 0;
-      },
-      async listRecentMessages() {
-        return [];
-      },
-      async searchSemantic() {
-        return [];
-      }
-    } as never,
-    {
-      async listRelevantVisibleActionsForUser() {
-        return [];
-      },
-      async listOpenTasksForUser() {
-        return [];
-      }
-    } as never,
-    {
-      warn() {},
-      debug() {},
-      error() {},
-      info() {}
-    } as never
-  );
-
-  const answer = await service.answerQuestion(
-    'how is ingestion going?',
-    {
-      dmUserId: 'user-2',
-      kind: 'dm'
-    },
-    'user-2',
-    'bot-user'
-  );
-
-  assert.equal(answer.source, 'direct');
-  assert.match(answer.answer, /\/ingestion status/i);
-  assert.match(answer.answer, /stored DM history/i);
+  assert.match(answer.answer, /release planning help/i);
+  assert.match(responseInputs[0]?.text ?? '', /User memory/i);
+  assert.match(responseInputs[0]?.text ?? '', /Working context/i);
 });
 
 test('RetrievalService returns a clean fallback when response generation fails', async () => {
@@ -413,6 +342,11 @@ test('RetrievalService returns a clean fallback when response generation fails',
         return [];
       },
       async listOpenTasksForUser() {
+        return [];
+      }
+    } as never,
+    {
+      async buildContext() {
         return [];
       }
     } as never,

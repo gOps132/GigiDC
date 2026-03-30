@@ -5,6 +5,7 @@ import {
   StringSelectMenuBuilder,
   type Client,
   type Message,
+  type ButtonInteraction,
   type StringSelectMenuInteraction,
   type User
 } from 'discord.js';
@@ -12,12 +13,15 @@ import {
 import type { BotContext } from '../discord/types.js';
 import type { PendingDmScopeSelectionStore, ScopeOption } from '../ports/conversation.js';
 import { CAPABILITIES } from './rolePolicyService.js';
+import { DmIntentRouter } from './dmIntentRouter.js';
 import { resolveDmScope, resolvePrimaryGuildScope, type HistoryScope } from './messageHistoryService.js';
 
 const DM_SCOPE_SELECT_PREFIX = 'dm-scope';
 const PENDING_SCOPE_TTL_MS = 15 * 60 * 1000;
 
 export class DmConversationService {
+  private readonly intentRouter = new DmIntentRouter();
+
   constructor(
     private readonly context: BotContext,
     private readonly pendingSelections: PendingDmScopeSelectionStore
@@ -33,18 +37,56 @@ export class DmConversationService {
       return;
     }
 
-    const toolResult = await this.context.services.agentTools.maybeHandleDmQuery(
-      query,
-      message.author,
-      client,
-      message.channelId
-    );
-    if (toolResult) {
+    const primaryGuild = await this.resolvePrimaryGuild(client);
+    const primaryMember = primaryGuild
+      ? await primaryGuild.members.fetch(message.author.id).catch(() => null)
+      : null;
+    await this.context.services.userMemory.syncProfile({
+      displayName: primaryMember?.displayName ?? message.author.globalName ?? null,
+      guildId: primaryGuild?.id ?? null,
+      user: message.author
+    });
+
+    const route = this.intentRouter.route(query);
+    if (route.kind === 'direct_reply') {
       const reply = await message.reply({
-        content: toolResult.reply
+        content: route.reply
       });
       await this.captureOutboundReply(reply, 'dm tool reply');
       return;
+    }
+
+    if (route.kind === 'confirm_pending_action' || route.kind === 'cancel_pending_action') {
+      const confirmation = await this.context.services.actionConfirmations.maybeHandleTextConfirmation(
+        query,
+        message.author,
+        client
+      );
+
+      if (confirmation) {
+        const reply = await message.reply({
+          content: confirmation.reply
+        });
+        await this.captureOutboundReply(reply, 'dm action confirmation reply');
+        return;
+      }
+    }
+
+    if (route.kind === 'tool_request') {
+      const toolResult = await this.context.services.agentTools.maybeHandleDmQuery(
+        query,
+        message.author,
+        client,
+        message.channelId
+      );
+      if (toolResult) {
+        const reply = await message.reply({
+          content: toolResult.reply,
+          components: toolResult.components
+        });
+        await this.captureOutboundReply(reply, 'dm tool reply');
+        return;
+      }
     }
 
     const scopeOptions = await this.resolveAvailableScopes(client, message.author);
@@ -97,6 +139,10 @@ export class DmConversationService {
     return interaction.customId.startsWith(`${DM_SCOPE_SELECT_PREFIX}:`);
   }
 
+  matchesButton(interaction: ButtonInteraction): boolean {
+    return this.context.services.actionConfirmations.matches(interaction);
+  }
+
   async handleSelection(interaction: StringSelectMenuInteraction, client: Client): Promise<void> {
     const selectionId = interaction.customId.replace(`${DM_SCOPE_SELECT_PREFIX}:`, '');
     const pending = await this.pendingSelections.get(selectionId);
@@ -145,6 +191,10 @@ export class DmConversationService {
     await this.captureOutboundReply(followUp as Message, 'dm scope follow-up');
   }
 
+  async handleActionButton(interaction: ButtonInteraction, client: Client): Promise<void> {
+    await this.context.services.actionConfirmations.handleButton(interaction, client);
+  }
+
   private async resolveAvailableScopes(client: Client, user: User): Promise<ScopeOption[]> {
     const scopes: ScopeOption[] = [
       {
@@ -186,6 +236,16 @@ export class DmConversationService {
     });
 
     return scopes;
+  }
+
+  private async resolvePrimaryGuild(client: Client) {
+    const primaryGuildId = this.context.env.PRIMARY_GUILD_ID ?? this.context.env.DISCORD_GUILD_ID;
+    if (!primaryGuildId) {
+      return null;
+    }
+
+    return client.guilds.cache.get(primaryGuildId)
+      ?? (await client.guilds.fetch(primaryGuildId).catch(() => null));
   }
 
   private async captureOutboundReply(message: Message, label: string): Promise<void> {

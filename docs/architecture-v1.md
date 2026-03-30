@@ -7,6 +7,7 @@ V1 is a reduced Discord bot architecture built for:
 - DM-first agentic interaction
 - participant-visible shared Gigi tasks and actions for relay and follow-up continuity
 - bounded multi-tool DM execution on top of that shared task/action substrate
+- guild/admin actions reachable from DM when the requester has the same guild capability they would need through slash commands
 - slash-command assignment notices
 - exact + semantic retrieval over raw Discord history
 - role-gated guild-wide history access
@@ -80,26 +81,45 @@ This layer is the Discord-facing shell:
 This layer holds the actual bot behavior:
 
 - `DmConversationService`
+  - uses a deterministic DM intent router before any model planning
   - routes explicit tool-style DM requests through a bounded planner/executor path before retrieval
+  - routes free-text confirm/cancel turns through the persisted action-confirmation path
   - decides whether a DM question needs a scope picker
   - persists pending scope-selection state so Discord select menus survive process restarts
   - resolves `This DM` vs guild-wide history access
   - persists bot-authored DM prompts and answers immediately so canonical history does not depend on gateway echo timing
   - calls retrieval and sends the final Discord reply
+- `ActionConfirmationService`
+  - creates persisted pending relay actions instead of letting the model improvise confirmation language
+  - owns button-based confirm/cancel handling plus the free-text fallback for a single unambiguous pending action
+  - re-checks sender dispatch permission and recipient receive permission at confirmation time
+  - executes the final Discord DM send and records audit and lifecycle state transitions
 - `AgentToolService`
   - turns explicit DM requests into up to three internal tool calls
   - enforces capability checks and participant access before executing task or relay operations
+  - delegates guild/admin DM actions into a dedicated guild-capability service instead of hard-coding slash-command-only assumptions
   - rejects Gigi-mediated DM relays unless the recipient also has explicit receive permission
   - resolves Discord users conservatively from self references, mentions, or exact guild names
   - records audit events for tool execution, denial, and failure paths
+- `GuildAdminActionService`
+  - treats DM as another authenticated control surface for guild/admin work
+  - resolves the primary guild, guild membership, and target resources before execution
+  - checks `ingestion_admin` and `assignment_admin` the same way slash commands do
+  - executes ingestion status/policy writes and assignment create/list/publish actions from DM
+  - records audit rows for permission denials and successful DM-triggered admin actions
 - `AgentActionService`
   - persists participant-visible Gigi actions such as DM relays and follow-up tasks
-  - records requester, assignee/recipient, status, due date, and delivery metadata
+  - records requester, assignee/recipient, status, confirmation lifecycle, due date, and delivery metadata
   - gives retrieval a durable shared-identity seam without exposing raw guild history broadly
+- `UserMemoryService`
+  - upserts requester-centric user profiles for the primary guild
+  - generates bounded `identity_summary`, `working_context`, and `preferences` snapshots on demand
+  - keeps those summaries traceable back to source messages and actions instead of promoting opaque memory
 - `RetrievalService`
   - routes phrase-count questions to exact SQL/RPC paths
   - falls back to recent-message context plus semantic search
   - adds participant-visible agent action and open-task context for history-aware follow-up questions
+  - adds requester-centric user-memory snapshot context for self-oriented DM continuity
   - asks OpenAI Responses for the final natural-language answer
 - `MessageHistoryService`
   - stores DM history immediately and stores guild history only for channels with ingestion enabled
@@ -148,6 +168,8 @@ Control-plane schema:
 - `agent_actions`
 - `audit_logs`
 - `pending_dm_scope_selections`
+- `user_profiles`
+- `user_memory_snapshots`
 
 Retrieval schema:
 
@@ -187,10 +209,13 @@ The DM flow is effectively:
 ```text
 Discord DM
   -> message stored
+  -> deterministic DM intent routing
+  -> optional persisted action confirmation
   -> optional tool planner + internal tool execution
   -> optional persisted scope selection
   -> retrieval strategy selection
   -> participant-visible agent action lookup
+  -> requester-centric user-memory snapshot lookup
   -> background embedding queue
   -> OpenAI answer synthesis
   -> DM reply
@@ -217,7 +242,12 @@ It currently supports:
 - create follow-up task
 - list open tasks
 - complete task
-- send DM relay
+- request a confirmed DM relay
+- get ingestion status for an explicit guild channel
+- enable or disable ingestion for an explicit guild channel
+- create assignments
+- list assignments
+- publish assignments
 
 It does not support:
 
@@ -231,9 +261,11 @@ The runtime shape is:
 ```text
 Discord DM
   -> DmConversationService
+  -> DmIntentRouter
+  -> ActionConfirmationService
   -> AgentToolService
   -> ToolPlanningClient
-  -> task / relay execution
+  -> task execution or persisted relay confirmation
   -> agent_actions + audit_logs + messages
   -> deterministic DM reply
 ```
@@ -242,7 +274,9 @@ This means Gigi can now do limited multi-step work in DM, such as:
 
 - create a task and then list open tasks in the same turn
 - complete a task and confirm it
-- send a participant-visible DM relay without switching to slash commands
+- request a participant-visible DM relay without switching to slash commands, then confirm it explicitly
+- inspect or change channel-ingestion policy from DM when the requester has `ingestion_admin`
+- create, list, or publish assignments from DM when the requester has `assignment_admin`
 
 This is still not a general tool framework. It is a bounded internal action runtime attached to the shared task/action substrate.
 
@@ -254,15 +288,18 @@ The current foundation is not "remember everything and answer everything." It is
 
 - one Gigi identity across guild commands and DMs
 - durable `agent_actions` records for explicit Gigi-mediated actions and follow-up tasks
+- persisted confirmation state for cross-user DM relays instead of prompt-only approval theater
+- bounded requester-centric user profiles and memory snapshots
 - participant-scoped visibility so requesters and recipients can ask follow-up questions later
 - explicit persistence of Gigi's own DM outputs in `messages` so recall can use raw history as well as action summaries
 - retrieval that can answer from those task and action records even when the user does not have guild-wide history access
 
 The current concrete workflows are:
 
-- `/relay dm`, which creates an `agent_actions` record, sends the DM, records success or failure, and lets the participants ask Gigi about that relay later in DM
+- `/relay dm`, which creates an `agent_actions` record in `awaiting_confirmation`, waits for an explicit confirm/cancel action, then sends the DM and records success or failure
 - `/task create`, `/task list`, and `/task complete`, which turn `agent_actions` into a broader task/action substrate instead of a relay-only memory seam
-- DM tool execution, which lets explicit natural-language DM requests create tasks, list tasks, complete tasks, or send relays without leaving the DM surface
+- DM tool execution, which lets explicit natural-language DM requests create tasks, list tasks, complete tasks, request relays, or invoke permission-gated guild/admin actions without leaving the DM surface
+- requester-centric user memory, which keeps a bounded profile plus three derived snapshots instead of pretending to have unrestricted long-term identity memory
 
 ### Shared Identity Tradeoffs
 
@@ -281,8 +318,17 @@ This architectural change improves continuity, but it also introduces real costs
   - that improves traceability, but it also creates duplication and possible ranking ambiguity
   - follow-up tasks now share the same substrate, which increases the need for retrieval to distinguish between conversational context, action history, and open work
   - retrieval has to avoid double-counting the same event or over-weighting relays or tasks compared with ordinary conversation
+- **Snapshot drift and stale user memory**
+  - `user_memory_snapshots` are bounded summaries, not source of truth
+  - if snapshot refresh rules stay naive, the stored summary can lag behind the actual DM history and create subtle context rot
+  - every answer path still needs the raw message and action references available so a stale summary can be corrected instead of silently trusted
+- **Confirmation friction**
+  - requiring explicit confirmation for cross-user relays is safer than one-shot dispatch, but it adds one more interaction step and can feel slower for users
+  - expired pending confirmations are an intentional failure mode now, not just a missing feature
+  - if confirmation UX becomes too chatty, users may start ignoring it or misreading stale buttons
 - **Privacy and retention implications**
   - more private bot-authored DM content is now canonical project data rather than transient output
+  - the new requester-centric profile and snapshot tables add another retention surface for personal context, even though they are intentionally bounded and traceable
   - that raises the bar for retention policy, deletion workflows, audit review, and least-privilege access to stored history
   - a future "shared memory" model must stay permission-aware so continuity does not become cross-user leakage
 - **Operational asymmetry still exists**
@@ -346,6 +392,8 @@ That behavior is controlled by `REGISTER_COMMANDS_ON_STARTUP`, which keeps boot 
 - agent_actions
 - audit_logs
 - pending_dm_scope_selections
+- user_profiles
+- user_memory_snapshots
 
 ### Retrieval tables
 
@@ -370,6 +418,12 @@ Receiving a Gigi-mediated DM relay is role-gated by `agent_action_receive`.
 
 Participant-visible action and task recall does not require guild-wide history access. Retrieval can use `agent_actions` for the requester or recipient/assignee of a Gigi-mediated relay or task while still keeping unrelated guild history gated.
 
+Authority is intentionally surface-agnostic:
+
+- slash commands, DM text, and confirmation buttons are only interfaces
+- guild identity plus capability determines whether an action is allowed
+- DM never grants extra authority, but it also does not remove authority the user already has in the primary guild
+
 DM tool execution uses the same permission boundaries:
 
 - listing your own tasks is allowed without dispatch capability
@@ -377,6 +431,8 @@ DM tool execution uses the same permission boundaries:
 - creating shared tasks or sending relays still requires `agent_action_dispatch`
 - sending a relay also requires the recipient to have `agent_action_receive`
 - listing another user's tasks still requires `agent_action_dispatch`
+- checking or changing ingestion policy from DM requires `ingestion_admin`
+- creating, listing, or publishing assignments from DM requires `assignment_admin`
 
 ## Current Risks
 
@@ -385,9 +441,12 @@ The current shared-identity foundation is intentionally narrow, but the repo sho
 - retrieval quality can decay as DM and bot-authored history grows unless ranking and summarization improve
 - canonical storage now contains more private conversational material, which increases retention and deletion pressure
 - duplicated signal across `messages` and `agent_actions` can create noisy context assembly
+- stale `user_memory_snapshots` can create soft context rot unless refresh, expiry, and traceability stay disciplined
+- cross-user relay confirmations are safer, but they add friction and another state machine that can expire or be abandoned
 - the lack of a durable indexing worker means semantic recall can lag behind raw-history recall after restarts
 - broader shared-memory features should not be added by simply widening retrieval scope; they need explicit visibility rules and task boundaries
 - the current DM tool planner can misclassify natural language or fail to resolve people unless the request is explicit
+- broadening DM authority to include guild/admin operations raises the risk of wrong-channel, wrong-role, or wrong-assignment mutations unless resource resolution stays conservative and fail-closed
 - unsupported-capability questions still need explicit grounding rules or the language model will invent broader tool access than the bot actually has
 - multi-tool execution is still bounded to short synchronous internal actions and should not be mistaken for a general agent-worker system
 
@@ -410,6 +469,8 @@ The current audit surface is still selective, but ingestion-policy changes now f
 - relay permission denials are logged
 - relay success and failure outcomes are logged
 - task creation and completion outcomes are logged
+- DM-triggered ingestion checks and writes are logged
+- DM-triggered assignment create/list/publish actions are logged
 
 This gives the repo a real operational trail around retention policy changes, which are more sensitive than ordinary read-only commands.
 
@@ -428,6 +489,8 @@ Each notice stores:
 - publication status
 
 Publishing posts a formatted notice to the target channel and mentions the affected roles.
+
+The same assignment workflow is now reachable through DM when the requester has `assignment_admin`, which means the structured slash surface is no longer the authority boundary. It is just one UI over the same capability-gated workflow.
 
 ## Deployment Shape
 

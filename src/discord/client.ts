@@ -23,6 +23,32 @@ export function createDiscordClient(context: BotContext): Client {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
+    if (interaction.isButton() && context.services.dmConversation.matchesButton(interaction)) {
+      try {
+        await context.services.dmConversation.handleActionButton(interaction, client);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        context.logger.error('Button interaction failed', {
+          customId: interaction.customId,
+          error: message
+        });
+
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp({
+            content: 'That action failed. Please ask again.',
+            flags: MessageFlags.Ephemeral
+          });
+          return;
+        }
+
+        await interaction.reply({
+          content: 'That action failed. Please ask again.',
+          flags: MessageFlags.Ephemeral
+        });
+      }
+      return;
+    }
+
     if (interaction.isStringSelectMenu() && context.services.dmConversation.matches(interaction)) {
       try {
         await context.services.dmConversation.handleSelection(interaction, client);

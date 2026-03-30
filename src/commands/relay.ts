@@ -150,101 +150,26 @@ export const relayCommand: SlashCommand = {
       return;
     }
 
-    const action = await context.services.agentActions.createDirectMessageRelay({
-      guildId: guild.id,
+    const confirmation = await context.services.actionConfirmations.requestRelayConfirmation({
       channelId: interaction.channelId,
-      requesterUserId: interaction.user.id,
-      requesterUsername: member.displayName,
-      recipientUserId: targetUser.id,
-      recipientUsername: targetUser.username,
-      message: relayMessage,
       context: relayContext,
+      guildId: guild.id,
+      message: relayMessage,
       metadata: {
+        createdFrom: 'slash_command',
         guildName: guild.name,
         relayChannelId: interaction.channelId
-      }
+      },
+      recipientUserId: targetUser.id,
+      recipientUsername: targetUser.username,
+      requesterUserId: interaction.user.id,
+      requesterUsername: member.displayName
     });
 
-    try {
-      const sentMessage = await targetUser.send({
-        content: buildRelayContent(member.displayName, relayMessage, relayContext)
-      });
-
-      let historyStored = false;
-      try {
-        await context.services.messageHistory.storeBotAuthoredMessage(sentMessage);
-        historyStored = true;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown relay history persistence error';
-        context.logger.error('Failed to persist outbound relay DM in canonical history', {
-          actionId: action.id,
-          error: message,
-          recipientUserId: targetUser.id,
-          sentMessageId: sentMessage.id
-        });
-      }
-
-      await context.services.agentActions.markCompleted(action, {
-        metadata: {
-          deliveredChannelId: sentMessage.channelId,
-          deliveredMessageId: sentMessage.id,
-          historyStored
-        },
-        resultSummary: `Delivered DM relay to ${targetUser.username}`
-      });
-
-      await context.services.auditLogs.record({
-        guildId: guild.id,
-        actorUserId: interaction.user.id,
-        action: 'relay.dm.sent',
-        targetType: 'agent_action',
-        targetId: action.id,
-        metadata: {
-          recipientUserId: targetUser.id,
-          recipientUsername: targetUser.username
-        }
-      });
-
-      await interaction.reply({
-        content: `Sent a DM to ${targetUser}.`,
-        flags: MessageFlags.Ephemeral
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown DM relay error';
-
-      await context.services.agentActions.markFailed(action, message);
-      await context.services.auditLogs.record({
-        guildId: guild.id,
-        actorUserId: interaction.user.id,
-        action: 'relay.dm.failed',
-        targetType: 'agent_action',
-        targetId: action.id,
-        metadata: {
-          error: message,
-          recipientUserId: targetUser.id,
-          recipientUsername: targetUser.username
-        }
-      });
-
-      await interaction.reply({
-        content: `I could not DM ${targetUser}. They may have direct messages disabled.`,
-        flags: MessageFlags.Ephemeral
-      });
-    }
+    await interaction.reply({
+      content: confirmation.reply,
+      components: confirmation.components,
+      flags: MessageFlags.Ephemeral
+    });
   }
 };
-
-function buildRelayContent(requesterLabel: string, message: string, context: string | null): string {
-  const lines = [
-    `${requesterLabel} asked me to pass this along:`,
-    '',
-    message
-  ];
-
-  if (context && context.length > 0) {
-    lines.push('', `Context: ${context}`);
-  }
-
-  lines.push('', 'You can ask me follow-up questions about this relay here in DM.');
-  return lines.join('\n');
-}

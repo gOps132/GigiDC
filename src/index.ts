@@ -5,6 +5,10 @@ import {
   OpenAIToolPlanningClient
 } from './adapters/openaiClients.js';
 import {
+  SupabaseUserMemorySnapshotStore,
+  SupabaseUserProfileStore
+} from './adapters/supabaseIdentity.js';
+import {
   SupabaseAgentActionStore,
   SupabaseAssignmentStore,
   SupabaseAuditLogStore,
@@ -20,17 +24,20 @@ import { registerApplicationCommands } from './discord/registerCommands.js';
 import { Logger } from './lib/logger.js';
 import { createOpenAIClient } from './lib/openai.js';
 import { createSupabaseAdminClient } from './lib/supabase.js';
+import { ActionConfirmationService } from './services/actionConfirmationService.js';
 import { AgentActionService } from './services/agentActionService.js';
 import { AgentToolService } from './services/agentToolService.js';
 import { AssignmentService } from './services/assignmentService.js';
 import { AuditLogService } from './services/auditLogService.js';
 import { ChannelIngestionPolicyService } from './services/channelIngestionPolicyService.js';
 import { DmConversationService } from './services/dmConversationService.js';
+import { GuildAdminActionService } from './services/guildAdminActionService.js';
 import { MessageHistoryService } from './services/messageHistoryService.js';
 import { MessageIndexingService } from './services/messageIndexingService.js';
 import { RetrievalService } from './services/retrievalService.js';
 import { RolePolicyService } from './services/rolePolicyService.js';
 import { RuntimeStateService } from './services/runtimeStateService.js';
+import { UserMemoryService } from './services/userMemoryService.js';
 import { startWebhookServer } from './web/server.js';
 
 async function main(): Promise<void> {
@@ -44,6 +51,8 @@ async function main(): Promise<void> {
   const toolPlanner = new OpenAIToolPlanningClient(openai);
   const historyRepository = new SupabaseMessageHistoryRepository(supabase);
   const pendingDmScopeSelections = new SupabasePendingDmScopeSelectionStore(supabase);
+  const userProfileStore = new SupabaseUserProfileStore(supabase);
+  const userMemorySnapshotStore = new SupabaseUserMemorySnapshotStore(supabase);
   const rolePolicyStore = new SupabaseRolePolicyStore(supabase);
   const channelIngestionPolicyStore = new SupabaseChannelIngestionPolicyStore(supabase);
   const assignmentStore = new SupabaseAssignmentStore(supabase);
@@ -64,13 +73,37 @@ async function main(): Promise<void> {
     rolePolicies,
     logger
   );
-  const retrieval = new RetrievalService(env, responses, messageHistory, agentActions, logger);
-  const agentTools = new AgentToolService(
+  const userMemory = new UserMemoryService(
+    userProfileStore,
+    userMemorySnapshotStore,
+    messageHistory,
+    agentActions,
+    logger
+  );
+  const retrieval = new RetrievalService(env, responses, messageHistory, agentActions, userMemory, logger);
+  const actionConfirmations = new ActionConfirmationService(
     env,
-    toolPlanner,
     agentActions,
     auditLogs,
     messageHistory,
+    rolePolicies,
+    logger
+  );
+  const guildAdminActions = new GuildAdminActionService(
+    env,
+    assignments,
+    auditLogs,
+    channelIngestionPolicies,
+    rolePolicies,
+    logger
+  );
+  const agentTools = new AgentToolService(
+    env,
+    toolPlanner,
+    actionConfirmations,
+    agentActions,
+    auditLogs,
+    guildAdminActions,
     rolePolicies,
     logger
   );
@@ -80,6 +113,7 @@ async function main(): Promise<void> {
     logger,
     runtime,
     services: {
+      actionConfirmations,
       agentActions,
       agentTools,
       assignments,
@@ -89,7 +123,8 @@ async function main(): Promise<void> {
       messageHistory,
       messageIndexing,
       retrieval,
-      rolePolicies
+      rolePolicies,
+      userMemory
     }
   };
 

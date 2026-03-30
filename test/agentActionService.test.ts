@@ -26,7 +26,6 @@ class InMemoryAgentActionStore implements AgentActionStore {
       recipient_user_id: input.recipientUserId,
       recipient_username: input.recipientUsername,
       action_type: input.actionType,
-      status: AGENT_ACTION_STATUSES.requested,
       visibility: input.visibility,
       title: input.title,
       instructions: input.instructions,
@@ -34,9 +33,15 @@ class InMemoryAgentActionStore implements AgentActionStore {
       error_message: null,
       metadata: input.metadata ?? {},
       due_at: input.dueAt ?? null,
+      confirmation_requested_at: input.confirmationRequestedAt ?? null,
+      confirmation_expires_at: input.confirmationExpiresAt ?? null,
+      confirmed_at: null,
+      confirmed_by_user_id: null,
       created_at: new Date(Date.now() - this.actions.length * 1_000).toISOString(),
       updated_at: new Date().toISOString(),
-      completed_at: null
+      completed_at: null,
+      cancelled_at: null,
+      status: input.initialStatus ?? AGENT_ACTION_STATUSES.requested
     };
 
     this.actions.push(record);
@@ -84,6 +89,11 @@ class InMemoryAgentActionStore implements AgentActionStore {
     action.error_message = input.errorMessage ?? null;
     action.metadata = input.metadata ?? {};
     action.completed_at = input.completedAt ?? null;
+    action.confirmation_requested_at = input.confirmationRequestedAt ?? action.confirmation_requested_at;
+    action.confirmation_expires_at = input.confirmationExpiresAt ?? action.confirmation_expires_at;
+    action.confirmed_at = input.confirmedAt ?? action.confirmed_at;
+    action.confirmed_by_user_id = input.confirmedByUserId ?? action.confirmed_by_user_id;
+    action.cancelled_at = input.cancelledAt ?? action.cancelled_at;
     action.updated_at = new Date().toISOString();
     return action;
   }
@@ -148,6 +158,9 @@ test('AgentActionService ranks relevant visible actions for follow-up questions'
     visibility: 'participants',
     title: 'DM relay from Erick to Mina',
     instructions: 'Please review the launch draft tonight.',
+    initialStatus: AGENT_ACTION_STATUSES.requested,
+    confirmationRequestedAt: null,
+    confirmationExpiresAt: null,
     metadata: {}
   });
   await store.updateActionStatus({
@@ -168,6 +181,9 @@ test('AgentActionService ranks relevant visible actions for follow-up questions'
     visibility: 'participants',
     title: 'DM relay from Kai to Mina',
     instructions: 'Morning standup moved by ten minutes.',
+    initialStatus: AGENT_ACTION_STATUSES.requested,
+    confirmationRequestedAt: null,
+    confirmationExpiresAt: null,
     metadata: {}
   });
 
@@ -199,6 +215,9 @@ test('AgentActionService lists open tasks ordered by due date', async () => {
     title: 'Later task',
     instructions: 'Handle this later.',
     dueAt: '2026-04-05T09:00:00Z',
+    initialStatus: AGENT_ACTION_STATUSES.requested,
+    confirmationRequestedAt: null,
+    confirmationExpiresAt: null,
     metadata: {}
   });
 
@@ -215,6 +234,9 @@ test('AgentActionService lists open tasks ordered by due date', async () => {
     title: 'Sooner task',
     instructions: 'Handle this first.',
     dueAt: '2026-04-01T09:00:00Z',
+    initialStatus: AGENT_ACTION_STATUSES.requested,
+    confirmationRequestedAt: null,
+    confirmationExpiresAt: null,
     metadata: {}
   });
 

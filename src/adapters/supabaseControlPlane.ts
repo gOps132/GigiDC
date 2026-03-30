@@ -44,8 +44,13 @@ interface ChannelIngestionPolicyRow {
 interface AgentActionRow {
   action_type: AgentActionRecord['action_type'];
   action_scope: AgentActionRecord['action_scope'];
+  cancelled_at: string | null;
   channel_id: string | null;
   completed_at: string | null;
+  confirmation_expires_at: string | null;
+  confirmation_requested_at: string | null;
+  confirmed_at: string | null;
+  confirmed_by_user_id: string | null;
   created_at: string;
   due_at: string | null;
   error_message: string | null;
@@ -183,7 +188,10 @@ export class SupabaseAgentActionStore implements AgentActionStore {
         visibility: input.visibility,
         title: input.title,
         instructions: input.instructions,
+        status: input.initialStatus ?? 'requested',
         due_at: input.dueAt ?? null,
+        confirmation_requested_at: input.confirmationRequestedAt ?? null,
+        confirmation_expires_at: input.confirmationExpiresAt ?? null,
         metadata: input.metadata ?? {}
       })
       .select('*')
@@ -242,16 +250,50 @@ export class SupabaseAgentActionStore implements AgentActionStore {
   }
 
   async updateActionStatus(input: UpdateAgentActionStatusInput): Promise<AgentActionRecord> {
+    const patch: Record<string, unknown> = {
+      status: input.status,
+      updated_at: new Date().toISOString()
+    };
+
+    if (input.resultSummary !== undefined) {
+      patch.result_summary = input.resultSummary;
+    }
+
+    if (input.errorMessage !== undefined) {
+      patch.error_message = input.errorMessage;
+    }
+
+    if (input.metadata !== undefined) {
+      patch.metadata = input.metadata;
+    }
+
+    if (input.completedAt !== undefined) {
+      patch.completed_at = input.completedAt;
+    }
+
+    if (input.confirmedAt !== undefined) {
+      patch.confirmed_at = input.confirmedAt;
+    }
+
+    if (input.confirmedByUserId !== undefined) {
+      patch.confirmed_by_user_id = input.confirmedByUserId;
+    }
+
+    if (input.confirmationRequestedAt !== undefined) {
+      patch.confirmation_requested_at = input.confirmationRequestedAt;
+    }
+
+    if (input.confirmationExpiresAt !== undefined) {
+      patch.confirmation_expires_at = input.confirmationExpiresAt;
+    }
+
+    if (input.cancelledAt !== undefined) {
+      patch.cancelled_at = input.cancelledAt;
+    }
+
     const { data, error } = await this.supabase
       .from('agent_actions')
-      .update({
-        status: input.status,
-        result_summary: input.resultSummary ?? null,
-        error_message: input.errorMessage ?? null,
-        metadata: input.metadata ?? {},
-        completed_at: input.completedAt ?? null,
-        updated_at: new Date().toISOString()
-      })
+      .update(patch)
       .eq('id', input.actionId)
       .select('*')
       .single();

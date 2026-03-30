@@ -19,11 +19,7 @@ function createInteraction(overrides?: {
 }) {
   const auditCalls: Array<Record<string, unknown>> = [];
   const replyCalls: Array<{ content?: string; flags?: number }> = [];
-  const completedCalls: Array<Record<string, unknown>> = [];
-  const failedCalls: Array<Record<string, unknown>> = [];
-  const createdActions: Array<Record<string, unknown>> = [];
-  const sentPayloads: Array<{ content: string }> = [];
-  const storedBotMessages: string[] = [];
+  const confirmationCalls: Array<Record<string, unknown>> = [];
 
   const targetUser = {
     id: overrides?.targetUserId ?? 'target-1',
@@ -31,20 +27,7 @@ function createInteraction(overrides?: {
     toString() {
       return `<@${this.id}>`;
     },
-    async send(payload: { content: string }) {
-      sentPayloads.push(payload);
-      if (overrides?.sendError) {
-        throw overrides.sendError;
-      }
-
-      return {
-        channelId: 'dm-channel-1',
-        id: 'dm-message-1',
-        author: {
-          bot: true
-        }
-      };
-    }
+    async send() {}
   };
 
   const interaction = {
@@ -118,33 +101,19 @@ function createInteraction(overrides?: {
     },
     runtime: {},
     services: {
-      agentActions: {
-        async createDirectMessageRelay(input: Record<string, unknown>) {
-          createdActions.push(input);
+      actionConfirmations: {
+        async requestRelayConfirmation(input: Record<string, unknown>) {
+          confirmationCalls.push(input);
           return {
-            id: 'action-1',
-            metadata: input.metadata ?? {}
-          };
-        },
-        async markCompleted(action: Record<string, unknown>, input: Record<string, unknown>) {
-          completedCalls.push({
-            action,
-            input
-          });
-          return {
-            id: action.id
-          };
-        },
-        async markFailed(action: Record<string, unknown>, errorMessage: string) {
-          failedCalls.push({
-            action,
-            errorMessage
-          });
-          return {
-            id: action.id
+            action: {
+              id: 'action-1'
+            },
+            components: [{ type: 1 }],
+            reply: 'Confirm within 15 minutes and I will send that DM relay.'
           };
         }
       },
+      agentActions: {},
       assignments: {},
       auditLogs: {
         async record(input: Record<string, unknown>) {
@@ -153,15 +122,7 @@ function createInteraction(overrides?: {
       },
       channelIngestionPolicies: {},
       dmConversation: {},
-      messageHistory: {
-        async storeBotAuthoredMessage(message: { id: string }) {
-          storedBotMessages.push(message.id);
-          return {
-            reason: 'stored' as const,
-            stored: true
-          };
-        }
-      },
+      messageHistory: {},
       messageIndexing: {},
       retrieval: {},
       rolePolicies: {
@@ -174,20 +135,17 @@ function createInteraction(overrides?: {
 
           return overrides?.dispatchAllowed ?? true;
         }
-      }
+      },
+      userMemory: {}
     }
   } as unknown as BotContext;
 
   return {
     auditCalls,
-    completedCalls,
+    confirmationCalls,
     context,
-    createdActions,
-    failedCalls,
     interaction,
-    replyCalls,
-    sentPayloads,
-    storedBotMessages
+    replyCalls
   };
 }
 
@@ -217,48 +175,19 @@ test('relay command denies relays when the recipient lacks receive permission', 
   assert.equal(replyCalls[0]?.flags, MessageFlags.Ephemeral);
 });
 
-test('relay command stores the action, sends the DM, and records success', async () => {
+test('relay command requests a persisted confirmation instead of sending immediately', async () => {
   const {
-    auditCalls,
-    completedCalls,
+    confirmationCalls,
     context,
-    createdActions,
     interaction,
-    replyCalls,
-    sentPayloads,
-    storedBotMessages
+    replyCalls
   } = createInteraction();
 
   await relayCommand.execute(interaction as never, context);
 
-  assert.equal(createdActions.length, 1);
-  assert.equal(createdActions[0]?.requesterUsername, 'Erick');
-  assert.equal(createdActions[0]?.recipientUsername, 'mina');
-  assert.equal(sentPayloads.length, 1);
-  assert.deepEqual(storedBotMessages, ['dm-message-1']);
-  assert.match(sentPayloads[0]?.content ?? '', /Erick asked me to pass this along/i);
-  assert.equal(completedCalls.length, 1);
-  assert.equal(completedCalls[0]?.input?.metadata?.historyStored, true);
-  assert.equal(auditCalls[0]?.action, 'relay.dm.sent');
-  assert.equal(replyCalls[0]?.content, 'Sent a DM to <@target-1>.');
-});
-
-test('relay command marks the action failed when Discord rejects the DM', async () => {
-  const {
-    auditCalls,
-    context,
-    failedCalls,
-    interaction,
-    replyCalls
-  } = createInteraction({
-    dispatchAllowed: true,
-    sendError: new Error('Cannot send messages to this user')
-  });
-
-  await relayCommand.execute(interaction as never, context);
-
-  assert.equal(failedCalls.length, 1);
-  assert.match(String(failedCalls[0]?.errorMessage ?? ''), /cannot send/i);
-  assert.equal(auditCalls[0]?.action, 'relay.dm.failed');
-  assert.match(replyCalls[0]?.content ?? '', /could not DM/i);
+  assert.equal(confirmationCalls.length, 1);
+  assert.equal(confirmationCalls[0]?.requesterUsername, 'Erick');
+  assert.equal(confirmationCalls[0]?.recipientUsername, 'mina');
+  assert.match(replyCalls[0]?.content ?? '', /confirm within 15 minutes/i);
+  assert.equal(replyCalls[0]?.flags, MessageFlags.Ephemeral);
 });

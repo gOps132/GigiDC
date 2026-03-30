@@ -60,6 +60,7 @@ Current checked-in baseline migrations:
 - [supabase/migrations/005_pending_dm_scope_selections.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/005_pending_dm_scope_selections.sql)
 - [supabase/migrations/20260329160104_add_agent_actions_shared_identity.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/20260329160104_add_agent_actions_shared_identity.sql)
 - [supabase/migrations/20260329162152_expand_agent_actions_task_model.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/20260329162152_expand_agent_actions_task_model.sql)
+- [supabase/migrations/20260330013000_solidify_dm_confirmations_and_user_memory.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/20260330013000_solidify_dm_confirmations_and_user_memory.sql)
 
 Use the CLI for all new migrations:
 
@@ -117,7 +118,8 @@ Then validate:
 - `/ingestion status` shows whether the current channel is enabled
 - `/ingestion enable` turns ingestion on for the current or selected channel
 - `/ingestion disable` turns ingestion off again
-- `/relay dm` sends a participant-visible shared action through Gigi and creates an `agent_actions` row
+- `/relay dm` creates a participant-visible shared action through Gigi in `awaiting_confirmation`
+- confirming the relay sends the DM and updates the same `agent_actions` row through its full lifecycle
 - `/relay dm` only succeeds when the sender has `agent_action_dispatch` and the recipient has `agent_action_receive`
 - `/task create` creates a follow-up task in `agent_actions`
 - `/task list` shows open tasks visible to the requester
@@ -129,8 +131,11 @@ Then validate:
 - DM the bot with `what tools can you call?` and confirm the answer stays limited to the actual bot runtime
 - DM the bot with `can you give me a code execution environment?` and confirm it refuses unsupported tools cleanly
 - DM the bot with a history question like `How many times did I say "ship it"?`
+- DM the bot with a relay request like `send Mina a DM saying the release moved to Friday`, confirm the prompt, and verify the DM is only sent after confirmation
+- DM the bot with `confirm!` or `cancel` when exactly one relay is pending and confirm the pending action resolves cleanly
 - After `/relay dm`, ask the bot in DM what the requester wanted and confirm the answer can come from `agent_actions`
 - Ask the bot in DM what tasks are still open and confirm the answer can come from open task records
+- Ask the bot something like `what am I working on lately?` and confirm the answer can draw from `user_profiles` and `user_memory_snapshots`
 - Confirm DM messages are being written immediately
 - Confirm bot-authored DM replies and successful relay deliveries are also written into `messages`
 - Confirm embeddings are written shortly after message storage rather than inline on the message hot path

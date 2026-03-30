@@ -19,6 +19,7 @@ Prefer explicit names:
 - `assignment-publish-flow.excalidraw`
 - `dm-retrieval-flow.excalidraw`
 - `dm-tool-execution-flow.excalidraw`
+- `dm-confirmation-and-user-memory-flow.excalidraw`
 - `deploy-release-flow.excalidraw`
 
 Markdown + Mermaid documents are also acceptable when they are easier to diff and maintain in-repo:
@@ -26,6 +27,7 @@ Markdown + Mermaid documents are also acceptable when they are easier to diff an
 - `system-overview.md`
 - `dm-retrieval-flow.md`
 - `dm-tool-execution-flow.md`
+- `dm-confirmation-and-user-memory-flow.md`
 - `deploy-release-flow.md`
 
 ## Rules

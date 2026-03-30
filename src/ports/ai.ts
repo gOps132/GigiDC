@@ -28,6 +28,31 @@ export type PlannedToolCall =
       userReference: string | null;
     }
   | {
+      channelReference: string | null;
+      enabled: boolean;
+      name: 'set_ingestion_policy';
+    }
+  | {
+      channelReference: string | null;
+      name: 'get_ingestion_status';
+    }
+  | {
+      affectedRoleReferences: string[];
+      channelReference: string | null;
+      description: string;
+      dueAt: string | null;
+      name: 'create_assignment';
+      title: string;
+    }
+  | {
+      name: 'list_assignments';
+    }
+  | {
+      assignmentReference: string;
+      channelReference: string | null;
+      name: 'publish_assignment';
+    }
+  | {
       context: string | null;
       message: string;
       name: 'send_dm_relay';

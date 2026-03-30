@@ -7,8 +7,9 @@ DM-first Discord bot for agentic chat, scoped history retrieval, shared Gigi ide
 - A Node 22 + TypeScript Discord bot foundation
 - DM-first agent experience backed by OpenAI
 - Shared Gigi task/action memory for relays, follow-up questions, and tracked work
-- Bounded DM tool execution for task creation, task completion, task listing, and DM relays
-- Slash-command assignment notifier workflow
+- Explicit relay confirmation flow plus bounded requester-centric user memory
+- Bounded DM tool execution for task, relay, ingestion, and assignment workflows
+- Slash-command assignment notifier workflow, plus DM access to the same guild capabilities
 - Supabase/Postgres-backed control-plane state
 - Raw message history + pgvector-ready retrieval foundation
 - Project rules and planning docs
@@ -77,7 +78,7 @@ Do not commit `.env`.
 npm run dev
 ```
 
-The bot can register slash commands at startup, starts a local health server on port `8080`, stores DM history immediately, stores guild history only for channels with ingestion explicitly enabled, persists participant-visible relay actions and tasks, and responds to direct messages agentically through retrieval plus a bounded internal tool planner.
+The bot can register slash commands at startup, starts a local health server on port `8080`, stores DM history immediately, stores guild history only for channels with ingestion explicitly enabled, persists participant-visible relay actions and tasks, keeps bounded requester-centric user memory snapshots, and responds to direct messages through deterministic DM routing plus bounded internal tool planning.
 
 ## EC2 Deployment
 
@@ -139,6 +140,9 @@ DM the bot for:
 - task-oriented questions like `what tasks do i still have?`
 - explicit tool-style requests like `create a task for me to review launch notes tomorrow and show me my open tasks`
 - explicit relay requests like `send Mina a DM saying the release moved to Friday`
+- permission-gated ingestion admin requests like `show ingestion status for #shipping` or `enable ingestion for #shipping`
+- permission-gated assignment admin requests like `create an assignment called Chapter 5 homework for @Students due 2026-04-02T09:00:00Z` or `publish assignment assignment-1`
+- follow-up confirmations like `confirm!` or `cancel` when Gigi has exactly one pending relay waiting on you
 
 The DM runtime does not provide:
 
@@ -150,6 +154,9 @@ The DM runtime does not provide:
 ## Authorization Model
 
 The bot checks Discord `Administrator` first, then capability mappings in `role_policies`.
+
+Authority comes from guild identity and capability, not from whether the request arrived by slash command or DM.
+DM is an alternate control surface, not a weaker permission model.
 
 Capabilities used by the current command set:
 
@@ -179,17 +186,21 @@ V1 uses a reduced retrieval-first architecture:
 - DM history is always eligible for storage
 - guild-channel ingestion is opt-in through `channel_ingestion_policies`
 - participant-visible Gigi actions and follow-up tasks are persisted in `agent_actions`
+- cross-user DM relays move through an explicit `awaiting_confirmation -> in_progress -> completed/failed/cancelled` lifecycle
+- requester-centric identity memory is stored in `user_profiles` and `user_memory_snapshots`
 - explicit tool-style DM requests can be planned into up to three internal tool calls before falling back to retrieval
 - Gigi-mediated DM relays require sender dispatch permission and recipient receive permission
+- DM-triggered ingestion and assignment admin actions use the same guild capability checks as their slash-command equivalents
 - ingestion policy changes and permission denials are written to `audit_logs`
 - relay dispatch attempts and outcomes are written to `audit_logs`
 - task creation and completion events are written to `audit_logs`
+- DM-triggered ingestion and assignment admin actions are written to `audit_logs`
 - DM scope-selection prompts are persisted briefly in Supabase so restarts do not invalidate active menus
 - bot-authored DM replies and relay deliveries are stored explicitly in canonical message history instead of relying only on gateway echoes
 - exact analytics use SQL/text search first
 - semantic questions use OpenAI embeddings over stored messages
 - history-aware DM answers can also draw from participant-visible relay actions and open tasks
-- DM tool execution is intentionally bounded to task and relay operations; there is still no browser worker, sandbox worker, or arbitrary external tool surface
+- DM tool execution is intentionally bounded to task, relay, ingestion, and assignment operations; there is still no browser worker, sandbox worker, or arbitrary external tool surface
 - image attachments are stored as metadata only
 - no OCR, autonomous memory promotion, or digest pipeline in V1
 
@@ -198,8 +209,11 @@ Current implications and limits:
 - more shared continuity also means faster history growth, which can eventually cause retrieval quality drift or context rot if ranking stays naive
 - bot-authored DM persistence increases storage and embedding cost over time
 - relay memory currently exists in both `agent_actions` and raw `messages`, and tasks now share that same substrate, so future retrieval tuning has to manage duplication and priority carefully
+- user-memory snapshots are bounded summaries, not source of truth, so stale summaries can create soft context rot if expiry and refresh stay naive
+- explicit relay confirmation is safer than one-shot cross-user dispatch, but it adds friction and another expiring state machine to the DM UX
 - this is still a permission-aware shared identity, not unrestricted global memory
 - the DM tool planner is conservative by design, so user resolution can fail without an explicit mention or exact Discord name
+- allowing guild/admin actions from DM raises the importance of conservative channel, role, and assignment resolution so Gigi does not mutate the wrong server resource from freeform text
 - tool execution is still synchronous inside the DM turn, so this is not yet a durable worker or long-running orchestration system
 
 ## Development Scripts
@@ -227,10 +241,13 @@ Before opening a PR or deploying:
 - Run `terraform validate` inside `terraform/` after `terraform init -backend=false` when infrastructure files change
 - Verify `/ping`
 - Verify `/ingestion status`, `/ingestion enable`, and `/ingestion disable` in a development Discord server
-- Verify `/relay dm` can deliver a message and that a participant can ask a follow-up in DM
+- Verify `/relay dm` creates a confirmation prompt, confirm it, and then verify that a participant can ask a follow-up in DM
 - Verify `/task create`, `/task list`, and `/task complete`
 - Verify `/assignment create` and `/assignment publish` in a development Discord server
 - DM the bot with one direct question and one history-based question
+- DM the bot with `what tools can you call?` and confirm the answer stays grounded to the actual runtime surface
+- DM the bot with a relay request, then `confirm!`, and verify only one pending relay executes
+- DM the bot with an ingestion request and an assignment request, and verify the same guild capability checks apply as they do through slash commands
 - Confirm DM messages are stored in Supabase
 - If you enable a row in `channel_ingestion_policies`, confirm guild messages for that channel are stored
 - Check `GET /readyz` as well as `GET /healthz`

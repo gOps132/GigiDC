@@ -1,0 +1,107 @@
+export type DmIntentRoute =
+  | {
+      kind: 'cancel_pending_action';
+    }
+  | {
+      kind: 'confirm_pending_action';
+    }
+  | {
+      kind: 'direct_reply';
+      reply: string;
+    }
+  | {
+      kind: 'retrieval';
+    }
+  | {
+      kind: 'tool_request';
+    };
+
+export class DmIntentRouter {
+  route(query: string): DmIntentRoute {
+    const directReply = getDeterministicDmReply(query);
+    if (directReply) {
+      return {
+        kind: 'direct_reply',
+        reply: directReply
+      };
+    }
+
+    if (looksLikeCancelRequest(query)) {
+      return {
+        kind: 'cancel_pending_action'
+      };
+    }
+
+    if (looksLikeConfirmationRequest(query)) {
+      return {
+        kind: 'confirm_pending_action'
+      };
+    }
+
+    if (looksLikeToolRequest(query)) {
+      return {
+        kind: 'tool_request'
+      };
+    }
+
+    return {
+      kind: 'retrieval'
+    };
+  }
+}
+
+export function getDeterministicDmReply(query: string): string | null {
+  const normalized = query.trim().toLowerCase();
+
+  if (
+    /\b(what tools can you call|what tools do you have|what can you do|what capabilities do you have|what are your capabilities)\b/i.test(
+      normalized
+    )
+  ) {
+    return [
+      'In this bot runtime I can:',
+      '- chat in DM',
+      '- answer from your DM history',
+      '- answer from permitted primary-server history when you have access',
+      '- count exact phrases from stored history',
+      '- recall participant-visible relays and tasks',
+      '- manage ingestion status and assignment workflows in DM when your guild permissions allow it',
+      '- create, list, and complete tasks',
+      '- request and confirm permission-gated Gigi-mediated DMs',
+      '',
+      'I cannot browse the web, run code, provide a sandbox, generate images, or use arbitrary external tools here.'
+    ].join('\n');
+  }
+
+  if (
+    /\b(code execution|execute code|run code|sandbox|shell access|terminal access|browser|browse the web|web search|search the web|image generation|generate images|translation|translate)\b/i.test(
+      normalized
+    )
+  ) {
+    return 'No. In this bot runtime I cannot run code, provide a sandbox, browse the web, generate images, or use arbitrary external tools. The only internal tools I can use here are task create/list/complete and permission-gated DM relays.';
+  }
+
+  if (/^(how.?s ingestion going|how is ingestion going|what.?s ingestion status)[.!?]*$/i.test(normalized)) {
+    return 'I can manage ingestion in DM when you have the right guild permission, but you need to name the target channel. Ask something like "show ingestion status for general" or "enable ingestion for #shipping".';
+  }
+
+  return null;
+}
+
+export function looksLikeToolRequest(query: string): boolean {
+  return /\b(task|tasks|todo|to-do|remind|reminder|follow up|follow-up|complete|completed|done|finish|mark .* done|relay|send .* dm|dm .* to|message .* via dm|assign|assignment|assignments|publish assignment|ingestion|channel ingestion)\b/i.test(
+    query
+  );
+}
+
+function looksLikeConfirmationRequest(query: string): boolean {
+  return /^(confirm|confirm it|yes|yes send it|go ahead|send it|approve|approved|do it)[.!?]*$/i.test(
+    query.trim()
+  );
+}
+
+function looksLikeCancelRequest(query: string): boolean {
+  return /^(cancel|cancel it|never mind|nevermind|stop|don.?t send it)[.!?]*$/i.test(
+    query.trim()
+  );
+}

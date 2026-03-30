@@ -11,9 +11,11 @@ function createService(overrides?: {
   plan?: {
     toolCalls: Array<Record<string, unknown>>;
   };
+  relayPrompt?: string;
   recipientAllowed?: boolean;
 }) {
   const auditCalls: Array<Record<string, unknown>> = [];
+  const confirmationCalls: Array<Record<string, unknown>> = [];
   const createTaskCalls: Array<Record<string, unknown>> = [];
   const listOpenTaskCalls: Array<Record<string, unknown>> = [];
   const markCompletedCalls: Array<Record<string, unknown>> = [];
@@ -36,9 +38,14 @@ function createService(overrides?: {
     error_message: null,
     metadata: {},
     due_at: '2026-04-01T09:00:00Z',
+    confirmation_requested_at: null,
+    confirmation_expires_at: null,
+    confirmed_at: null,
+    confirmed_by_user_id: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    completed_at: null
+    completed_at: null,
+    cancelled_at: null
   };
 
   const guild = {
@@ -103,6 +110,18 @@ function createService(overrides?: {
       }
     },
     {
+      async requestRelayConfirmation(input: Record<string, unknown>) {
+        confirmationCalls.push(input);
+        return {
+          action: {
+            id: 'action-2'
+          },
+          components: [{ type: 1 }],
+          reply: overrides?.relayPrompt ?? 'Confirm within 15 minutes and I will send that DM relay.'
+        };
+      }
+    } as never,
+    {
       async createDirectMessageRelay() {
         throw new Error('not needed in this test');
       },
@@ -143,11 +162,20 @@ function createService(overrides?: {
       }
     } as never,
     {
-      async storeBotAuthoredMessage() {
-        return {
-          reason: 'stored' as const,
-          stored: true
-        };
+      async createAssignment() {
+        return 'Created assignment `assignment-1`.';
+      },
+      async getIngestionStatus() {
+        return 'Ingestion for <#channel-1> is enabled.';
+      },
+      async listAssignments() {
+        return 'Recent assignments:\n- `assignment-1` Release notes [draft] no due date';
+      },
+      async publishAssignment() {
+        return 'Published assignment `assignment-1` to <#channel-1>.';
+      },
+      async setIngestionPolicy() {
+        return 'Enabled ingestion for <#channel-1>.';
       }
     } as never,
     {
@@ -170,6 +198,7 @@ function createService(overrides?: {
   return {
     auditCalls,
     client,
+    confirmationCalls,
     createTaskCalls,
     listOpenTaskCalls,
     markCompletedCalls,
@@ -243,6 +272,67 @@ test('AgentToolService denies DM relay execution without shared dispatch capabil
   assert.ok(result);
   assert.match(result.reply, /agent_action_dispatch/i);
   assert.equal(auditCalls[0]?.action, 'dm.tools.send_dm_relay.permission_denied');
+});
+
+test('AgentToolService turns DM relay execution into a persisted confirmation prompt', async () => {
+  const { client, confirmationCalls, service } = createService({
+    dispatchAllowed: true,
+    plan: {
+      toolCalls: [
+        {
+          context: null,
+          message: 'Please review the checklist.',
+          name: 'send_dm_relay',
+          recipientReference: 'mina'
+        }
+      ]
+    },
+    recipientAllowed: true,
+    relayPrompt: 'Confirm within 15 minutes and I will send that DM relay.'
+  });
+
+  const result = await service.maybeHandleDmQuery(
+    'Send Mina a DM to review the checklist.',
+    {
+      id: 'requester-1',
+      username: 'erick'
+    } as never,
+    client as never,
+    'dm-channel-1'
+  );
+
+  assert.ok(result);
+  assert.equal(confirmationCalls.length, 1);
+  assert.equal(confirmationCalls[0]?.recipientUsername, 'mina');
+  assert.match(result.reply, /confirm within 15 minutes/i);
+  assert.ok(result.components);
+});
+
+test('AgentToolService routes ingestion status requests through guild admin actions', async () => {
+  const { client, service } = createService({
+    plan: {
+      toolCalls: [
+        {
+          channelReference: 'shipping',
+          name: 'get_ingestion_status'
+        }
+      ]
+    }
+  });
+
+  const result = await service.maybeHandleDmQuery(
+    'Show ingestion status for shipping.',
+    {
+      id: 'requester-1',
+      username: 'erick'
+    } as never,
+    client as never,
+    'dm-channel-1'
+  );
+
+  assert.ok(result);
+  assert.deepEqual(result.executedToolNames, ['get_ingestion_status']);
+  assert.match(result.reply, /Ingestion for <#channel-1> is enabled/i);
 });
 
 test('AgentToolService can complete a task by title reference', async () => {

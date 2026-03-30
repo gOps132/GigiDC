@@ -7,6 +7,7 @@ import type {
 
 import type { Env } from '../config/env.js';
 import type { Logger } from '../lib/logger.js';
+import type { ActionConfirmationService } from '../services/actionConfirmationService.js';
 import type { AgentActionService } from '../services/agentActionService.js';
 import type { AgentToolService } from '../services/agentToolService.js';
 import type { AssignmentService } from '../services/assignmentService.js';
@@ -18,12 +19,14 @@ import type { MessageIndexingService } from '../services/messageIndexingService.
 import type { RetrievalService } from '../services/retrievalService.js';
 import type { RolePolicyService } from '../services/rolePolicyService.js';
 import type { RuntimeStateService } from '../services/runtimeStateService.js';
+import type { UserMemoryService } from '../services/userMemoryService.js';
 
 export interface BotContext {
   env: Env;
   logger: Logger;
   runtime: RuntimeStateService;
   services: {
+    actionConfirmations: ActionConfirmationService;
     agentActions: AgentActionService;
     agentTools: AgentToolService;
     assignments: AssignmentService;
@@ -34,6 +37,7 @@ export interface BotContext {
     messageIndexing: MessageIndexingService;
     retrieval: RetrievalService;
     rolePolicies: RolePolicyService;
+    userMemory: UserMemoryService;
   };
 }
 

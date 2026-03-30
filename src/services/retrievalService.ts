@@ -3,6 +3,7 @@ import type { Logger } from '../lib/logger.js';
 import type { ResponseClient } from '../ports/ai.js';
 import type { AgentActionRecord, AgentActionService } from './agentActionService.js';
 import type { HistoryMessageRecord, HistoryScope, MessageHistoryService } from './messageHistoryService.js';
+import type { UserMemoryService } from './userMemoryService.js';
 
 export interface RetrievalAnswer {
   answer: string;
@@ -15,6 +16,7 @@ export class RetrievalService {
     private readonly responses: ResponseClient,
     private readonly messageHistory: MessageHistoryService,
     private readonly agentActions: AgentActionService,
+    private readonly userMemory: UserMemoryService,
     private readonly logger: Logger
   ) {}
 
@@ -24,14 +26,6 @@ export class RetrievalService {
     requesterUserId: string,
     botUserId: string
   ): Promise<RetrievalAnswer> {
-    const capabilityAnswer = parseCapabilityIntent(query);
-    if (capabilityAnswer) {
-      return {
-        answer: capabilityAnswer,
-        source: 'direct'
-      };
-    }
-
     const phraseCountIntent = parsePhraseCountIntent(query, requesterUserId, botUserId);
 
     if (phraseCountIntent) {
@@ -55,8 +49,18 @@ export class RetrievalService {
     const actionMatches = isHistoryAwareQuery(query)
       ? await this.loadActionMatches(requesterUserId, query)
       : [];
+    const userMemoryContext = await this.userMemory.buildContext(
+      requesterUserId,
+      this.env.PRIMARY_GUILD_ID ?? this.env.DISCORD_GUILD_ID ?? null
+    );
 
-    if (semanticMatches.length === 0 && recent.length === 0 && actionMatches.length === 0 && taskMatches.length === 0) {
+    if (
+      semanticMatches.length === 0
+      && recent.length === 0
+      && actionMatches.length === 0
+      && taskMatches.length === 0
+      && userMemoryContext.length === 0
+    ) {
       if (!isHistoryAwareQuery(query) && !isTaskAwareQuery(query)) {
         const directAnswer = await this.answerDirect(query, []);
         return {
@@ -71,14 +75,26 @@ export class RetrievalService {
       };
     }
 
-    const context = formatContext(recent, semanticMatches, actionMatches, taskMatches);
+    const context = formatContext(recent, semanticMatches, actionMatches, taskMatches, userMemoryContext);
     const answer = await this.answerDirect(query, context.length > 0 ? [context] : []);
+    const usedActionOnly =
+      semanticMatches.length === 0
+      && recent.length === 0
+      && (actionMatches.length > 0 || taskMatches.length > 0);
+    const usedUserMemoryOnly =
+      semanticMatches.length === 0
+      && recent.length === 0
+      && actionMatches.length === 0
+      && taskMatches.length === 0
+      && userMemoryContext.length > 0;
 
     return {
       answer,
-      source: semanticMatches.length === 0 && recent.length === 0 && (actionMatches.length > 0 || taskMatches.length > 0)
+      source: usedActionOnly
         ? 'action'
-        : 'semantic'
+        : usedUserMemoryOnly
+          ? 'direct'
+          : 'semantic'
     };
   }
 
@@ -89,7 +105,7 @@ export class RetrievalService {
         instructions: [
           'You are GigiDC, a Discord assistant.',
           'Only describe the capabilities that actually exist in this bot runtime.',
-          'Actual supported capabilities are DM chat, DM history recall, permitted guild-history recall, phrase counting, participant-visible task memory, participant-visible relay memory, task create/list/complete, and permission-gated DM relays.',
+          'Actual supported capabilities are DM chat, DM history recall, permitted guild-history recall, phrase counting, participant-visible task memory, participant-visible relay memory, requester-centric user memory snapshots, task create/list/complete, permission-gated DM relays with explicit confirmation, and permission-gated ingestion and assignment admin actions in DM.',
           'Do not claim to have web search, browsing, code execution, a sandbox, image generation, translation tools, or arbitrary external tool access.',
           'If chat history context is supplied, use it carefully.',
           'Be concise and practical.',
@@ -165,43 +181,6 @@ function isTaskAwareQuery(query: string): boolean {
   );
 }
 
-function parseCapabilityIntent(query: string): string | null {
-  const normalized = query.trim().toLowerCase();
-
-  if (
-    /\b(what tools can you call|what tools do you have|what can you do|what capabilities do you have|what are your capabilities)\b/i.test(
-      normalized
-    )
-  ) {
-    return [
-      'In this bot runtime I can:',
-      '- chat in DM',
-      '- answer from your DM history',
-      '- answer from permitted primary-server history when you have access',
-      '- count exact phrases from stored history',
-      '- recall participant-visible relays and tasks',
-      '- create, list, and complete tasks',
-      '- send Gigi-mediated DMs when permission checks pass',
-      '',
-      'I cannot browse the web, run code, provide a sandbox, generate images, or use arbitrary external tools here.'
-    ].join('\n');
-  }
-
-  if (
-    /\b(code execution|execute code|run code|sandbox|shell access|terminal access|browser|browse the web|web search|search the web|image generation|generate images|translation|translate)\b/i.test(
-      normalized
-    )
-  ) {
-    return 'No. In this bot runtime I cannot run code, provide a sandbox, browse the web, generate images, or use arbitrary external tools. The only internal tools I can use here are task create/list/complete and permission-gated DM relays.';
-  }
-
-  if (/\b(ingestion status|how.?s ingestion going|how is ingestion going|what.?s ingestion status)\b/i.test(normalized)) {
-    return 'I do not have live ingestion-status reporting in DM. Use `/ingestion status` in a server channel. In DM I can only answer from stored DM history, permitted server history, and shared task/action memory.';
-  }
-
-  return null;
-}
-
 function isHistoryAwareQuery(query: string): boolean {
   return /\b(remember|history|chat|message|messages|said|mention|mentioned|talking|talked|discuss|discussed|asked|want|wanted|relay|again|last week|yesterday|before|server|guild)\b/i.test(
     query
@@ -256,9 +235,19 @@ function formatContext(
   recent: HistoryMessageRecord[],
   semanticMatches: HistoryMessageRecord[],
   actionMatches: AgentActionRecord[],
-  taskMatches: AgentActionRecord[]
+  taskMatches: AgentActionRecord[],
+  userMemoryContext: string[]
 ): string {
   const sections: string[] = [];
+
+  if (userMemoryContext.length > 0) {
+    sections.push(
+      'User memory:\n' +
+        userMemoryContext
+          .map((line) => `- ${line}`)
+          .join('\n')
+    );
+  }
 
   if (taskMatches.length > 0) {
     sections.push(

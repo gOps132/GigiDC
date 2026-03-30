@@ -99,6 +99,16 @@ For architecture changes that increase memory, retrieval scope, shared identity,
 
 Use `docs/project-visualization-workflow.md` as the standing checklist.
 
+## Interaction Authority Model
+
+Treat Discord interaction surface as presentation, not authority.
+
+- DM, slash commands, buttons, and select menus are all valid control surfaces for the same underlying capability model
+- never assume a guild/admin action must stay slash-only if the requester can be resolved to a guild member with the required capability
+- never grant extra authority because a request came through DM; resolve guild membership, capability, and target resources explicitly
+- keep target resolution conservative and fail closed for user, channel, role, and assignment references when a DM request is ambiguous
+- keep audit coverage aligned across surfaces so a DM-triggered admin action leaves the same trail as a slash-command-triggered admin action
+
 ## Testing Instructions
 
 Every meaningful change should include a verification step proportionate to risk.
@@ -219,5 +229,15 @@ Only promote issues into memory when they are recurring, costly, security-releva
 
 - Issue or symptom: Gigi can hallucinate unsupported tools or broader runtime capabilities in DM if capability questions are left entirely to the language model.
   Root cause: A generic assistant prompt invites the model to answer from prior expectations instead of the actual bot runtime surface.
-  Fix or required workflow: Ground capability and unsupported-tool questions with deterministic responses, and keep the retrieval prompt explicit about the real bot surface: DM chat, retrieval, tasks, and permission-gated relays only.
-  Verification step: Run `npm run test` and confirm the retrieval capability tests pass, especially `what tools can you call?`, unsupported code-execution questions, and ingestion-status questions.
+  Fix or required workflow: Ground capability and unsupported-tool questions with deterministic DM-intent routing, and keep the retrieval prompt explicit about the real bot surface: DM chat, retrieval, bounded user memory, tasks, and permission-gated relays only.
+  Verification step: Run the DM conversation and retrieval tests and confirm `what tools can you call?`, unsupported code-execution questions, and ingestion-status questions stay grounded to the actual runtime.
+
+- Issue or symptom: Gigi can appear to ask for relay confirmation in DM but fail to send anything because the confirmation exists only in model language, not in persisted action state.
+  Root cause: Cross-user relay requests were previously allowed to roleplay an approval step without any canonical pending action, owner check, expiry, or execution handoff.
+  Fix or required workflow: Route cross-user relay requests through persisted `agent_actions` rows in `awaiting_confirmation`, use button-based confirm/cancel as the primary path, and only let free-text confirm/cancel resolve a single unambiguous pending action owned by the requester.
+  Verification step: Create a relay request in Discord, confirm it, and verify the action moves through confirmation, audit, and delivery state instead of relying on conversational promise text.
+
+- Issue or symptom: Guild/admin capabilities can drift into slash-command-only behavior even though the same authenticated user should be able to invoke them from DM.
+  Root cause: It is easy to treat Discord surface as the permission boundary instead of treating guild identity and `role_policies` capabilities as the actual authority model.
+  Fix or required workflow: Keep guild/admin execution behind shared services that resolve the requester's primary-guild membership, check the same capabilities across surfaces, and fail closed when channel, role, or assignment targets are ambiguous in DM.
+  Verification step: Run targeted tests for the shared guild-admin service, then verify the same user can perform an allowed ingestion or assignment action from both slash command and DM while a user without the capability is denied in both surfaces.

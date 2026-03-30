@@ -1,8 +1,16 @@
-import type { Client, Guild, GuildMember, User } from 'discord.js';
+import type {
+  ActionRowBuilder,
+  ButtonBuilder,
+  Client,
+  Guild,
+  GuildMember,
+  User
+} from 'discord.js';
 
 import type { Env } from '../config/env.js';
 import type { Logger } from '../lib/logger.js';
 import type { PlannedToolCall, ToolPlanningClient } from '../ports/ai.js';
+import type { ActionConfirmationService } from './actionConfirmationService.js';
 import type { AuditLogService } from './auditLogService.js';
 import {
   canUserAccessAction,
@@ -10,12 +18,14 @@ import {
   type AgentActionRecord,
   type AgentActionService
 } from './agentActionService.js';
-import type { MessageHistoryService } from './messageHistoryService.js';
+import type { GuildAdminActionService } from './guildAdminActionService.js';
+import { looksLikeToolRequest } from './dmIntentRouter.js';
 import { CAPABILITIES, type RolePolicyService } from './rolePolicyService.js';
 
 const MAX_TOOL_CALLS_PER_TURN = 3;
 
 export interface DmToolHandlingResult {
+  components?: ActionRowBuilder<ButtonBuilder>[];
   executedToolNames: string[];
   reply: string;
 }
@@ -30,6 +40,7 @@ interface ExecutionContext {
 }
 
 interface ToolExecutionResult {
+  components?: ActionRowBuilder<ButtonBuilder>[];
   handled: boolean;
   summary: string;
   toolName: PlannedToolCall['name'];
@@ -39,9 +50,10 @@ export class AgentToolService {
   constructor(
     private readonly env: Env,
     private readonly planner: ToolPlanningClient,
+    private readonly actionConfirmations: ActionConfirmationService,
     private readonly agentActions: AgentActionService,
     private readonly auditLogs: AuditLogService,
-    private readonly messageHistory: MessageHistoryService,
+    private readonly guildAdminActions: GuildAdminActionService,
     private readonly rolePolicies: RolePolicyService,
     private readonly logger: Logger
   ) {}
@@ -100,6 +112,7 @@ export class AgentToolService {
     }
 
     return {
+      components: results.find((result) => result.components)?.components,
       executedToolNames: results.map((result) => result.toolName),
       reply: results.map((result) => result.summary).join('\n\n')
     };
@@ -119,6 +132,26 @@ export class AgentToolService {
 
     if (toolCall.name === 'complete_task') {
       return this.executeCompleteTask(toolCall, context);
+    }
+
+    if (toolCall.name === 'get_ingestion_status') {
+      return this.executeGetIngestionStatus(toolCall, context);
+    }
+
+    if (toolCall.name === 'set_ingestion_policy') {
+      return this.executeSetIngestionPolicy(toolCall, context);
+    }
+
+    if (toolCall.name === 'create_assignment') {
+      return this.executeCreateAssignment(toolCall, context);
+    }
+
+    if (toolCall.name === 'list_assignments') {
+      return this.executeListAssignments(toolCall, context);
+    }
+
+    if (toolCall.name === 'publish_assignment') {
+      return this.executePublishAssignment(toolCall, context);
     }
 
     return this.executeSendDmRelay(toolCall, context);
@@ -333,79 +366,107 @@ export class AgentToolService {
       };
     }
 
-    const action = await this.agentActions.createDirectMessageRelay({
-      guildId: context.guild?.id ?? null,
+    const confirmation = await this.actionConfirmations.requestRelayConfirmation({
       channelId: context.currentChannelId,
-      requesterUserId: context.requester.id,
-      requesterUsername: context.requesterLabel,
-      recipientUserId: recipient.id,
-      recipientUsername: recipient.username,
-      message: toolCall.message.trim(),
       context: toolCall.context?.trim() ?? null,
+      guildId: context.guild?.id ?? null,
+      message: toolCall.message.trim(),
       metadata: {
         createdFrom: 'dm_tool',
         plannerSurface: 'dm'
-      }
+      },
+      recipientUserId: recipient.id,
+      recipientUsername: recipient.username,
+      requesterUserId: context.requester.id,
+      requesterUsername: context.requesterLabel
     });
 
-    try {
-      const sentMessage = await recipient.send({
-        content: buildRelayContent(
-          context.requesterLabel,
-          toolCall.message.trim(),
-          toolCall.context?.trim() ?? null
-        )
-      });
+    return {
+      handled: true,
+      components: confirmation.components,
+      summary: confirmation.reply,
+      toolName: toolCall.name
+    };
+  }
 
-      let historyStored = false;
-      try {
-        await this.messageHistory.storeBotAuthoredMessage(sentMessage);
-        historyStored = true;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown relay history persistence error';
-        this.logger.error('Failed to persist outbound DM relay from tool execution', {
-          actionId: action.id,
-          error: message,
-          recipientUserId: recipient.id,
-          sentMessageId: sentMessage.id
-        });
-      }
+  private async executeGetIngestionStatus(
+    toolCall: Extract<PlannedToolCall, { name: 'get_ingestion_status' }>,
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    return {
+      handled: true,
+      summary: await this.guildAdminActions.getIngestionStatus({
+        channelReference: toolCall.channelReference,
+        client: context.client,
+        requester: context.requester
+      }),
+      toolName: toolCall.name
+    };
+  }
 
-      await this.agentActions.markCompleted(action, {
-        metadata: {
-          deliveredChannelId: sentMessage.channelId,
-          deliveredMessageId: sentMessage.id,
-          historyStored
-        },
-        resultSummary: `Delivered DM relay to ${recipient.username}`
-      });
+  private async executeSetIngestionPolicy(
+    toolCall: Extract<PlannedToolCall, { name: 'set_ingestion_policy' }>,
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    return {
+      handled: true,
+      summary: await this.guildAdminActions.setIngestionPolicy({
+        channelReference: toolCall.channelReference,
+        client: context.client,
+        enabled: toolCall.enabled,
+        requester: context.requester
+      }),
+      toolName: toolCall.name
+    };
+  }
 
-      await this.recordAudit(context, 'dm.tools.send_dm_relay.sent', action.id, {
-        recipientUserId: recipient.id,
-        recipientUsername: recipient.username
-      });
+  private async executeCreateAssignment(
+    toolCall: Extract<PlannedToolCall, { name: 'create_assignment' }>,
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    return {
+      handled: true,
+      summary: await this.guildAdminActions.createAssignment({
+        affectedRoleReferences: toolCall.affectedRoleReferences,
+        channelReference: toolCall.channelReference,
+        client: context.client,
+        description: toolCall.description,
+        dueAt: toolCall.dueAt,
+        requester: context.requester,
+        title: toolCall.title
+      }),
+      toolName: toolCall.name
+    };
+  }
 
-      return {
-        handled: true,
-        summary: `Sent a DM relay to ${recipient.username}.`,
-        toolName: toolCall.name
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown DM relay tool error';
+  private async executeListAssignments(
+    toolCall: Extract<PlannedToolCall, { name: 'list_assignments' }>,
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    return {
+      handled: true,
+      summary: await this.guildAdminActions.listAssignments({
+        client: context.client,
+        requester: context.requester
+      }),
+      toolName: toolCall.name
+    };
+  }
 
-      await this.agentActions.markFailed(action, message);
-      await this.recordAudit(context, 'dm.tools.send_dm_relay.failed', action.id, {
-        error: message,
-        recipientUserId: recipient.id,
-        recipientUsername: recipient.username
-      });
-
-      return {
-        handled: true,
-        summary: `I could not DM ${recipient.username}. They may have direct messages disabled.`,
-        toolName: toolCall.name
-      };
-    }
+  private async executePublishAssignment(
+    toolCall: Extract<PlannedToolCall, { name: 'publish_assignment' }>,
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    return {
+      handled: true,
+      summary: await this.guildAdminActions.publishAssignment({
+        assignmentReference: toolCall.assignmentReference,
+        channelReference: toolCall.channelReference,
+        client: context.client,
+        requester: context.requester
+      }),
+      toolName: toolCall.name
+    };
   }
 
   private async canDispatchSharedActions(context: ExecutionContext): Promise<boolean> {
@@ -558,19 +619,14 @@ function buildPlannerInstructions(): string {
   return [
     'You are the internal DM tool planner for GigiDC.',
     'Decide whether the user is asking Gigi to execute internal tools instead of answering from retrieval.',
-    'Only use tools for explicit action requests such as creating tasks, listing tasks, completing tasks, or sending a DM relay.',
+    'Only use tools for explicit action requests such as creating tasks, listing tasks, completing tasks, sending a DM relay, checking or changing ingestion status, or listing, creating, or publishing assignments.',
     'Return no tool calls for pure history questions, freeform chat, or questions that should be handled by retrieval.',
     'Keep calls in the same order the user expects them to happen.',
     'Never invent user IDs or task IDs.',
     'Use the raw user reference from the request for assigneeReference, userReference, recipientReference, or taskReference.',
+    'Use the raw channel or role references from the request for channelReference and affectedRoleReferences.',
     'Use at most three tool calls.'
   ].join(' ');
-}
-
-function looksLikeToolRequest(query: string): boolean {
-  return /\b(task|tasks|todo|to-do|remind|reminder|follow up|follow-up|complete|completed|done|finish|mark .* done|relay|send .* dm|dm .* to|message .* via dm|assign)\b/i.test(
-    query
-  );
 }
 
 function normalizeDueAt(value: string | null): Date | null {
@@ -607,21 +663,6 @@ function unresolvedUserSummary(reference: string | null, targetLabel: string): s
 function formatTaskSummary(task: AgentActionRecord): string {
   const dueText = task.due_at ? ` (due ${new Date(task.due_at).toISOString()})` : '';
   return `- \`${task.id}\` ${task.title}${dueText}`;
-}
-
-function buildRelayContent(requesterLabel: string, message: string, context: string | null): string {
-  const lines = [
-    `${requesterLabel} asked me to pass this along:`,
-    '',
-    message
-  ];
-
-  if (context && context.length > 0) {
-    lines.push('', `Context: ${context}`);
-  }
-
-  lines.push('', 'You can ask me follow-up questions about this relay here in DM.');
-  return lines.join('\n');
 }
 
 function truncateForMetadata(value: string): string {

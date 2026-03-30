@@ -20,6 +20,31 @@ const toolPlanSchema = z.object({
           userReference: z.string().trim().min(1).max(120).nullable()
         }),
         z.object({
+          name: z.literal('get_ingestion_status'),
+          channelReference: z.string().trim().min(1).max(120).nullable()
+        }),
+        z.object({
+          name: z.literal('set_ingestion_policy'),
+          channelReference: z.string().trim().min(1).max(120).nullable(),
+          enabled: z.boolean()
+        }),
+        z.object({
+          name: z.literal('create_assignment'),
+          title: z.string().trim().min(1).max(160),
+          description: z.string().trim().min(1).max(3000),
+          dueAt: z.string().trim().min(1).max(80).nullable(),
+          channelReference: z.string().trim().min(1).max(120).nullable(),
+          affectedRoleReferences: z.array(z.string().trim().min(1).max(120)).max(8).default([])
+        }),
+        z.object({
+          name: z.literal('list_assignments')
+        }),
+        z.object({
+          name: z.literal('publish_assignment'),
+          assignmentReference: z.string().trim().min(1).max(160),
+          channelReference: z.string().trim().min(1).max(120).nullable()
+        }),
+        z.object({
           name: z.literal('complete_task'),
           taskReference: z.string().trim().min(1).max(120),
           result: z.string().trim().min(1).max(500).nullable()
