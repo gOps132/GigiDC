@@ -11,6 +11,7 @@ import type {
 
 interface BaseUsageInput {
   client: Client;
+  guild?: Guild | null;
   requester: User;
 }
 
@@ -36,7 +37,7 @@ export class UsageAdminService {
   ) {}
 
   async getUsageSummary(input: UsageSummaryInput): Promise<string> {
-    const context = await this.requireUsageAdmin(input.client, input.requester, {
+    const context = await this.requireUsageAdmin(input, {
       action: 'usage.summary.permission_denied',
       targetId: null
     });
@@ -65,7 +66,7 @@ export class UsageAdminService {
   }
 
   async getUserUsageSummary(input: UserUsageSummaryInput): Promise<string> {
-    const context = await this.requireUsageAdmin(input.client, input.requester, {
+    const context = await this.requireUsageAdmin(input, {
       action: 'usage.user.permission_denied',
       targetId: input.targetUser.id
     });
@@ -101,19 +102,18 @@ export class UsageAdminService {
   }
 
   private async requireUsageAdmin(
-    client: Client,
-    requester: User,
+    input: BaseUsageInput,
     metadata: {
       action: string;
       targetId: string | null;
     }
   ): Promise<UsageExecutionContext | string> {
-    const guild = await this.resolvePrimaryGuild(client);
+    const guild = input.guild ?? await this.resolvePrimaryGuild(input.client);
     if (!guild) {
       return 'I could not resolve the primary server for that action.';
     }
 
-    const member = await guild.members.fetch(requester.id).catch(() => null);
+    const member = await guild.members.fetch(input.requester.id).catch(() => null);
     if (!member) {
       return 'I can only do that for users who are still in the primary server.';
     }
@@ -126,7 +126,7 @@ export class UsageAdminService {
     if (!allowed) {
       await this.auditLogs.record({
         guildId: guild.id,
-        actorUserId: requester.id,
+        actorUserId: input.requester.id,
         action: metadata.action,
         targetType: 'model_usage',
         targetId: metadata.targetId,
@@ -141,7 +141,7 @@ export class UsageAdminService {
 
     return {
       guild,
-      requester
+      requester: input.requester
     };
   }
 

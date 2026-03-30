@@ -99,6 +99,7 @@ export const permissionCommand: SlashCommand = {
     if (subcommand === 'list') {
       const summary = await context.services.permissionAdmin.listUserPermissions({
         client: interaction.client,
+        guild,
         requester: interaction.user,
         targetUser
       });
@@ -120,12 +121,14 @@ export const permissionCommand: SlashCommand = {
       ? await context.services.permissionAdmin.grantUserPermission({
           capability,
           client: interaction.client,
+          guild,
           requester: interaction.user,
           targetUser
         })
       : await context.services.permissionAdmin.revokeUserPermission({
           capability,
           client: interaction.client,
+          guild,
           requester: interaction.user,
           targetUser
         });

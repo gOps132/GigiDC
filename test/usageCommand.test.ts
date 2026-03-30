@@ -113,6 +113,7 @@ test('usage command shows server summary', async () => {
 
   assert.equal(calls[0]?.action, 'summary');
   assert.equal(calls[0]?.days, 7);
+  assert.equal(calls[0]?.guild?.id, 'guild-1');
   assert.equal(replyCalls[0]?.embeds?.[0]?.data?.title, 'Usage summary');
   assert.match(replyCalls[0]?.embeds?.[0]?.data?.description ?? '', /Estimated cost/i);
   assert.equal(replyCalls[0]?.flags, MessageFlags.Ephemeral);
@@ -129,6 +130,7 @@ test('usage command shows per-user summary', async () => {
 
   assert.equal(calls[0]?.action, 'user');
   assert.equal(calls[0]?.days, 3);
+  assert.equal(calls[0]?.guild?.id, 'guild-1');
   const targetUser = calls[0]?.targetUser as { id?: string } | undefined;
   assert.equal(targetUser?.id, 'target-1');
   assert.equal(replyCalls[0]?.embeds?.[0]?.data?.title, 'User usage summary');

@@ -11,6 +11,7 @@ import {
 
 interface BasePermissionInput {
   client: Client;
+  guild?: Guild | null;
   requester: User;
 }
 
@@ -35,7 +36,7 @@ export class PermissionAdminService {
   ) {}
 
   async listUserPermissions(input: ListPermissionInput): Promise<string> {
-    const context = await this.requirePermissionAdmin(input.client, input.requester, {
+    const context = await this.requirePermissionAdmin(input, {
       action: 'permission.list.permission_denied',
       targetUserId: input.targetUser.id
     });
@@ -81,7 +82,7 @@ export class PermissionAdminService {
       return unsupportedCapabilitySummary(input.capability);
     }
 
-    const context = await this.requirePermissionAdmin(input.client, input.requester, {
+    const context = await this.requirePermissionAdmin(input, {
       action: 'permission.grant.permission_denied',
       targetUserId: input.targetUser.id
     });
@@ -127,7 +128,7 @@ export class PermissionAdminService {
       return unsupportedCapabilitySummary(input.capability);
     }
 
-    const context = await this.requirePermissionAdmin(input.client, input.requester, {
+    const context = await this.requirePermissionAdmin(input, {
       action: 'permission.revoke.permission_denied',
       targetUserId: input.targetUser.id
     });
@@ -160,19 +161,18 @@ export class PermissionAdminService {
   }
 
   private async requirePermissionAdmin(
-    client: Client,
-    requester: User,
+    input: BasePermissionInput,
     metadata: {
       action: string;
       targetUserId: string;
     }
   ): Promise<PermissionExecutionContext | string> {
-    const guild = await this.resolvePrimaryGuild(client);
+    const guild = input.guild ?? await this.resolvePrimaryGuild(input.client);
     if (!guild) {
       return 'I could not resolve the primary server for that action.';
     }
 
-    const member = await guild.members.fetch(requester.id).catch(() => null);
+    const member = await guild.members.fetch(input.requester.id).catch(() => null);
     if (!member) {
       return 'I can only do that for users who are still in the primary server.';
     }
@@ -185,7 +185,7 @@ export class PermissionAdminService {
     if (!allowed) {
       await this.auditLogs.record({
         guildId: guild.id,
-        actorUserId: requester.id,
+        actorUserId: input.requester.id,
         action: metadata.action,
         targetType: 'user_capability_grant',
         targetId: metadata.targetUserId,
@@ -200,7 +200,7 @@ export class PermissionAdminService {
 
     return {
       guild,
-      requester
+      requester: input.requester
     };
   }
 

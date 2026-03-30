@@ -161,3 +161,62 @@ test('UsageAdminService returns formatted summary for one user', async () => {
   assert.match(reply, /dm_tool_planning/);
   assert.equal(auditCalls[0]?.action, 'usage.user.executed');
 });
+
+test('UsageAdminService prefers explicit guild context over primary-guild env resolution', async () => {
+  const auditCalls: Array<Record<string, unknown>> = [];
+  const dailySummaryCalls: Array<Record<string, unknown>> = [];
+  const guild = {
+    id: 'guild-inline',
+    members: {
+      async fetch(userId: string) {
+        return {
+          id: userId
+        };
+      }
+    }
+  };
+
+  const service = new UsageAdminService(
+    {} as never,
+    {
+      async record(input: Record<string, unknown>) {
+        auditCalls.push(input);
+      }
+    } as never,
+    {
+      async listDailySummary(input: Record<string, unknown>) {
+        dailySummaryCalls.push(input);
+        return [];
+      },
+      async listRequesterDailySummary() {
+        return [];
+      }
+    } as never,
+    {
+      async memberHasCapability() {
+        return true;
+      }
+    } as never
+  );
+
+  const reply = await service.getUsageSummary({
+    client: {
+      guilds: {
+        cache: new Map(),
+        async fetch() {
+          throw new Error('should not resolve primary guild');
+        }
+      }
+    } as never,
+    days: 7,
+    guild: guild as never,
+    requester: {
+      id: 'requester-1',
+      username: 'erick'
+    } as never
+  });
+
+  assert.equal(dailySummaryCalls[0]?.guildId, 'guild-inline');
+  assert.match(reply, /No usage events were recorded/i);
+  assert.equal(auditCalls[0]?.guildId, 'guild-inline');
+});

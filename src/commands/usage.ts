@@ -66,12 +66,14 @@ export const usageCommand: SlashCommand = {
       ? await context.services.usageAdmin.getUserUsageSummary({
           client: interaction.client,
           days,
+          guild: interaction.guild,
           requester: interaction.user,
           targetUser: interaction.options.getUser('user', true)
         })
       : await context.services.usageAdmin.getUsageSummary({
           client: interaction.client,
           days,
+          guild: interaction.guild,
           requester: interaction.user
         });
 

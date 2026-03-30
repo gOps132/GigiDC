@@ -303,6 +303,11 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Fix or required workflow: Keep guild/admin execution behind shared services that resolve the requester's primary-guild membership, check the same capabilities across surfaces, and fail closed when channel, role, or assignment targets are ambiguous in DM.
   Verification step: Run targeted tests for the shared guild-admin service, then verify the same user can perform an allowed ingestion or assignment action from both slash command and DM while a user without the capability is denied in both surfaces.
 
+- Issue or symptom: A slash-command admin surface can fail with `I could not resolve the primary server for that action.` even though the interaction already happened inside a guild.
+  Root cause: Shared admin services can accidentally rely only on `PRIMARY_GUILD_ID` or `DISCORD_GUILD_ID` env resolution instead of preferring the explicit `interaction.guild` that Discord already provided for slash execution.
+  Fix or required workflow: When a slash command already has a guild context, pass that guild into the shared admin service and prefer it over env-based primary-guild lookup. Keep env lookup as the fallback for DM-triggered admin actions.
+  Verification step: Run targeted slash-command and service tests with no primary-guild env configured and confirm the command still succeeds when `interaction.guild` is present.
+
 - Issue or symptom: Raw secret values can leak into ordinary DM history if users try to teach Gigi sensitive data through normal chat.
   Root cause: The default DM pipeline stores messages for retrieval, so any secret sent through ordinary DM chat becomes normal history unless it is intercepted before storage.
   Fix or required workflow: Keep sensitive-data writes out of ordinary Discord chat, use the encrypted sensitive-data store plus the local admin script for writes, and bypass normal DM history storage when a message looks like a raw secret-write attempt.
