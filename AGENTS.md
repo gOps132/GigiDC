@@ -139,9 +139,14 @@ When a human asks what scope a terminal is working on, answer concretely with th
 Treat Discord interaction surface as presentation, not authority.
 
 - DM, slash commands, buttons, and select menus are all valid control surfaces for the same underlying capability model
+- for new user-facing features, default to adding a DM path unless the feature is inherently public-channel-only or requires a stricter structured surface
+- when a feature can be safely exposed in public, plan a guild-mention path as well so Gigi can answer or route from channel context instead of staying DM-only by accident
+- if a new feature stays slash-only or DM-only, document why that restriction exists in code comments or user docs instead of letting the limitation stay implicit
 - never assume a guild/admin action must stay slash-only if the requester can be resolved to a guild member with the required capability
 - never grant extra authority because a request came through DM; resolve guild membership, capability, and target resources explicitly
+- never expose a mention-based public path for actions that should remain private, sensitive, confirmation-gated, or requester-specific; keep those in DM or another explicitly private surface
 - keep target resolution conservative and fail closed for user, channel, role, and assignment references when a DM request is ambiguous
+- keep mention-based public handling narrower than DM when needed, but treat missing mention support as an implementation gap to consider deliberately rather than an acceptable default
 - direct user grants are allowed, but they should stay visible and auditable so they do not silently replace the Discord role model
 - keep audit coverage aligned across surfaces so a DM-triggered admin action leaves the same trail as a slash-command-triggered admin action
 

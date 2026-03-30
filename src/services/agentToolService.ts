@@ -31,6 +31,7 @@ import { looksLikeToolRequest } from './dmIntentRouter.js';
 import type { ModelUsageService } from './modelUsageService.js';
 import type { PermissionAdminService } from './permissionAdminService.js';
 import { CAPABILITIES, type RolePolicyService } from './rolePolicyService.js';
+import type { UsageAdminService } from './usageAdminService.js';
 
 const MAX_TOOL_CALLS_PER_TURN = 3;
 const RECIPIENT_SELECT_PREFIX = 'dm-recipient';
@@ -73,6 +74,7 @@ export class AgentToolService {
     private readonly guildAdminActions: GuildAdminActionService,
     private readonly permissionAdmin: PermissionAdminService,
     private readonly rolePolicies: RolePolicyService,
+    private readonly usageAdmin: UsageAdminService,
     private readonly pendingRecipientSelections: PendingDmRelayRecipientSelectionStore,
     private readonly modelUsage: ModelUsageService,
     private readonly logger: Logger
@@ -350,6 +352,14 @@ export class AgentToolService {
 
     if (toolCall.name === 'list_permissions') {
       return this.executeListPermissions(toolCall, context);
+    }
+
+    if (toolCall.name === 'get_usage_summary') {
+      return this.executeGetUsageSummary(toolCall, context);
+    }
+
+    if (toolCall.name === 'get_user_usage_summary') {
+      return this.executeGetUserUsageSummary(toolCall, context);
     }
 
     return this.executeSendDmRelay(toolCall, context);
@@ -811,6 +821,46 @@ export class AgentToolService {
     };
   }
 
+  private async executeGetUsageSummary(
+    toolCall: Extract<PlannedToolCall, { name: 'get_usage_summary' }>,
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    return {
+      handled: true,
+      summary: await this.usageAdmin.getUsageSummary({
+        client: context.client,
+        days: normalizeUsageDays(toolCall.days),
+        requester: context.requester
+      }),
+      toolName: toolCall.name
+    };
+  }
+
+  private async executeGetUserUsageSummary(
+    toolCall: Extract<PlannedToolCall, { name: 'get_user_usage_summary' }>,
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    const targetUser = await this.resolveUserReference(toolCall.userReference, context);
+    if (!targetUser) {
+      return {
+        handled: true,
+        summary: unresolvedUserSummary(toolCall.userReference, 'usage target'),
+        toolName: toolCall.name
+      };
+    }
+
+    return {
+      handled: true,
+      summary: await this.usageAdmin.getUserUsageSummary({
+        client: context.client,
+        days: normalizeUsageDays(toolCall.days),
+        requester: context.requester,
+        targetUser
+      }),
+      toolName: toolCall.name
+    };
+  }
+
   private async canDispatchSharedActions(context: ExecutionContext): Promise<boolean> {
     if (!context.guild || !context.requesterMember) {
       return false;
@@ -1012,7 +1062,7 @@ function buildPlannerInstructions(): string {
   return [
     'You are the internal DM tool planner for GigiDC.',
     'Decide whether the user is asking Gigi to execute internal tools instead of answering from retrieval.',
-    'Only use tools for explicit action requests such as creating tasks, listing tasks, completing tasks, sending a DM relay, checking or changing ingestion status, listing, creating, or publishing assignments, or listing, granting, or revoking direct user permissions.',
+    'Only use tools for explicit action requests such as creating tasks, listing tasks, completing tasks, sending a DM relay, checking or changing ingestion status, listing, creating, or publishing assignments, listing, granting, or revoking direct user permissions, or showing usage summaries and estimated cost.',
     'Return no tool calls for pure history questions, freeform chat, or questions that should be handled by retrieval.',
     'Keep calls in the same order the user expects them to happen.',
     'Never invent user IDs or task IDs.',
@@ -1033,6 +1083,14 @@ function normalizeDueAt(value: string | null): Date | null {
   }
 
   return parsed;
+}
+
+function normalizeUsageDays(value: number | null | undefined): number {
+  if (!value || !Number.isFinite(value)) {
+    return 7;
+  }
+
+  return Math.min(Math.max(Math.trunc(value), 1), 30);
 }
 
 function normalizeReference(value: string | null | undefined): string | null {

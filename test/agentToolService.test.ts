@@ -229,6 +229,14 @@ function createService(overrides?: {
       }
     } as never,
     {
+      async getUsageSummary() {
+        return 'Server model usage for the last 7 days:\nEstimated cost: $0.420000';
+      },
+      async getUserUsageSummary() {
+        return 'Usage for <@123456789012345678> for the last 7 days:\nEstimated cost: $0.120000';
+      }
+    } as never,
+    {
       async delete(selectionId: string) {
         deletedRecipientSelectionIds.push(selectionId);
       },
@@ -456,6 +464,62 @@ test('AgentToolService routes permission inspection requests through permission 
   assert.ok(result);
   assert.deepEqual(result.executedToolNames, ['list_permissions']);
   assert.match(result.reply, /Effective capabilities/i);
+});
+
+test('AgentToolService routes usage summary requests through usage admin actions', async () => {
+  const { client, service } = createService({
+    plan: {
+      toolCalls: [
+        {
+          days: 7,
+          name: 'get_usage_summary'
+        }
+      ]
+    }
+  });
+
+  const result = await service.maybeHandleDmQuery(
+    'Show me the usage summary for the last 7 days.',
+    {
+      id: 'requester-1',
+      username: 'erick'
+    } as never,
+    client as never,
+    'dm-channel-1'
+  );
+
+  assert.ok(result);
+  assert.deepEqual(result.executedToolNames, ['get_usage_summary']);
+  assert.match(result.reply, /Server model usage/i);
+  assert.match(result.reply, /Estimated cost/i);
+});
+
+test('AgentToolService routes per-user usage requests through usage admin actions', async () => {
+  const { client, service } = createService({
+    plan: {
+      toolCalls: [
+        {
+          days: 7,
+          name: 'get_user_usage_summary',
+          userReference: 'mina'
+        }
+      ]
+    }
+  });
+
+  const result = await service.maybeHandleDmQuery(
+    'Show me Mina usage for the last 7 days.',
+    {
+      id: 'requester-1',
+      username: 'erick'
+    } as never,
+    client as never,
+    'dm-channel-1'
+  );
+
+  assert.ok(result);
+  assert.deepEqual(result.executedToolNames, ['get_user_usage_summary']);
+  assert.match(result.reply, /Usage for <@123456789012345678>/i);
 });
 
 test('AgentToolService can complete a task by title reference', async () => {

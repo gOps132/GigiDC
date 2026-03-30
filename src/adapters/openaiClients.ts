@@ -65,6 +65,15 @@ const toolPlanSchema = z.object({
           userReference: z.string().trim().min(1).max(120).nullable()
         }),
         z.object({
+          name: z.literal('get_usage_summary'),
+          days: z.number().int().min(1).max(30).nullable()
+        }),
+        z.object({
+          name: z.literal('get_user_usage_summary'),
+          userReference: z.string().trim().min(1).max(120).nullable(),
+          days: z.number().int().min(1).max(30).nullable()
+        }),
+        z.object({
           name: z.literal('complete_task'),
           taskReference: z.string().trim().min(1).max(120),
           result: z.string().trim().min(1).max(500).nullable()

@@ -68,6 +68,7 @@ export function getDeterministicDmReply(query: string): string | null {
       '- recall participant-visible relays and tasks',
       '- manage ingestion status and assignment workflows in DM when your guild permissions allow it',
       '- list or manage direct user permissions in DM when your guild permissions allow it',
+      '- inspect token usage and estimated USD cost in DM when your guild permissions allow it',
       '- list or retrieve your own stored sensitive records in DM',
       '- create, list, and complete tasks',
       '- request and confirm permission-gated Gigi-mediated DMs',
@@ -81,7 +82,7 @@ export function getDeterministicDmReply(query: string): string | null {
       normalized
     )
   ) {
-    return 'No. In this bot runtime I cannot run code, provide a sandbox, browse the web, generate images, or use arbitrary external tools. The internal tools here are bounded to task management, permission-gated DM relays, permission-gated ingestion and assignment admin actions, permission management, and DM-only sensitive-data retrieval.';
+    return 'No. In this bot runtime I cannot run code, provide a sandbox, browse the web, generate images, or use arbitrary external tools. The internal tools here are bounded to task management, permission-gated DM relays, permission-gated ingestion and assignment admin actions, permission management, usage reporting, and DM-only sensitive-data retrieval.';
   }
 
   if (/^(how.?s ingestion going|how is ingestion going|what.?s ingestion status)[.!?]*$/i.test(normalized)) {
@@ -92,7 +93,7 @@ export function getDeterministicDmReply(query: string): string | null {
 }
 
 export function looksLikeToolRequest(query: string): boolean {
-  return /\b(task|tasks|todo|to-do|remind|reminder|follow up|follow-up|complete|completed|done|finish|mark .* done|relay|send .* dm|can you dm|dm .* to|dm @|message @|message .* via dm|assign|assignment|assignments|publish assignment|ingestion|channel ingestion|permission|permissions|capability|capabilities|grant .* permission|revoke .* permission)\b/i.test(
+  return /\b(task|tasks|todo|to-do|remind|reminder|follow up|follow-up|complete|completed|done|finish|mark .* done|relay|send .* dm|can you dm|dm .* to|dm @|message @|message .* via dm|assign|assignment|assignments|publish assignment|ingestion|channel ingestion|permission|permissions|capability|capabilities|grant .* permission|revoke .* permission|usage|token usage|cost summary|how much.*cost|estimated cost)\b/i.test(
     query
   );
 }

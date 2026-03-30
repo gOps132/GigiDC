@@ -121,6 +121,7 @@ async function main(): Promise<void> {
     guildAdminActions,
     permissionAdmin,
     rolePolicies,
+    usageAdmin,
     pendingDmRecipientSelections,
     modelUsage,
     logger

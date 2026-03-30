@@ -410,6 +410,7 @@ test('DmConversationService answers deterministic capability questions before re
   assert.equal(answerCalls.length, 0);
   assert.match(replyCalls[0]?.content ?? '', /I cannot browse the web/i);
   assert.match(replyCalls[0]?.content ?? '', /request and confirm permission-gated Gigi-mediated DMs/i);
+  assert.match(replyCalls[0]?.content ?? '', /inspect token usage and estimated USD cost in DM/i);
 });
 
 test('DmConversationService answers guild mentions from the current channel scope without user memory or task memory', async () => {

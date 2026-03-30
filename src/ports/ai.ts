@@ -79,6 +79,15 @@ export type PlannedToolCall =
       userReference: string | null;
     }
   | {
+      days: number | null;
+      name: 'get_usage_summary';
+    }
+  | {
+      days: number | null;
+      name: 'get_user_usage_summary';
+      userReference: string | null;
+    }
+  | {
       context: string | null;
       message: string;
       name: 'send_dm_relay';
