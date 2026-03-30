@@ -288,6 +288,11 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Fix or required workflow: Keep relay-intent detection broad enough to catch common DM phrasings, and if the planner still does not emit a real relay action, fail closed with a recipient-resolution message instead of falling through to normal conversational retrieval.
   Verification step: DM Gigi with a relay-shaped request like `can you dm @user "hello"` and confirm it either creates a real pending relay action or returns a hard failure, never a fake confirmation prompt.
 
+- Issue or symptom: An explicit DM admin request such as usage inspection can fall back to generic conversational retrieval instead of executing the real admin tool path.
+  Root cause: The DM planner can return no tool calls for some valid admin phrasings, and without a deterministic fallback the runtime treats the message like ordinary chat.
+  Fix or required workflow: Add deterministic fallbacks for high-signal DM admin requests when planner misses would otherwise degrade into generic chat, especially for bounded actions like usage summaries.
+  Verification step: DM Gigi with a phrasing like `what is your current usage` and confirm it returns the real usage summary path instead of a generic assistant answer.
+
 - Issue or symptom: A user can visibly type a relay target in Discord DM but the bot still cannot safely resolve which guild member should receive the relay.
   Root cause: Discord UI text, display-name styling, and partial freeform references are not always reliable structured identity signals, so relying only on planner text or a single exact lookup can still fail safe requests.
   Fix or required workflow: Prefer structured mentions when Discord provides them, and when relay recipient text is still ambiguous persist a `pending_dm_recipient_selections` picker so the requester chooses the exact guild user before the real confirmation step is created.

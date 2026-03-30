@@ -522,6 +522,28 @@ test('AgentToolService routes per-user usage requests through usage admin action
   assert.match(result.reply, /Usage for <@123456789012345678>/i);
 });
 
+test('AgentToolService falls back to a real usage summary tool for explicit current-usage questions', async () => {
+  const { client, service } = createService({
+    plan: {
+      toolCalls: []
+    }
+  });
+
+  const result = await service.maybeHandleDmQuery(
+    'what is your current usage',
+    {
+      id: 'requester-1',
+      username: 'erick'
+    } as never,
+    client as never,
+    'dm-channel-1'
+  );
+
+  assert.ok(result);
+  assert.deepEqual(result.executedToolNames, ['get_usage_summary']);
+  assert.match(result.reply, /Server model usage/i);
+});
+
 test('AgentToolService can complete a task by title reference', async () => {
   const { client, markCompletedCalls, service } = createService({
     dispatchAllowed: false,

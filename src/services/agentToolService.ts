@@ -204,10 +204,10 @@ export class AgentToolService {
     }
 
     if (plan.toolCalls.length === 0) {
-      const deterministicRelay = this.buildDeterministicRelayFallback(query, hints?.mentionedUsers);
-      if (deterministicRelay) {
+      const deterministicFallback = this.buildDeterministicToolFallback(query, hints?.mentionedUsers);
+      if (deterministicFallback) {
         plan = {
-          toolCalls: [deterministicRelay]
+          toolCalls: [deterministicFallback]
         };
       } else {
         return looksLikeRelayIntent(query)
@@ -304,6 +304,18 @@ export class AgentToolService {
         ? `<@${nonBotMentions[0]?.id}>`
         : extractedReference!
     };
+  }
+
+  private buildDeterministicToolFallback(
+    query: string,
+    mentionedUsers?: User[]
+  ): PlannedToolCall | null {
+    const usageFallback = buildDeterministicUsageFallback(query, mentionedUsers);
+    if (usageFallback) {
+      return usageFallback;
+    }
+
+    return this.buildDeterministicRelayFallback(query, mentionedUsers);
   }
 
   private async executeToolCall(
@@ -1163,6 +1175,38 @@ function looksLikeRelayIntent(query: string): boolean {
     || (normalized.includes(' dm ') && normalized.includes('“'))
     || (normalized.includes('message ') && normalized.includes('"'))
     || (normalized.includes('message ') && normalized.includes('“'));
+}
+
+function buildDeterministicUsageFallback(
+  query: string,
+  mentionedUsers?: User[]
+): Extract<PlannedToolCall, { name: 'get_usage_summary' | 'get_user_usage_summary' }> | null {
+  const normalized = query.trim().toLowerCase();
+
+  if (
+    /^(what('?s| is)\s+(your|the)\s+current usage|show me (the )?usage summary|show me my usage|what('?s| is)\s+my usage|how much usage did i trigger.*)$/.test(
+      normalized
+    )
+  ) {
+    return {
+      days: null,
+      name: 'get_usage_summary'
+    };
+  }
+
+  const mentionedUser = (mentionedUsers ?? []).find((user) => !user.bot);
+  if (
+    mentionedUser
+    && /\b(show|what('?s| is)|how much).*\busage\b/.test(normalized)
+  ) {
+    return {
+      days: null,
+      name: 'get_user_usage_summary',
+      userReference: `<@${mentionedUser.id}>`
+    };
+  }
+
+  return null;
 }
 
 function formatTaskSummary(task: AgentActionRecord): string {
