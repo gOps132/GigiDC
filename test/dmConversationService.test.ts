@@ -49,6 +49,7 @@ function createContext(overrides?: {
     scope: unknown;
   }> = [];
   const toolCalls: Array<{ channelId: string; query: string; requesterUserId: string }> = [];
+  const recipientSelectionCalls: string[] = [];
   const replyCalls: Array<{ components?: unknown[]; content: string }> = [];
   const storedBotMessages: string[] = [];
   const updateCalls: Array<{ components?: unknown[]; content: string }> = [];
@@ -95,6 +96,12 @@ function createContext(overrides?: {
       },
       agentActions: {},
       agentTools: {
+        async handleRecipientSelection(interaction: { customId: string }) {
+          recipientSelectionCalls.push(interaction.customId);
+        },
+        matchesRecipientSelection(interaction: { customId: string }) {
+          return interaction.customId.startsWith('dm-recipient:');
+        },
         async maybeHandleDmQuery(
           query: string,
           requester: { id: string },
@@ -242,6 +249,7 @@ function createContext(overrides?: {
     interaction,
     message,
     replyCalls,
+    recipientSelectionCalls,
     storedBotMessages,
     toolCalls,
     updateCalls
@@ -311,6 +319,17 @@ test('DmConversationService reads persisted scope selections when the user choos
   assert.match(updateCalls[0]?.content ?? '', /using gigi hq server/i);
   assert.equal(followUpCalls[0]?.content, 'Here is the stored answer');
   assert.deepEqual(storedBotMessages, ['bot-follow-up-1']);
+});
+
+test('DmConversationService delegates persisted recipient selections to the tool service', async () => {
+  const store = new InMemoryPendingDmScopeSelectionStore();
+  const { client, context, interaction, recipientSelectionCalls } = createContext();
+  interaction.customId = 'dm-recipient:selection-9';
+
+  const service = new DmConversationService(context, store);
+  await service.handleSelection(interaction as never, client as never);
+
+  assert.deepEqual(recipientSelectionCalls, ['dm-recipient:selection-9']);
 });
 
 test('DmConversationService persists direct bot-authored DM replies in canonical history', async () => {

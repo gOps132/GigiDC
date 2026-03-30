@@ -55,6 +55,7 @@ Current relay behavior:
 - The requester must have `agent_action_dispatch`.
 - The recipient must have `agent_action_receive`.
 - Cross-user relays may require confirmation before Gigi sends them.
+- If the recipient text is ambiguous, Gigi can show a recipient picker before it creates the real confirmation step.
 - If Gigi cannot create a real pending relay action, it fails closed instead of pretending a confirmation exists.
 
 ### Sensitive data

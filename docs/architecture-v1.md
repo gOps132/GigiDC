@@ -110,6 +110,7 @@ This layer holds the actual bot behavior:
   - delegates guild/admin DM actions into a dedicated guild-capability service instead of hard-coding slash-command-only assumptions
   - rejects Gigi-mediated DM relays unless the recipient also has explicit receive permission
   - resolves Discord users conservatively from self references, mentions, or exact guild names
+  - persists recipient-selection prompts when relay targets are ambiguous instead of guessing the wrong Discord user or falling back to fake confirmation language
   - records audit events for tool execution, denial, and failure paths
 - `GuildAdminActionService`
   - treats DM as another authenticated control surface for guild/admin work
@@ -191,6 +192,7 @@ Control-plane schema:
 - `agent_actions`
 - `audit_logs`
 - `pending_dm_scope_selections`
+- `pending_dm_recipient_selections`
 - `user_profiles`
 - `user_memory_snapshots`
 - `sensitive_data_records`
@@ -473,6 +475,7 @@ The current shared-identity foundation is intentionally narrow, but the repo sho
 - duplicated signal across `messages` and `agent_actions` can create noisy context assembly
 - stale `user_memory_snapshots` can create soft context rot unless refresh, expiry, and traceability stay disciplined
 - cross-user relay confirmations are safer, but they add friction and another state machine that can expire or be abandoned
+- ambiguous relay targets now add a second temporary state machine through `pending_dm_recipient_selections`, which is safer than guessing the wrong user but increases UX friction and persistence overhead
 - the lack of a durable indexing worker means semantic recall can lag behind raw-history recall after restarts
 - broader shared-memory features should not be added by simply widening retrieval scope; they need explicit visibility rules and task boundaries
 - the current DM tool planner can misclassify natural language or fail to resolve people unless the request is explicit

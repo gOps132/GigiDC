@@ -283,6 +283,11 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Fix or required workflow: Keep relay-intent detection broad enough to catch common DM phrasings, and if the planner still does not emit a real relay action, fail closed with a recipient-resolution message instead of falling through to normal conversational retrieval.
   Verification step: DM Gigi with a relay-shaped request like `can you dm @user "hello"` and confirm it either creates a real pending relay action or returns a hard failure, never a fake confirmation prompt.
 
+- Issue or symptom: A user can visibly type a relay target in Discord DM but the bot still cannot safely resolve which guild member should receive the relay.
+  Root cause: Discord UI text, display-name styling, and partial freeform references are not always reliable structured identity signals, so relying only on planner text or a single exact lookup can still fail safe requests.
+  Fix or required workflow: Prefer structured mentions when Discord provides them, and when relay recipient text is still ambiguous persist a `pending_dm_recipient_selections` picker so the requester chooses the exact guild user before the real confirmation step is created.
+  Verification step: DM Gigi with an ambiguous relay target and confirm it shows a recipient picker, then confirm the selected user produces a real relay confirmation instead of a guessed dispatch or a fake prompt.
+
 - Issue or symptom: Guild/admin capabilities can drift into slash-command-only behavior even though the same authenticated user should be able to invoke them from DM.
   Root cause: It is easy to treat Discord surface as the permission boundary instead of treating guild identity and `role_policies` capabilities as the actual authority model.
   Fix or required workflow: Keep guild/admin execution behind shared services that resolve the requester's primary-guild membership, check the same capabilities across surfaces, and fail closed when channel, role, or assignment targets are ambiguous in DM.

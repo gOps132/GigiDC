@@ -8,6 +8,7 @@ function createService(overrides?: {
   dispatchAllowed?: boolean;
   getActionByIdResult?: Record<string, unknown> | null;
   listOpenTasksResult?: Array<Record<string, unknown>>;
+  pendingRecipientSelection?: Record<string, unknown> | null;
   plan?: {
     toolCalls: Array<Record<string, unknown>>;
   };
@@ -17,8 +18,10 @@ function createService(overrides?: {
   const auditCalls: Array<Record<string, unknown>> = [];
   const confirmationCalls: Array<Record<string, unknown>> = [];
   const createTaskCalls: Array<Record<string, unknown>> = [];
+  const deletedRecipientSelectionIds: string[] = [];
   const listOpenTaskCalls: Array<Record<string, unknown>> = [];
   const markCompletedCalls: Array<Record<string, unknown>> = [];
+  const savedRecipientSelections: Array<Record<string, unknown>> = [];
 
   const taskRecord = {
     id: 'task-1',
@@ -60,11 +63,29 @@ function createService(overrides?: {
         const normalized = query.toLowerCase();
         if (normalized === 'mina') {
           return new Map([
-            ['recipient-1', {
+            ['123456789012345678', {
               displayName: 'Mina',
               user: {
-                id: 'recipient-1',
+                id: '123456789012345678',
                 username: 'mina'
+              }
+            }]
+          ]);
+        }
+        if (normalized === 'gops') {
+          return new Map([
+            ['111111111111111111', {
+              displayName: '(｡•̀ᴗ-)✧ Gops ಡ ͜ ʖ ಡ',
+              user: {
+                id: '111111111111111111',
+                username: 'gops'
+              }
+            }],
+            ['222222222222222222', {
+              displayName: 'Gops Dev',
+              user: {
+                id: '222222222222222222',
+                username: 'gopsdev'
               }
             }]
           ]);
@@ -180,13 +201,13 @@ function createService(overrides?: {
     } as never,
     {
       async grantUserPermission() {
-        return 'Granted `permission_admin` directly to <@recipient-1>.';
+        return 'Granted `permission_admin` directly to <@123456789012345678>.';
       },
       async listUserPermissions() {
         return 'Permissions for <@requester-1>:\nEffective capabilities: `agent_action_dispatch`';
       },
       async revokeUserPermission() {
-        return 'Revoked direct grant `permission_admin` from <@recipient-1>.';
+        return 'Revoked direct grant `permission_admin` from <@123456789012345678>.';
       }
     } as never,
     {
@@ -196,6 +217,20 @@ function createService(overrides?: {
         }
 
         return overrides?.dispatchAllowed ?? false;
+      }
+    } as never,
+    {
+      async delete(selectionId: string) {
+        deletedRecipientSelectionIds.push(selectionId);
+      },
+      async deleteExpired() {
+        return;
+      },
+      async get() {
+        return (overrides?.pendingRecipientSelection as never) ?? null;
+      },
+      async save(selection: Record<string, unknown>) {
+        savedRecipientSelections.push(selection);
       }
     } as never,
     {
@@ -211,8 +246,10 @@ function createService(overrides?: {
     client,
     confirmationCalls,
     createTaskCalls,
+    deletedRecipientSelectionIds,
     listOpenTaskCalls,
     markCompletedCalls,
+    savedRecipientSelections,
     service
   };
 }
@@ -434,8 +471,32 @@ test('AgentToolService denies DM relay execution when the recipient lacks receiv
   assert.equal(auditCalls[0]?.action, 'dm.tools.send_dm_relay.recipient_permission_denied');
 });
 
-test('AgentToolService fails closed for relay-shaped requests when the planner does not emit a real relay action', async () => {
+test('AgentToolService fails closed for relay-shaped requests when the planner does not emit a real relay action and no recipient can be resolved', async () => {
   const { client, service } = createService({
+    dispatchAllowed: true,
+    plan: {
+      toolCalls: []
+    }
+  });
+
+  const result = await service.maybeHandleDmQuery(
+    'can you dm @totally-unknown-user "hello"',
+    {
+      id: 'requester-1',
+      username: 'erick'
+    } as never,
+    client as never,
+    'dm-channel-1'
+  );
+
+  assert.ok(result);
+  assert.deepEqual(result.executedToolNames, ['send_dm_relay']);
+  assert.match(result.reply, /could not resolve/i);
+  assert.match(result.reply, /relay recipient/i);
+});
+
+test('AgentToolService offers a recipient picker for ambiguous relay targets', async () => {
+  const { client, savedRecipientSelections, service } = createService({
     dispatchAllowed: true,
     plan: {
       toolCalls: []
@@ -453,9 +514,9 @@ test('AgentToolService fails closed for relay-shaped requests when the planner d
   );
 
   assert.ok(result);
-  assert.deepEqual(result.executedToolNames, []);
-  assert.match(result.reply, /could not turn that into a real DM relay request/i);
-  assert.match(result.reply, /real pending action/i);
+  assert.equal(savedRecipientSelections.length, 1);
+  assert.match(result.reply, /pick who i should dm/i);
+  assert.ok(result.components);
 });
 
 test('AgentToolService synthesizes a relay action from structured DM mentions when the planner misses it', async () => {
@@ -534,4 +595,54 @@ test('AgentToolService prefers structured mentioned users when planner relay ref
   assert.equal(confirmationCalls.length, 1);
   assert.equal(confirmationCalls[0]?.recipientUserId, '123456789012345678');
   assert.equal(confirmationCalls[0]?.message, 'hello there!');
+});
+
+test('AgentToolService resolves recipient picker selections into real relay confirmations', async () => {
+  const { client, confirmationCalls, deletedRecipientSelectionIds, service } = createService({
+    dispatchAllowed: true,
+    pendingRecipientSelection: {
+      channelId: 'dm-channel-1',
+      createdAt: Date.now(),
+      guildId: 'guild-1',
+      id: 'selection-1',
+      recipientOptions: [
+        {
+          displayLabel: 'Gops Dev',
+          userId: '222222222222222222',
+          username: 'gopsdev'
+        }
+      ],
+      relayContext: null,
+      relayMessage: 'hello there!',
+      requesterUserId: 'requester-1',
+      requesterUsername: 'Erick'
+    },
+    recipientAllowed: true,
+    relayPrompt: 'Confirm within 15 minutes and I will send that DM relay.'
+  });
+
+  const updates: Array<Record<string, unknown>> = [];
+  await service.handleRecipientSelection(
+    {
+      customId: 'dm-recipient:selection-1',
+      async reply() {
+        throw new Error('reply should not be used');
+      },
+      update(payload: Record<string, unknown>) {
+        updates.push(payload);
+        return Promise.resolve();
+      },
+      user: {
+        id: 'requester-1',
+        username: 'erick'
+      },
+      values: ['222222222222222222']
+    } as never,
+    client as never
+  );
+
+  assert.deepEqual(deletedRecipientSelectionIds, ['selection-1']);
+  assert.equal(confirmationCalls.length, 1);
+  assert.equal(confirmationCalls[0]?.recipientUserId, '222222222222222222');
+  assert.match(String(updates[0]?.content ?? ''), /confirm within 15 minutes/i);
 });

@@ -1,15 +1,23 @@
-import type {
+import { randomUUID } from 'node:crypto';
+
+import {
   ActionRowBuilder,
-  ButtonBuilder,
-  Client,
-  Guild,
-  GuildMember,
-  User
+  StringSelectMenuBuilder,
+  type ButtonBuilder,
+  type Client,
+  type Guild,
+  type GuildMember,
+  type StringSelectMenuInteraction,
+  type User
 } from 'discord.js';
 
 import type { Env } from '../config/env.js';
 import type { Logger } from '../lib/logger.js';
 import type { PlannedToolCall, ToolPlanningClient } from '../ports/ai.js';
+import type {
+  PendingDmRelayRecipientOption,
+  PendingDmRelayRecipientSelectionStore
+} from '../ports/conversation.js';
 import type { ActionConfirmationService } from './actionConfirmationService.js';
 import type { AuditLogService } from './auditLogService.js';
 import {
@@ -24,9 +32,11 @@ import type { PermissionAdminService } from './permissionAdminService.js';
 import { CAPABILITIES, type RolePolicyService } from './rolePolicyService.js';
 
 const MAX_TOOL_CALLS_PER_TURN = 3;
+const RECIPIENT_SELECT_PREFIX = 'dm-recipient';
+const RECIPIENT_SELECTION_TTL_MS = 15 * 60 * 1000;
 
 export interface DmToolHandlingResult {
-  components?: ActionRowBuilder<ButtonBuilder>[];
+  components?: ActionRowBuilder<any>[];
   executedToolNames: string[];
   reply: string;
 }
@@ -46,7 +56,7 @@ interface ExecutionContext {
 }
 
 interface ToolExecutionResult {
-  components?: ActionRowBuilder<ButtonBuilder>[];
+  components?: ActionRowBuilder<any>[];
   handled: boolean;
   summary: string;
   toolName: PlannedToolCall['name'];
@@ -62,8 +72,98 @@ export class AgentToolService {
     private readonly guildAdminActions: GuildAdminActionService,
     private readonly permissionAdmin: PermissionAdminService,
     private readonly rolePolicies: RolePolicyService,
+    private readonly pendingRecipientSelections: PendingDmRelayRecipientSelectionStore,
     private readonly logger: Logger
   ) {}
+
+  matchesRecipientSelection(interaction: StringSelectMenuInteraction): boolean {
+    return interaction.customId.startsWith(`${RECIPIENT_SELECT_PREFIX}:`);
+  }
+
+  async handleRecipientSelection(
+    interaction: StringSelectMenuInteraction,
+    client: Client
+  ): Promise<void> {
+    const selectionId = interaction.customId.replace(`${RECIPIENT_SELECT_PREFIX}:`, '');
+    const pending = await this.pendingRecipientSelections.get(selectionId);
+
+    if (!pending || Date.now() - pending.createdAt > RECIPIENT_SELECTION_TTL_MS) {
+      await this.pendingRecipientSelections.delete(selectionId);
+      await interaction.reply({
+        content: 'That recipient selection has expired. Ask me again and I will re-run it.'
+      });
+      return;
+    }
+
+    if (pending.requesterUserId !== interaction.user.id) {
+      await interaction.reply({
+        content: 'That recipient picker belongs to another user.'
+      });
+      return;
+    }
+
+    const recipient = pending.recipientOptions.find((option) => option.userId === interaction.values[0]);
+    if (!recipient) {
+      await interaction.reply({
+        content: 'That recipient option was not recognized.'
+      });
+      return;
+    }
+
+    await this.pendingRecipientSelections.delete(selectionId);
+
+    const guild = await this.resolvePrimaryGuild(client);
+    const requesterMember = guild
+      ? await guild.members.fetch(interaction.user.id).catch(() => null)
+      : null;
+    const executionContext: ExecutionContext = {
+      client,
+      currentChannelId: pending.channelId,
+      guild,
+      mentionedUsers: [],
+      requester: interaction.user,
+      requesterLabel: pending.requesterUsername,
+      requesterMember
+    };
+
+    if (!(await this.canDispatchSharedActions(executionContext))) {
+      await interaction.update({
+        content: 'You no longer have permission to dispatch shared Gigi actions.',
+        components: []
+      });
+      return;
+    }
+
+    const recipientAllowed = await this.canReceiveSharedActions(recipient.userId, executionContext);
+    if (!recipientAllowed) {
+      await interaction.update({
+        content: 'I can only DM users through Gigi if that user has `agent_action_receive` permission in the primary server.',
+        components: []
+      });
+      return;
+    }
+
+    const confirmation = await this.actionConfirmations.requestRelayConfirmation({
+      channelId: pending.channelId,
+      context: pending.relayContext,
+      guildId: pending.guildId,
+      message: pending.relayMessage,
+      metadata: {
+        createdFrom: 'dm_recipient_selection',
+        plannerSurface: 'dm',
+        recipientSelectionId: pending.id
+      },
+      recipientUserId: recipient.userId,
+      recipientUsername: recipient.username,
+      requesterUserId: pending.requesterUserId,
+      requesterUsername: pending.requesterUsername
+    });
+
+    await interaction.update({
+      content: confirmation.reply,
+      components: confirmation.components
+    });
+  }
 
   async maybeHandleDmQuery(
     query: string,
@@ -105,13 +205,13 @@ export class AgentToolService {
           toolCalls: [deterministicRelay]
         };
       } else {
-      return looksLikeRelayIntent(query)
-        ? {
-            executedToolNames: [],
-            reply: 'I could not turn that into a real DM relay request. Mention the user explicitly, use `me`, or use their exact Discord name so I can create a real pending action.',
-            components: undefined
-          }
-        : null;
+        return looksLikeRelayIntent(query)
+          ? {
+              executedToolNames: [],
+              reply: 'I could not turn that into a real DM relay request. Mention the user explicitly, use `me`, or use their exact Discord name so I can create a real pending action.',
+              components: undefined
+            }
+          : null;
       }
     }
 
@@ -166,16 +266,18 @@ export class AgentToolService {
     }
 
     const nonBotMentions = (mentionedUsers ?? []).filter((user) => !user.bot);
-    if (nonBotMentions.length !== 1) {
+    const extractedReference = extractRelayRecipientReference(query);
+    if (nonBotMentions.length !== 1 && !extractedReference) {
       return null;
     }
 
-    const recipient = nonBotMentions[0];
     return {
       context: null,
       message: relayMessage,
       name: 'send_dm_relay',
-      recipientReference: `<@${recipient.id}>`
+      recipientReference: nonBotMentions.length === 1
+        ? `<@${nonBotMentions[0]?.id}>`
+        : extractedReference!
     };
   }
 
@@ -418,6 +520,23 @@ export class AgentToolService {
 
     const recipient = await this.resolveUserReference(toolCall.recipientReference, context);
     if (!recipient) {
+      const recipientCandidates = await this.findRelayRecipientCandidates(
+        toolCall.recipientReference,
+        context
+      );
+
+      if (recipientCandidates.length === 1) {
+        const [directCandidate] = recipientCandidates;
+        const directRecipient = await context.client.users.fetch(directCandidate.userId).catch(() => null);
+        if (directRecipient) {
+          return this.executeRelayForRecipient(toolCall, context, directRecipient);
+        }
+      }
+
+      if (recipientCandidates.length > 1) {
+        return this.createRelayRecipientSelection(toolCall, context, recipientCandidates);
+      }
+
       return {
         handled: true,
         summary: unresolvedUserSummary(toolCall.recipientReference, 'relay recipient'),
@@ -425,6 +544,14 @@ export class AgentToolService {
       };
     }
 
+    return this.executeRelayForRecipient(toolCall, context, recipient);
+  }
+
+  private async executeRelayForRecipient(
+    toolCall: Extract<PlannedToolCall, { name: 'send_dm_relay' }>,
+    context: ExecutionContext,
+    recipient: User
+  ): Promise<ToolExecutionResult> {
     const recipientAllowed = await this.canReceiveSharedActions(recipient.id, context);
     if (!recipientAllowed) {
       await this.recordAudit(context, 'dm.tools.send_dm_relay.recipient_permission_denied', null, {
@@ -458,6 +585,51 @@ export class AgentToolService {
       handled: true,
       components: confirmation.components,
       summary: confirmation.reply,
+      toolName: toolCall.name
+    };
+  }
+
+  private async createRelayRecipientSelection(
+    toolCall: Extract<PlannedToolCall, { name: 'send_dm_relay' }>,
+    context: ExecutionContext,
+    candidates: PendingDmRelayRecipientOption[]
+  ): Promise<ToolExecutionResult> {
+    const selectionId = randomUUID();
+    await this.pendingRecipientSelections.deleteExpired(new Date());
+    await this.pendingRecipientSelections.save(
+      {
+        channelId: context.currentChannelId,
+        createdAt: Date.now(),
+        guildId: context.guild?.id ?? null,
+        id: selectionId,
+        recipientOptions: candidates,
+        relayContext: toolCall.context?.trim() ?? null,
+        relayMessage: toolCall.message.trim(),
+        requesterUserId: context.requester.id,
+        requesterUsername: context.requesterLabel
+      },
+      new Date(Date.now() + RECIPIENT_SELECTION_TTL_MS)
+    );
+
+    return {
+      handled: true,
+      components: [
+        new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId(`${RECIPIENT_SELECT_PREFIX}:${selectionId}`)
+            .setPlaceholder('Choose who Gigi should DM')
+            .addOptions(
+              candidates.slice(0, 25).map((candidate) => ({
+                description: candidate.displayLabel === candidate.username
+                  ? undefined
+                  : truncateComponentText(`@${candidate.username}`),
+                label: truncateComponentText(candidate.displayLabel),
+                value: candidate.userId
+              }))
+            )
+        )
+      ],
+      summary: `I found multiple possible users for "${toolCall.recipientReference ?? 'that recipient'}". Pick who I should DM, then I’ll create the real confirmation step.`,
       toolName: toolCall.name
     };
   }
@@ -718,6 +890,53 @@ export class AgentToolService {
       : null;
   }
 
+  private async findRelayRecipientCandidates(
+    userReference: string | null,
+    context: ExecutionContext
+  ): Promise<PendingDmRelayRecipientOption[]> {
+    const candidates = new Map<string, PendingDmRelayRecipientOption>();
+    for (const mentionedUser of context.mentionedUsers) {
+      if (mentionedUser.bot) {
+        continue;
+      }
+
+      candidates.set(mentionedUser.id, {
+        displayLabel: mentionedUser.globalName ?? mentionedUser.username,
+        username: mentionedUser.username,
+        userId: mentionedUser.id
+      });
+    }
+
+    if (!context.guild) {
+      return [...candidates.values()];
+    }
+
+    const searchQueries = buildRecipientSearchQueries(userReference);
+    for (const query of searchQueries) {
+      const memberMatches = await context.guild.members.search({
+        query,
+        limit: 5
+      }).catch(() => null);
+      if (!memberMatches) {
+        continue;
+      }
+
+      for (const member of memberMatches.values()) {
+        if (member.user.bot) {
+          continue;
+        }
+
+        candidates.set(member.user.id, {
+          displayLabel: member.displayName ?? member.user.globalName ?? member.user.username,
+          username: member.user.username,
+          userId: member.user.id
+        });
+      }
+    }
+
+    return [...candidates.values()];
+  }
+
   private async resolveTaskReference(
     taskReference: string,
     requesterUserId: string
@@ -817,6 +1036,28 @@ function extractQuotedRelayMessage(query: string): string | null {
   return message && message.length > 0 ? message : null;
 }
 
+function extractRelayRecipientReference(query: string): string | null {
+  const beforeQuote = query.search(/["“]/) >= 0
+    ? query.slice(0, query.search(/["“]/))
+    : query;
+  const cleaned = beforeQuote.trim();
+  const patterns = [
+    /\b(?:can you\s+)?dm\s+(?<recipient>.+)$/i,
+    /\b(?:can you\s+)?message\s+(?<recipient>.+)$/i,
+    /\b(?:can you\s+)?send(?:\s+\w+)?\s+a\s+dm\s+to\s+(?<recipient>.+)$/i,
+    /\b(?:can you\s+)?send\s+(?<recipient>.+?)\s+a\s+dm$/i
+  ];
+
+  for (const pattern of patterns) {
+    const recipient = pattern.exec(cleaned)?.groups?.recipient?.trim();
+    if (recipient) {
+      return recipient;
+    }
+  }
+
+  return null;
+}
+
 function looksLikeExplicitMentionReference(value: string | null | undefined): boolean {
   if (!value) {
     return false;
@@ -850,4 +1091,23 @@ function formatTaskSummary(task: AgentActionRecord): string {
 
 function truncateForMetadata(value: string): string {
   return value.slice(0, 200);
+}
+
+function buildRecipientSearchQueries(userReference: string | null): string[] {
+  const normalized = normalizeReference(userReference);
+  if (!normalized) {
+    return [];
+  }
+
+  const tokenMatches = normalized.match(/[\p{L}\p{N}_-]{2,}/gu) ?? [];
+  const searchQueries = new Set<string>([normalized]);
+  for (const token of tokenMatches.sort((left, right) => right.length - left.length)) {
+    searchQueries.add(token);
+  }
+
+  return [...searchQueries].slice(0, 5);
+}
+
+function truncateComponentText(value: string): string {
+  return value.slice(0, 100);
 }

@@ -228,7 +228,8 @@ export class DmConversationService {
   }
 
   matches(interaction: StringSelectMenuInteraction): boolean {
-    return interaction.customId.startsWith(`${DM_SCOPE_SELECT_PREFIX}:`);
+    return interaction.customId.startsWith(`${DM_SCOPE_SELECT_PREFIX}:`)
+      || this.context.services.agentTools.matchesRecipientSelection(interaction);
   }
 
   matchesButton(interaction: ButtonInteraction): boolean {
@@ -236,6 +237,11 @@ export class DmConversationService {
   }
 
   async handleSelection(interaction: StringSelectMenuInteraction, client: Client): Promise<void> {
+    if (this.context.services.agentTools.matchesRecipientSelection(interaction)) {
+      await this.context.services.agentTools.handleRecipientSelection(interaction, client);
+      return;
+    }
+
     const selectionId = interaction.customId.replace(`${DM_SCOPE_SELECT_PREFIX}:`, '');
     const pending = await this.pendingSelections.get(selectionId);
 

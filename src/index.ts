@@ -18,6 +18,7 @@ import {
 } from './adapters/supabaseControlPlane.js';
 import {
   SupabaseMessageHistoryRepository,
+  SupabasePendingDmRelayRecipientSelectionStore,
   SupabasePendingDmScopeSelectionStore
 } from './adapters/supabaseHistory.js';
 import { createDiscordClient } from './discord/client.js';
@@ -53,6 +54,7 @@ async function main(): Promise<void> {
   const responses = new OpenAIResponseClient(openai);
   const toolPlanner = new OpenAIToolPlanningClient(openai);
   const historyRepository = new SupabaseMessageHistoryRepository(supabase);
+  const pendingDmRecipientSelections = new SupabasePendingDmRelayRecipientSelectionStore(supabase);
   const pendingDmScopeSelections = new SupabasePendingDmScopeSelectionStore(supabase);
   const userProfileStore = new SupabaseUserProfileStore(supabase);
   const userMemorySnapshotStore = new SupabaseUserMemorySnapshotStore(supabase);
@@ -112,6 +114,7 @@ async function main(): Promise<void> {
     guildAdminActions,
     permissionAdmin,
     rolePolicies,
+    pendingDmRecipientSelections,
     logger
   );
 

@@ -1,6 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import type { PendingDmScopeSelection, PendingDmScopeSelectionStore } from '../ports/conversation.js';
+import type {
+  PendingDmRelayRecipientSelection,
+  PendingDmRelayRecipientSelectionStore,
+  PendingDmScopeSelection,
+  PendingDmScopeSelectionStore
+} from '../ports/conversation.js';
 import type {
   HistoryMessageRecord,
   HistoryScope,
@@ -18,6 +23,19 @@ interface PendingDmScopeSelectionRow {
   query: string;
   scope_options: PendingDmScopeSelection['scopeOptions'];
   user_id: string;
+}
+
+interface PendingDmRelayRecipientSelectionRow {
+  channel_id: string;
+  created_at: string;
+  expires_at: string;
+  guild_id: string | null;
+  id: string;
+  recipient_options: PendingDmRelayRecipientSelection['recipientOptions'];
+  relay_context: string | null;
+  relay_message: string;
+  requester_user_id: string;
+  requester_username: string;
 }
 
 export class SupabaseMessageHistoryRepository implements MessageHistoryRepository {
@@ -224,6 +242,85 @@ export class SupabasePendingDmScopeSelectionStore implements PendingDmScopeSelec
 
     if (error) {
       throw new Error(`Failed to clean up expired DM scope selections: ${error.message}`);
+    }
+  }
+}
+
+export class SupabasePendingDmRelayRecipientSelectionStore implements PendingDmRelayRecipientSelectionStore {
+  constructor(private readonly supabase: SupabaseClient) {}
+
+  async save(selection: PendingDmRelayRecipientSelection, expiresAt: Date): Promise<void> {
+    const { error } = await this.supabase.from('pending_dm_recipient_selections').upsert(
+      {
+        id: selection.id,
+        requester_user_id: selection.requesterUserId,
+        requester_username: selection.requesterUsername,
+        relay_message: selection.relayMessage,
+        relay_context: selection.relayContext,
+        recipient_options: selection.recipientOptions,
+        guild_id: selection.guildId,
+        channel_id: selection.channelId,
+        created_at: new Date(selection.createdAt).toISOString(),
+        expires_at: expiresAt.toISOString()
+      },
+      {
+        onConflict: 'id'
+      }
+    );
+
+    if (error) {
+      throw new Error(`Failed to save pending DM recipient selection: ${error.message}`);
+    }
+  }
+
+  async get(selectionId: string): Promise<PendingDmRelayRecipientSelection | null> {
+    const { data, error } = await this.supabase
+      .from('pending_dm_recipient_selections')
+      .select('*')
+      .eq('id', selectionId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to load pending DM recipient selection: ${error.message}`);
+    }
+
+    const row = (data as PendingDmRelayRecipientSelectionRow | null) ?? null;
+    if (!row) {
+      return null;
+    }
+
+    return {
+      channelId: row.channel_id,
+      createdAt: new Date(row.created_at).getTime(),
+      guildId: row.guild_id,
+      id: row.id,
+      recipientOptions: row.recipient_options,
+      relayContext: row.relay_context,
+      relayMessage: row.relay_message,
+      requesterUserId: row.requester_user_id,
+      requesterUsername: row.requester_username
+    };
+  }
+
+  async delete(selectionId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('pending_dm_recipient_selections')
+      .delete()
+      .eq('id', selectionId);
+
+    if (error) {
+      throw new Error(`Failed to delete pending DM recipient selection: ${error.message}`);
+    }
+  }
+
+  async deleteExpired(now: Date): Promise<void> {
+    const { error } = await this.supabase
+      .from('pending_dm_recipient_selections')
+      .delete()
+      .lt('expires_at', now.toISOString());
+
+    if (error) {
+      throw new Error(`Failed to clean up expired DM recipient selections: ${error.message}`);
     }
   }
 }
