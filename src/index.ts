@@ -44,6 +44,7 @@ import { RolePolicyService } from './services/rolePolicyService.js';
 import { RuntimeStateService } from './services/runtimeStateService.js';
 import { SensitiveDataService } from './services/sensitiveDataService.js';
 import { UserMemoryService } from './services/userMemoryService.js';
+import { UsageAdminService } from './services/usageAdminService.js';
 import { startWebhookServer } from './web/server.js';
 
 async function main(): Promise<void> {
@@ -75,6 +76,7 @@ async function main(): Promise<void> {
   const modelUsage = new ModelUsageService(modelUsageStore);
   const sensitiveData = new SensitiveDataService(env, sensitiveDataStore, logger);
   const permissionAdmin = new PermissionAdminService(env, auditLogs, rolePolicies);
+  const usageAdmin = new UsageAdminService(env, auditLogs, modelUsage, rolePolicies);
   const messageIndexing = new MessageIndexingService(env, embeddings, historyRepository, modelUsage, logger);
   const messageHistory = new MessageHistoryService(
     env,
@@ -142,7 +144,8 @@ async function main(): Promise<void> {
       retrieval,
       rolePolicies,
       sensitiveData,
-      userMemory
+      userMemory,
+      usageAdmin
     }
   };
 

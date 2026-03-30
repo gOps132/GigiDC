@@ -199,6 +199,98 @@ export class SupabaseModelUsageStore implements ModelUsageStore {
       throw new Error(`Failed to record model usage event: ${error.message}`);
     }
   }
+
+  async listDailySummary(input: {
+    days: number;
+    guildId: string;
+  }): Promise<Array<{
+    estimatedCostUsd: number;
+    eventCount: number;
+    inputTokens: number;
+    model: string;
+    operation: string;
+    outputTokens: number;
+    provider: string;
+    surface: string;
+    totalTokens: number;
+    usageDay: string;
+  }>> {
+    const since = new Date();
+    since.setUTCDate(since.getUTCDate() - Math.max(input.days - 1, 0));
+    since.setUTCHours(0, 0, 0, 0);
+
+    const { data, error } = await this.supabase
+      .from('model_usage_daily_summary')
+      .select('*')
+      .eq('guild_id', input.guildId)
+      .gte('usage_day', since.toISOString())
+      .order('usage_day', { ascending: false })
+      .order('estimated_cost_usd', { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to list daily model usage summary: ${error.message}`);
+    }
+
+    return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      estimatedCostUsd: Number(row.estimated_cost_usd ?? 0),
+      eventCount: Number(row.event_count ?? 0),
+      inputTokens: Number(row.input_tokens ?? 0),
+      model: String(row.model ?? ''),
+      operation: String(row.operation ?? ''),
+      outputTokens: Number(row.output_tokens ?? 0),
+      provider: String(row.provider ?? ''),
+      surface: String(row.surface ?? ''),
+      totalTokens: Number(row.total_tokens ?? 0),
+      usageDay: String(row.usage_day ?? '')
+    }));
+  }
+
+  async listRequesterDailySummary(input: {
+    days: number;
+    guildId: string;
+    requesterUserId: string;
+  }): Promise<Array<{
+    estimatedCostUsd: number;
+    eventCount: number;
+    inputTokens: number;
+    operation: string;
+    outputTokens: number;
+    provider: string;
+    requesterUserId: string;
+    surface: string;
+    totalTokens: number;
+    usageDay: string;
+  }>> {
+    const since = new Date();
+    since.setUTCDate(since.getUTCDate() - Math.max(input.days - 1, 0));
+    since.setUTCHours(0, 0, 0, 0);
+
+    const { data, error } = await this.supabase
+      .from('model_usage_requester_daily_summary')
+      .select('*')
+      .eq('guild_id', input.guildId)
+      .eq('requester_user_id', input.requesterUserId)
+      .gte('usage_day', since.toISOString())
+      .order('usage_day', { ascending: false })
+      .order('estimated_cost_usd', { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to list requester model usage summary: ${error.message}`);
+    }
+
+    return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      estimatedCostUsd: Number(row.estimated_cost_usd ?? 0),
+      eventCount: Number(row.event_count ?? 0),
+      inputTokens: Number(row.input_tokens ?? 0),
+      operation: String(row.operation ?? ''),
+      outputTokens: Number(row.output_tokens ?? 0),
+      provider: String(row.provider ?? ''),
+      requesterUserId: String(row.requester_user_id ?? ''),
+      surface: String(row.surface ?? ''),
+      totalTokens: Number(row.total_tokens ?? 0),
+      usageDay: String(row.usage_day ?? '')
+    }));
+  }
 }
 
 export class SupabaseAgentActionStore implements AgentActionStore {

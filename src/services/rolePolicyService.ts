@@ -10,7 +10,8 @@ export const CAPABILITIES = {
   assignmentAdmin: 'assignment_admin',
   ingestionAdmin: 'ingestion_admin',
   historyGuildWide: 'history_guild_wide',
-  permissionAdmin: 'permission_admin'
+  permissionAdmin: 'permission_admin',
+  usageAdmin: 'usage_admin'
 } as const;
 
 export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];

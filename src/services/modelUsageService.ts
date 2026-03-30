@@ -23,6 +23,32 @@ export interface RecordModelUsageInput {
   totalTokens: number | null;
 }
 
+export interface ModelUsageDailySummaryRow {
+  estimatedCostUsd: number;
+  eventCount: number;
+  inputTokens: number;
+  model: string;
+  operation: string;
+  outputTokens: number;
+  provider: string;
+  surface: string;
+  totalTokens: number;
+  usageDay: string;
+}
+
+export interface ModelUsageRequesterDailySummaryRow {
+  estimatedCostUsd: number;
+  eventCount: number;
+  inputTokens: number;
+  operation: string;
+  outputTokens: number;
+  provider: string;
+  requesterUserId: string;
+  surface: string;
+  totalTokens: number;
+  usageDay: string;
+}
+
 export class ModelUsageService {
   constructor(private readonly store: ModelUsageStore) {}
 
@@ -41,5 +67,20 @@ export class ModelUsageService {
       surface: input.surface,
       totalTokens: input.totalTokens
     });
+  }
+
+  async listDailySummary(input: {
+    days: number;
+    guildId: string;
+  }): Promise<ModelUsageDailySummaryRow[]> {
+    return this.store.listDailySummary(input);
+  }
+
+  async listRequesterDailySummary(input: {
+    days: number;
+    guildId: string;
+    requesterUserId: string;
+  }): Promise<ModelUsageRequesterDailySummaryRow[]> {
+    return this.store.listRequesterDailySummary(input);
   }
 }

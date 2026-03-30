@@ -89,7 +89,8 @@ values
   ('your-discord-guild-id', 'assignment_admin', 'your-assignment-admin-role-id'),
   ('your-discord-guild-id', 'ingestion_admin', 'your-ingestion-admin-role-id'),
   ('your-discord-guild-id', 'history_guild_wide', 'your-history-enabled-role-id'),
-  ('your-discord-guild-id', 'permission_admin', 'your-permission-admin-role-id');
+  ('your-discord-guild-id', 'permission_admin', 'your-permission-admin-role-id'),
+  ('your-discord-guild-id', 'usage_admin', 'your-usage-admin-role-id');
 ```
 
 Direct one-off user grants are now stored in `user_capability_grants` and can be managed from Discord with `/permission`.
@@ -143,6 +144,7 @@ Then validate:
 
 - `/ping` responds
 - `/permission list`, `/permission grant`, and `/permission revoke` work for a user with `permission_admin`
+- `/usage summary` and `/usage user` work for a user with `usage_admin`
 - `/ingestion status` shows whether the current channel is enabled
 - `/ingestion enable` turns ingestion on for the current or selected channel
 - `/ingestion disable` turns ingestion off again

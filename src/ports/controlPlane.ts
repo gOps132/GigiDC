@@ -29,6 +29,37 @@ export interface AuditLogStore {
 
 export interface ModelUsageStore {
   record(input: RecordModelUsageInput): Promise<void>;
+  listDailySummary(input: {
+    days: number;
+    guildId: string;
+  }): Promise<Array<{
+    estimatedCostUsd: number;
+    eventCount: number;
+    inputTokens: number;
+    model: string;
+    operation: string;
+    outputTokens: number;
+    provider: string;
+    surface: string;
+    totalTokens: number;
+    usageDay: string;
+  }>>;
+  listRequesterDailySummary(input: {
+    days: number;
+    guildId: string;
+    requesterUserId: string;
+  }): Promise<Array<{
+    estimatedCostUsd: number;
+    eventCount: number;
+    inputTokens: number;
+    operation: string;
+    outputTokens: number;
+    provider: string;
+    requesterUserId: string;
+    surface: string;
+    totalTokens: number;
+    usageDay: string;
+  }>>;
 }
 
 export interface AgentActionStore {

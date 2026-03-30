@@ -22,6 +22,7 @@ import type { RolePolicyService } from '../services/rolePolicyService.js';
 import type { RuntimeStateService } from '../services/runtimeStateService.js';
 import type { SensitiveDataService } from '../services/sensitiveDataService.js';
 import type { UserMemoryService } from '../services/userMemoryService.js';
+import type { UsageAdminService } from '../services/usageAdminService.js';
 
 export interface BotContext {
   env: Env;
@@ -42,6 +43,7 @@ export interface BotContext {
       rolePolicies: RolePolicyService;
       sensitiveData: SensitiveDataService;
       userMemory: UserMemoryService;
+      usageAdmin: UsageAdminService;
   };
 }
 
