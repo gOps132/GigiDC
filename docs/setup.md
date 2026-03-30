@@ -44,7 +44,7 @@ Required variables:
 4. Enable the `MESSAGE CONTENT INTENT` in the Discord Developer Portal
 5. Invite the bot to your test server
 6. Use your server ID as `DISCORD_GUILD_ID` during development so slash command updates appear quickly
-7. Set `PRIMARY_GUILD_ID` if you want DM guild-wide retrieval checks in V1
+7. Set `PRIMARY_GUILD_ID` so DM retrieval can bind to Gigi's primary server in V1
 
 ## Supabase Setup
 
@@ -54,7 +54,7 @@ Required variables:
 4. Apply the baseline migrations with `supabase db push`
 5. For local development, start the local stack with `npm run supabase:start`
 6. Reset the local database from the checked-in migrations with `npm run supabase:db:reset`
-7. Create `role_policies` rows when you are ready to delegate assignment and guild-wide history access beyond Discord administrators
+7. Create `role_policies` rows when you are ready to delegate assignment, ingestion, permission, usage, and other admin capabilities beyond Discord administrators
 8. If you want guild-channel history storage, add rows to `channel_ingestion_policies` for the channels that should be ingested
 
 Current checked-in baseline migrations:
@@ -88,12 +88,13 @@ values
   ('your-discord-guild-id', 'agent_action_receive', 'your-gigi-dm-recipient-role-id'),
   ('your-discord-guild-id', 'assignment_admin', 'your-assignment-admin-role-id'),
   ('your-discord-guild-id', 'ingestion_admin', 'your-ingestion-admin-role-id'),
-  ('your-discord-guild-id', 'history_guild_wide', 'your-history-enabled-role-id'),
   ('your-discord-guild-id', 'permission_admin', 'your-permission-admin-role-id'),
   ('your-discord-guild-id', 'usage_admin', 'your-usage-admin-role-id');
 ```
 
 Direct one-off user grants are now stored in `user_capability_grants` and can be managed from Discord with `/permission`.
+
+`history_guild_wide` is a legacy compatibility capability and is no longer required for ordinary DM retrieval from Gigi's configured primary server.
 
 Example ingestion policy shape:
 

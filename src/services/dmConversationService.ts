@@ -14,7 +14,6 @@ import {
 
 import type { BotContext } from '../discord/types.js';
 import type { PendingDmScopeSelectionStore, ScopeOption } from '../ports/conversation.js';
-import { CAPABILITIES } from './rolePolicyService.js';
 import { DmIntentRouter } from './dmIntentRouter.js';
 import {
   resolveDmScope,
@@ -314,16 +313,6 @@ export class DmConversationService {
     };
 
     if (!primaryGuild || !primaryMember) {
-      return [dmScope];
-    }
-
-    const allowed = await this.context.services.rolePolicies.memberHasCapability(
-      primaryGuild,
-      primaryMember,
-      CAPABILITIES.historyGuildWide
-    );
-
-    if (!allowed) {
       return [dmScope];
     }
 

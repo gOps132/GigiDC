@@ -38,6 +38,7 @@ function createContext(overrides?: {
   botReplyId?: string;
   guildName?: string;
   outboundStoreError?: Error | null;
+  primaryGuildMemberMissing?: boolean;
   primaryGuildId?: string;
   retrievalAnswer?: string;
   toolReply?: string | null;
@@ -60,7 +61,13 @@ function createContext(overrides?: {
     id: guildId,
     name: overrides?.guildName ?? 'Gigi HQ',
     members: {
-      fetch: async (_userId: string) => ({})
+      fetch: async (_userId: string) => {
+        if (overrides?.primaryGuildMemberMissing) {
+          throw new Error('member not found');
+        }
+
+        return {};
+      }
     }
   };
 
@@ -256,10 +263,9 @@ function createContext(overrides?: {
   };
 }
 
-test('DmConversationService defaults DM retrieval to the primary server when guild-wide history is allowed', async () => {
+test('DmConversationService defaults DM retrieval to the primary server for members of the configured server', async () => {
   const store = new InMemoryPendingDmScopeSelectionStore();
   const { answerCalls, client, context, message, replyCalls, storedBotMessages } = createContext({
-    allowGuildWideHistory: true,
     primaryGuildId: 'guild-1',
     retrievalAnswer: 'server-first answer'
   });
@@ -278,10 +284,9 @@ test('DmConversationService defaults DM retrieval to the primary server when gui
   assert.deepEqual(storedBotMessages, ['bot-reply-1']);
 });
 
-test('DmConversationService keeps explicit DM-scoped questions inside the DM history even when guild-wide history is allowed', async () => {
+test('DmConversationService keeps explicit DM-scoped questions inside the DM history even when the user is a primary-server member', async () => {
   const store = new InMemoryPendingDmScopeSelectionStore();
   const { answerCalls, client, context, message, replyCalls, storedBotMessages } = createContext({
-    allowGuildWideHistory: true,
     primaryGuildId: 'guild-1',
     retrievalAnswer: 'dm-scoped answer'
   });
@@ -300,10 +305,11 @@ test('DmConversationService keeps explicit DM-scoped questions inside the DM his
   assert.deepEqual(storedBotMessages, ['bot-reply-1']);
 });
 
-test('DmConversationService refuses explicit primary-server requests when guild-wide history is not allowed', async () => {
+test('DmConversationService refuses explicit primary-server requests when the user is not a member of the configured server', async () => {
   const store = new InMemoryPendingDmScopeSelectionStore();
   const { answerCalls, client, context, message, replyCalls, storedBotMessages } = createContext({
-    allowGuildWideHistory: false,
+    primaryGuildId: 'guild-1',
+    primaryGuildMemberMissing: true,
     retrievalAnswer: 'should not be used'
   });
   message.content = 'What did they say in the server yesterday?';
@@ -320,7 +326,6 @@ test('DmConversationService refuses explicit primary-server requests when guild-
 test('DmConversationService persists scope selection prompts only when the user explicitly asks across DM and server context', async () => {
   const store = new InMemoryPendingDmScopeSelectionStore();
   const { client, context, message, replyCalls, storedBotMessages } = createContext({
-    allowGuildWideHistory: true,
     primaryGuildId: 'guild-1'
   });
   message.content = 'What did we say in this DM versus the server yesterday?';

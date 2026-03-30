@@ -18,7 +18,7 @@ V1 is a reduced Discord bot architecture built for:
 - DM-only sensitive-data retrieval that bypasses model prompts and embeddings
 - slash-command assignment notices
 - exact + semantic retrieval over raw Discord history
-- role-gated guild-wide history access
+- primary-server-bound DM retrieval for members of the configured server
 
 The current repo now breaks down cleanly into six graph-derived layers:
 
@@ -94,7 +94,7 @@ This layer holds the actual bot behavior:
   - handles guild mentions through a public-safe mention path that uses the current channel as retrieval scope
   - routes explicit tool-style DM requests through a bounded planner/executor path before retrieval
   - routes free-text confirm/cancel turns through the persisted action-confirmation path
-  - defaults DM retrieval to the configured primary server for members with guild-wide history access
+  - defaults DM retrieval to the configured primary server for members of that server
   - keeps explicit `this DM` or other private-chat phrasing on DM-only history instead of silently widening the scope
   - only asks for a scope picker when the user explicitly mixes DM and server scope in the same request
   - persists pending scope-selection state so Discord select menus survive process restarts
@@ -249,7 +249,7 @@ Use them for:
 - scoped follow-up questions
 - bounded task and relay execution when the request is explicit enough to plan safely
 
-For members with `history_guild_wide`, DM retrieval is primary-server-first by default.
+For members of the configured primary server, DM retrieval is primary-server-first by default.
 
 Explicit private phrasing such as `in this DM` keeps retrieval on the DM thread.
 
@@ -464,12 +464,10 @@ That behavior is controlled by `REGISTER_COMMANDS_ON_STARTUP`, which keeps boot 
 
 V1 supports:
 
-- `Guild-wide` in the configured primary guild as the default DM retrieval scope for permitted members
+- `Guild-wide` in the configured primary guild as the default DM retrieval scope for members of that server
 - `This DM` as an explicit private-history override
 
-Guild-wide history access is role-gated by `history_guild_wide`.
-
-If a DM user explicitly asks for primary-server history without that capability, the runtime refuses instead of silently falling back to DM-only history.
+If a DM user explicitly asks for primary-server history without being a member of the configured server, the runtime refuses instead of silently falling back to DM-only history.
 
 Channel-ingestion administration is role-gated by `ingestion_admin`.
 
@@ -477,7 +475,7 @@ Shared Gigi relay and task dispatch is role-gated by `agent_action_dispatch`.
 
 Receiving a Gigi-mediated DM relay is role-gated by `agent_action_receive`.
 
-Participant-visible action and task recall does not require guild-wide history access. Retrieval can use `agent_actions` for the requester or recipient/assignee of a Gigi-mediated relay or task while still keeping unrelated guild history gated.
+Participant-visible action and task recall does not require broader server-history access. Retrieval can use `agent_actions` for the requester or recipient/assignee of a Gigi-mediated relay or task while still keeping unrelated guild history gated.
 
 Authority is intentionally surface-agnostic:
 
@@ -504,6 +502,7 @@ The current shared-identity foundation is intentionally narrow, but the repo sho
 
 - retrieval quality can decay as DM and bot-authored history grows unless ranking and summarization improve
 - primary-server-first DM retrieval can surprise users who expected a private-thread answer unless private-scope wording stays explicit in the UX and docs
+- member-based DM server retrieval widens what ordinary server members can recall from ingested server history, so ingestion policy and channel-selection discipline matter even more
 - canonical storage now contains more private conversational material, which increases retention and deletion pressure
 - duplicated signal across `messages` and `agent_actions` can create noisy context assembly
 - stale `user_memory_snapshots` can create soft context rot unless refresh, expiry, and traceability stay disciplined

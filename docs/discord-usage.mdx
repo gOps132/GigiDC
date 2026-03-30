@@ -36,7 +36,7 @@ Examples:
 
 Current DM retrieval behavior:
 
-- For members with `history_guild_wide`, DM retrieval defaults to the configured primary server.
+- For members of Gigi's configured server, DM retrieval defaults to the configured primary server.
 - If you want only the private DM thread, say so explicitly.
 - If you ask across both contexts, Gigi can ask you to pick the scope.
 
@@ -157,7 +157,7 @@ At a high level, Gigi follows this shape:
 ## Failure Cases You Should Expect
 
 - Permission-denied replies when you lack the required capability
-- A refusal when you explicitly ask for primary-server history in DM but your account does not have that history access
+- A refusal when you explicitly ask for primary-server history in DM but your account is not recognized as a member of Gigi's configured server
 - Refusals when a user or task cannot be resolved safely
 - DM-only enforcement for sensitive-data retrieval
 - Public mention replies that refuse to run private or administrative actions in-channel

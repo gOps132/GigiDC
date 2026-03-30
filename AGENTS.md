@@ -295,7 +295,7 @@ Only promote issues into memory when they are recurring, costly, security-releva
 
 - Issue or symptom: DM conversation can feel detached from Gigi's single-server identity when ordinary DM retrieval defaults to `This DM` even for members who should primarily be asking about the main server.
   Root cause: The earlier DM retrieval flow treated `This DM` as the default scope and only offered guild-wide history as an optional picker, which made Gigi feel like a separate DM assistant instead of the private interface to the primary guild.
-  Fix or required workflow: For members with `history_guild_wide`, default DM retrieval to the configured primary server, keep explicit `this DM` or private-chat phrasing on DM-only history, and only show the persisted scope picker when a user explicitly mixes DM and server context in one request.
+  Fix or required workflow: For members of the configured primary server, default DM retrieval to that server, keep explicit `this DM` or private-chat phrasing on DM-only history, and only show the persisted scope picker when a user explicitly mixes DM and server context in one request.
   Verification step: DM Gigi with `what did we talk about yesterday?` and confirm it uses the primary server scope, then DM `what did we talk about in this DM yesterday?` and confirm it stays on DM-only history.
 
 - Issue or symptom: A user can visibly type a relay target in Discord DM but the bot still cannot safely resolve which guild member should receive the relay.
