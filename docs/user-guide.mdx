@@ -5,7 +5,7 @@ description: How members can use Gigi in Discord.
 
 # User Guide
 
-Gigi works best as a DM-first Discord bot with optional server commands for structured workflows.
+Gigi works best as a DM-first Discord bot with mention-based channel conversation and optional structured server commands.
 
 ## Start Here
 
@@ -19,11 +19,20 @@ Examples:
 - `mark task <task-id> done`
 - `send a message to @user saying I need the final draft tonight`
 
+You can also mention Gigi in a server channel for public, channel-scoped conversation.
+
+Examples:
+
+- `@GigiDC what were we talking about earlier?`
+- `@GigiDC summarize the last few messages here`
+- `@GigiDC hello`
+
 ## What Gigi Can Do
 
 For most members, Gigi currently supports:
 
 - DM conversation and follow-up questions
+- mention-based public conversation using the current channel as context
 - Task creation, task listing, and task completion
 - Shared DM relays when the requester and recipient both have the right permission
 - Permission-aware recall from Gigi-visible history and shared task/action memory
@@ -52,6 +61,20 @@ Use slash commands when you want:
 - a structured form for relay and task actions inside a server
 
 DM and slash are both just interfaces. Your actual authority comes from your guild identity and Gigi permissions.
+
+### Channel Mentions
+
+Use a channel mention when you want:
+
+- a public answer in the current channel
+- channel-specific recall instead of DM history
+- lightweight conversational help without opening DM
+
+Current mention behavior is intentionally narrower than DM:
+
+- Gigi answers from the current channel scope
+- Gigi does not disclose sensitive data in channel replies
+- Gigi redirects public tool/admin/action requests back to DM or slash commands
 
 ## Important Limits
 

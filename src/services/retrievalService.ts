@@ -10,6 +10,11 @@ export interface RetrievalAnswer {
   source: 'action' | 'exact' | 'semantic' | 'direct';
 }
 
+export interface RetrievalAnswerOptions {
+  includeParticipantMemory?: boolean;
+  includeUserMemory?: boolean;
+}
+
 export class RetrievalService {
   constructor(
     private readonly env: Env,
@@ -24,8 +29,11 @@ export class RetrievalService {
     query: string,
     scope: HistoryScope,
     requesterUserId: string,
-    botUserId: string
+    botUserId: string,
+    options?: RetrievalAnswerOptions
   ): Promise<RetrievalAnswer> {
+    const includeParticipantMemory = options?.includeParticipantMemory ?? true;
+    const includeUserMemory = options?.includeUserMemory ?? true;
     const phraseCountIntent = parsePhraseCountIntent(query, requesterUserId, botUserId);
 
     if (phraseCountIntent) {
@@ -43,16 +51,18 @@ export class RetrievalService {
 
     const recent = await this.loadRecentMessages(scope);
     const semanticMatches = await this.loadSemanticMatches(scope, query);
-    const taskMatches = isTaskAwareQuery(query)
+    const taskMatches = includeParticipantMemory && isTaskAwareQuery(query)
       ? await this.loadTaskMatches(requesterUserId)
       : [];
-    const actionMatches = isHistoryAwareQuery(query)
+    const actionMatches = includeParticipantMemory && isHistoryAwareQuery(query)
       ? await this.loadActionMatches(requesterUserId, query)
       : [];
-    const userMemoryContext = await this.userMemory.buildContext(
-      requesterUserId,
-      this.env.PRIMARY_GUILD_ID ?? this.env.DISCORD_GUILD_ID ?? null
-    );
+    const userMemoryContext = includeUserMemory
+      ? await this.userMemory.buildContext(
+          requesterUserId,
+          this.env.PRIMARY_GUILD_ID ?? this.env.DISCORD_GUILD_ID ?? null
+        )
+      : [];
 
     if (
       semanticMatches.length === 0
@@ -105,7 +115,7 @@ export class RetrievalService {
         instructions: [
           'You are GigiDC, a Discord assistant.',
           'Only describe the capabilities that actually exist in this bot runtime.',
-          'Actual supported capabilities are DM chat, DM history recall, permitted guild-history recall, phrase counting, participant-visible task memory, participant-visible relay memory, requester-centric user memory snapshots, task create/list/complete, permission-gated DM relays with explicit confirmation, permission-gated ingestion and assignment admin actions in DM, direct user permission management in DM when allowed, and DM-only sensitive-data retrieval for the right user.',
+          'Actual supported capabilities are DM chat, mention-based channel chat with channel-scoped recall, DM history recall, permitted guild-history recall, phrase counting, participant-visible task memory, participant-visible relay memory, requester-centric user memory snapshots, task create/list/complete, permission-gated DM relays with explicit confirmation, permission-gated ingestion and assignment admin actions in DM, direct user permission management in DM when allowed, and DM-only sensitive-data retrieval for the right user.',
           'Do not claim to have web search, browsing, code execution, a sandbox, image generation, translation tools, or arbitrary external tool access.',
           'If chat history context is supplied, use it carefully.',
           'Be concise and practical.',

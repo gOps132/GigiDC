@@ -7,6 +7,23 @@ description: Real examples of how to talk to Gigi in DMs and use slash commands 
 
 This page covers the current supported ways to interact with Gigi.
 
+## Channel Mentions
+
+Mention Gigi in a server channel when you want a public answer scoped to that channel.
+
+Examples:
+
+- `@GigiDC hello`
+- `@GigiDC what were we talking about earlier?`
+- `@GigiDC summarize this conversation`
+
+Current mention behavior:
+
+- Gigi uses the current channel as the default history scope
+- Gigi replies publicly in-channel
+- Gigi does not use DM-only sensitive-data flows in public channels
+- Gigi redirects tasks, relays, permissions, confirmations, and admin actions back to DM or slash commands
+
 ## DM Examples
 
 ### Normal conversation
@@ -99,6 +116,7 @@ At a high level, Gigi follows this shape:
 
 ## Good Usage Patterns
 
+- Mention Gigi in-channel for public channel-specific questions.
 - Use explicit mentions for people.
 - Use task IDs when completing tasks.
 - Use full ISO-8601 timestamps for due dates.
@@ -110,4 +128,5 @@ At a high level, Gigi follows this shape:
 - Permission-denied replies when you lack the required capability
 - Refusals when a user or task cannot be resolved safely
 - DM-only enforcement for sensitive-data retrieval
+- Public mention replies that refuse to run private or administrative actions in-channel
 - No action taken when a pending confirmation does not exist or has expired

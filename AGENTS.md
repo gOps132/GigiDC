@@ -263,6 +263,11 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Fix or required workflow: Let DM conversation handling continue even if history persistence fails, degrade retrieval gracefully when semantic search is unavailable, and send a best-effort fallback error reply when DM handling still throws.
   Verification step: Run `npm run test` and confirm the Discord DM handler and retrieval fallback tests pass, especially the storage-failure and semantic-search-failure cases.
 
+- Issue or symptom: Mentioning Gigi in a guild channel can produce no response even though DM chat works.
+  Root cause: The runtime originally only routed `MessageCreate` into conversation handling for DMs, while guild messages were treated as ingestion-only unless they were slash interactions.
+  Fix or required workflow: Keep an explicit guild-mention conversation path in the message handler that uses the current channel as retrieval scope, continues even when ingestion is disabled for that channel, and refuses public execution of private or administrative actions.
+  Verification step: Run the Discord client and conversation tests, then mention Gigi in a server channel and confirm it replies from channel context instead of silently doing nothing.
+
 - Issue or symptom: Gigi can hallucinate unsupported tools or broader runtime capabilities in DM if capability questions are left entirely to the language model.
   Root cause: A generic assistant prompt invites the model to answer from prior expectations instead of the actual bot runtime surface.
   Fix or required workflow: Ground capability and unsupported-tool questions with deterministic DM-intent routing, and keep the retrieval prompt explicit about the real bot surface: DM chat, retrieval, bounded user memory, tasks, and permission-gated relays only.

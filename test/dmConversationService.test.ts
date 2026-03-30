@@ -358,3 +358,81 @@ test('DmConversationService answers deterministic capability questions before re
   assert.match(replyCalls[0]?.content ?? '', /I cannot browse the web/i);
   assert.match(replyCalls[0]?.content ?? '', /request and confirm permission-gated Gigi-mediated DMs/i);
 });
+
+test('DmConversationService answers guild mentions from the current channel scope without user memory or task memory', async () => {
+  const store = new InMemoryPendingDmScopeSelectionStore();
+  const { answerCalls, client, context, message, replyCalls, storedBotMessages, toolCalls } = createContext({
+    retrievalAnswer: 'Channel answer'
+  });
+  const service = new DmConversationService(context, store);
+
+  const guildMessage = {
+    ...message,
+    author: {
+      ...message.author,
+      globalName: 'Gops'
+    },
+    channel: {
+      isDMBased: () => false
+    },
+    channelId: 'channel-9',
+    content: '<@bot-user> what were we talking about?',
+    guildId: 'guild-1',
+    inGuild: () => true,
+    member: {
+      displayName: 'Gops'
+    },
+    mentions: {
+      users: {
+        has(userId: string) {
+          return userId === 'bot-user';
+        }
+      }
+    }
+  };
+
+  await service.handleGuildMention(guildMessage as never, client as never);
+
+  assert.equal(toolCalls.length, 0);
+  assert.equal(answerCalls.length, 1);
+  assert.deepEqual(answerCalls[0]?.scope, {
+    kind: 'guild',
+    guildId: 'guild-1',
+    channelId: 'channel-9'
+  });
+  assert.equal(replyCalls[0]?.content, 'Channel answer');
+  assert.deepEqual(storedBotMessages, ['bot-reply-1']);
+});
+
+test('DmConversationService redirects guild mention tool requests back to DM or slash commands', async () => {
+  const store = new InMemoryPendingDmScopeSelectionStore();
+  const { answerCalls, client, context, message, replyCalls, toolCalls } = createContext();
+  const service = new DmConversationService(context, store);
+
+  const guildMessage = {
+    ...message,
+    channel: {
+      isDMBased: () => false
+    },
+    channelId: 'channel-9',
+    content: '<@bot-user> create a task for me',
+    guildId: 'guild-1',
+    inGuild: () => true,
+    member: {
+      displayName: 'Gops'
+    },
+    mentions: {
+      users: {
+        has(userId: string) {
+          return userId === 'bot-user';
+        }
+      }
+    }
+  };
+
+  await service.handleGuildMention(guildMessage as never, client as never);
+
+  assert.equal(toolCalls.length, 0);
+  assert.equal(answerCalls.length, 0);
+  assert.match(replyCalls[0]?.content ?? '', /DM me or use the matching slash command/i);
+});

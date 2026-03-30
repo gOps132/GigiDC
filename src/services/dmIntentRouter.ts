@@ -60,8 +60,9 @@ export function getDeterministicDmReply(query: string): string | null {
   ) {
     return [
       'In this bot runtime I can:',
-      '- chat in DM',
+      '- chat in DM and when you mention me in a server channel',
       '- answer from your DM history',
+      '- answer from the current channel when you mention me there',
       '- answer from permitted primary-server history when you have access',
       '- count exact phrases from stored history',
       '- recall participant-visible relays and tasks',

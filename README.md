@@ -27,7 +27,7 @@ Gigi gives CS/IT Archive members one consistent bot experience across DMs and se
 
 ```mermaid
 flowchart LR
-    User["Discord User"] --> Surface["DM / Slash / Buttons"]
+    User["Discord User"] --> Surface["DM / Mentions / Slash / Buttons"]
     Surface --> Gigi["GigiDC"]
     Gigi --> Router["Intent + Permission Router"]
     Router --> Memory["History, Tasks, User Memory"]
@@ -47,7 +47,7 @@ flowchart LR
 
 ## What GigiDC Offers
 
-- Personalized DM-first interaction
+- Personalized DM-first interaction with mention-based channel chat
 - Shared memory across supported workflows
 - Permission-aware guild actions
 - Sensitive-data disclosure in DM only

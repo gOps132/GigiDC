@@ -22,7 +22,7 @@ Gigi is a personalized Discord bot for CS/IT Archive.
     Set up the local bot, environment variables, and Discord app wiring.
   </Card>
   <Card title="Architecture" href="/architecture-v1">
-    Understand the DM-first runtime, permissions, memory, and data boundaries.
+    Understand the DM-first and mention-aware runtime, permissions, memory, and data boundaries.
   </Card>
   <Card title="Deploy" href="/deploy-ec2">
     Ship GigiDC to EC2 with the current release and service workflow.
@@ -34,7 +34,7 @@ Gigi is a personalized Discord bot for CS/IT Archive.
 
 ## Core Capabilities
 
-- DM-first interaction for questions, memory-aware follow-ups, and supported actions
+- DM-first interaction plus mention-based channel conversation for questions and follow-ups
 - Permission-aware guild operations across DM and slash surfaces
 - Shared task and action memory for continuity
 - DM-only sensitive-data disclosure for the authorized user
@@ -43,7 +43,7 @@ Gigi is a personalized Discord bot for CS/IT Archive.
 
 ```mermaid
 flowchart LR
-    User["Discord User"] --> Surface["DM / Slash / Buttons"]
+    User["Discord User"] --> Surface["DM / Mentions / Slash / Buttons"]
     Surface --> Gigi["GigiDC"]
     Gigi --> Router["Intent + Permission Router"]
     Router --> Memory["History, Tasks, User Memory"]

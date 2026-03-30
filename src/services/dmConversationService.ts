@@ -14,7 +14,12 @@ import type { BotContext } from '../discord/types.js';
 import type { PendingDmScopeSelectionStore, ScopeOption } from '../ports/conversation.js';
 import { CAPABILITIES } from './rolePolicyService.js';
 import { DmIntentRouter } from './dmIntentRouter.js';
-import { resolveDmScope, resolvePrimaryGuildScope, type HistoryScope } from './messageHistoryService.js';
+import {
+  resolveDmScope,
+  resolveGuildChannelScope,
+  resolvePrimaryGuildScope,
+  type HistoryScope
+} from './messageHistoryService.js';
 
 const DM_SCOPE_SELECT_PREFIX = 'dm-scope';
 const PENDING_SCOPE_TTL_MS = 15 * 60 * 1000;
@@ -146,6 +151,77 @@ export class DmConversationService {
       content: answer.answer
     });
     await this.captureOutboundReply(reply, 'dm direct reply');
+  }
+
+  shouldHandleGuildMention(message: Message, client: Client): boolean {
+    if (!message.inGuild() || message.author.bot) {
+      return false;
+    }
+
+    const botUserId = client.user?.id;
+    if (!botUserId) {
+      return false;
+    }
+
+    return message.mentions.users.has(botUserId);
+  }
+
+  async handleGuildMention(message: Message, client: Client): Promise<void> {
+    if (!message.inGuild() || message.author.bot || !client.user) {
+      return;
+    }
+
+    const query = normalizeGuildMentionQuery(message.content, client.user.id);
+    if (query.length === 0) {
+      const reply = await message.reply({
+        content: 'Hi. Ask me about this channel, or DM me for private actions.'
+      });
+      await this.captureOutboundReply(reply, 'guild mention greeting');
+      return;
+    }
+
+    await this.context.services.userMemory.syncProfile({
+      displayName: message.member?.displayName ?? message.author.globalName ?? null,
+      guildId: message.guildId,
+      user: message.author
+    });
+
+    const route = this.intentRouter.route(query);
+    if (route.kind === 'direct_reply') {
+      const reply = await message.reply({
+        content: route.reply
+      });
+      await this.captureOutboundReply(reply, 'guild mention direct reply');
+      return;
+    }
+
+    if (
+      route.kind === 'tool_request'
+      || route.kind === 'confirm_pending_action'
+      || route.kind === 'cancel_pending_action'
+    ) {
+      const reply = await message.reply({
+        content: 'I can answer from this channel when you mention me here, but for tasks, relays, permissions, admin actions, confirmations, or sensitive-data flows, DM me or use the matching slash command.'
+      });
+      await this.captureOutboundReply(reply, 'guild mention tool redirect');
+      return;
+    }
+
+    const answer = await this.context.services.retrieval.answerQuestion(
+      query,
+      resolveGuildChannelScope(message.guildId, message.channelId),
+      message.author.id,
+      client.user.id,
+      {
+        includeParticipantMemory: false,
+        includeUserMemory: false
+      }
+    );
+
+    const reply = await message.reply({
+      content: answer.answer
+    });
+    await this.captureOutboundReply(reply, 'guild mention reply');
   }
 
   matches(interaction: StringSelectMenuInteraction): boolean {
@@ -283,4 +359,9 @@ function shouldPromptForScope(query: string, scopeOptions: ScopeOption[]): boole
   return /\b(remember|history|chat|message|messages|said|mention|mentioned|talking|talked|discuss|discussed|asked|want|wanted|relay|again|last week|yesterday|before|server|guild)\b/i.test(
     query
   );
+}
+
+function normalizeGuildMentionQuery(content: string, botUserId: string): string {
+  const mentionPattern = new RegExp(`<@!?${botUserId}>`, 'g');
+  return content.replace(mentionPattern, '').trim();
 }

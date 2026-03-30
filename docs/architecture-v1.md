@@ -10,6 +10,7 @@ description: Detailed architecture model for the current GigiDC runtime, memory,
 V1 is a reduced Discord bot architecture built for:
 
 - DM-first agentic interaction
+- mention-based channel conversation with current-channel history scope
 - participant-visible shared Gigi tasks and actions for relay and follow-up continuity
 - bounded multi-tool DM execution on top of that shared task/action substrate
 - guild/admin actions reachable from DM when the requester has the same guild capability they would need through slash commands
@@ -66,6 +67,7 @@ src/index.ts
 discord/client.ts
   -> slash commands in src/commands/*
   -> DM message handling
+  -> guild mention message handling
   -> message history indexing
   -> DM retrieval orchestration
 ```
@@ -77,7 +79,7 @@ discord/client.ts
 This layer is the Discord-facing shell:
 
 - `src/index.ts` bootstraps env, clients, services, command registration, and `/healthz`
-- `src/discord/client.ts` owns gateway event handling for interactions and DMs
+- `src/discord/client.ts` owns gateway event handling for interactions, DMs, and guild mentions
 - `src/discord/registerCommands.ts` pushes slash-command definitions to Discord
 - `src/commands/*` expose the current slash surface
 - `src/web/server.ts` exposes the health endpoint used by infrastructure checks
@@ -88,12 +90,14 @@ This layer holds the actual bot behavior:
 
 - `DmConversationService`
   - uses a deterministic DM intent router before any model planning
+  - handles guild mentions through a public-safe mention path that uses the current channel as retrieval scope
   - routes explicit tool-style DM requests through a bounded planner/executor path before retrieval
   - routes free-text confirm/cancel turns through the persisted action-confirmation path
   - decides whether a DM question needs a scope picker
   - persists pending scope-selection state so Discord select menus survive process restarts
   - resolves `This DM` vs guild-wide history access
   - persists bot-authored DM prompts and answers immediately so canonical history does not depend on gateway echo timing
+  - keeps mention replies public-safe by refusing sensitive-data flows and redirecting public tool/admin/action requests back to DM or slash commands
   - calls retrieval and sends the final Discord reply
 - `ActionConfirmationService`
   - creates persisted pending relay actions instead of letting the model improvise confirmation language
@@ -136,6 +140,8 @@ This layer holds the actual bot behavior:
   - falls back to recent-message context plus semantic search
   - adds participant-visible agent action and open-task context for history-aware follow-up questions
   - adds requester-centric user-memory snapshot context for self-oriented DM continuity
+  - can answer from a channel-scoped guild history window for mention-based public conversation
+  - can suppress participant memory and user-memory context for public channel replies
   - asks OpenAI Responses for the final natural-language answer
 - `MessageHistoryService`
   - stores DM history immediately and stores guild history only for channels with ingestion enabled

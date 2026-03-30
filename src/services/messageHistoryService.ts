@@ -192,6 +192,14 @@ export function resolvePrimaryGuildScope(guildId: string): HistoryScope {
   };
 }
 
+export function resolveGuildChannelScope(guildId: string, channelId: string): HistoryScope {
+  return {
+    kind: 'guild',
+    guildId,
+    channelId
+  };
+}
+
 export function resolveDmScope(user: User): HistoryScope {
   return {
     kind: 'dm',

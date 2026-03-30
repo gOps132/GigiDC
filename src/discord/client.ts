@@ -129,6 +129,7 @@ export async function handleIncomingDiscordMessage(
   client: Client,
   context: BotContext
 ): Promise<void> {
+  const isGuildMention = context.services.dmConversation.shouldHandleGuildMention(message, client);
   let storeSucceeded = true;
   const skipHistoryStorage =
     message.channel.isDMBased()
@@ -139,7 +140,12 @@ export async function handleIncomingDiscordMessage(
     if (!skipHistoryStorage) {
       const result = await context.services.messageHistory.storeDiscordMessage(message);
 
-      if (message.inGuild() && !result.stored && result.reason === 'skipped_by_ingestion_policy') {
+      if (
+        message.inGuild()
+        && !result.stored
+        && result.reason === 'skipped_by_ingestion_policy'
+        && !isGuildMention
+      ) {
         return;
       }
     }
@@ -152,28 +158,51 @@ export async function handleIncomingDiscordMessage(
       error: messageText
     });
 
-    if (message.inGuild() || message.author.bot) {
+    if ((message.inGuild() && !isGuildMention) || message.author.bot) {
       return;
     }
   }
 
-  if (!message.channel.isDMBased() || message.author.bot) {
+  if (message.author.bot) {
+    return;
+  }
+
+  if (message.channel.isDMBased()) {
+    try {
+      await context.services.dmConversation.handleMessage(message, client);
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : 'Unknown DM conversation error';
+      context.logger.error('Discord DM handling failed', {
+        channelId: message.channelId,
+        messageId: message.id,
+        error: messageText,
+        historyStored: !skipHistoryStorage && storeSucceeded
+      });
+
+      await message.reply({
+        content: 'I hit an internal error while handling that DM. Try again in a moment.'
+      }).catch(() => undefined);
+    }
+    return;
+  }
+
+  if (!isGuildMention) {
     return;
   }
 
   try {
-    await context.services.dmConversation.handleMessage(message, client);
+    await context.services.dmConversation.handleGuildMention(message, client);
   } catch (error) {
-    const messageText = error instanceof Error ? error.message : 'Unknown DM conversation error';
-    context.logger.error('Discord DM handling failed', {
+    const messageText = error instanceof Error ? error.message : 'Unknown guild mention conversation error';
+    context.logger.error('Discord guild mention handling failed', {
       channelId: message.channelId,
       messageId: message.id,
       error: messageText,
-      historyStored: !skipHistoryStorage && storeSucceeded
+      historyStored: storeSucceeded
     });
 
     await message.reply({
-      content: 'I hit an internal error while handling that DM. Try again in a moment.'
+      content: 'I hit an internal error while handling that mention. Try again in a moment.'
     }).catch(() => undefined);
   }
 }
