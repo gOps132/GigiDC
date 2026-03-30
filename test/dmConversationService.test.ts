@@ -95,12 +95,24 @@ function createContext(overrides?: {
       },
       agentActions: {},
       agentTools: {
-        async maybeHandleDmQuery(query: string, requester: { id: string }, _client: unknown, channelId: string) {
+        async maybeHandleDmQuery(
+          query: string,
+          requester: { id: string },
+          _client: unknown,
+          channelId: string,
+          hints?: { mentionedUsers?: Array<{ id: string }> }
+        ) {
           toolCalls.push({
             channelId,
             query,
             requesterUserId: requester.id
           });
+          if (hints?.mentionedUsers?.length) {
+            toolCalls[toolCalls.length - 1] = {
+              ...toolCalls[toolCalls.length - 1],
+              mentionedUserId: hints.mentionedUsers[0]?.id
+            } as never;
+          }
 
           if (!overrides?.toolReply) {
             return null;
@@ -185,6 +197,9 @@ function createContext(overrides?: {
       isDMBased: () => true
     },
     content: 'What did we talk about yesterday?',
+    mentions: {
+      users: new Map()
+    },
     async reply(payload: { components?: unknown[]; content: string }) {
       replyCalls.push(payload);
       return {
@@ -328,6 +343,25 @@ test('DmConversationService routes tool-style DM requests through the tool servi
   assert.equal(answerCalls.length, 0);
   assert.equal(replyCalls[0]?.content, 'Created task `task-1` and listed your open tasks.');
   assert.deepEqual(storedBotMessages, ['bot-reply-1']);
+});
+
+test('DmConversationService passes structured mentioned users into DM tool handling', async () => {
+  const store = new InMemoryPendingDmScopeSelectionStore();
+  const { client, context, message, toolCalls } = createContext({
+    toolReply: 'I’m ready to DM friend through Gigi.'
+  });
+  message.content = 'can you dm <@friend-1> "hello there!"';
+  message.mentions = {
+    users: new Map([
+      ['friend-1', { id: 'friend-1' }]
+    ])
+  };
+
+  const service = new DmConversationService(context, store);
+  await service.handleMessage(message as never, client as never);
+
+  assert.equal(toolCalls.length, 1);
+  assert.equal((toolCalls[0] as never).mentionedUserId, 'friend-1');
 });
 
 test('DmConversationService handles free-text confirmations through the confirmation service before retrieval', async () => {

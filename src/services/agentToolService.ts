@@ -31,10 +31,15 @@ export interface DmToolHandlingResult {
   reply: string;
 }
 
+export interface DmToolPlanningHints {
+  mentionedUsers?: User[];
+}
+
 interface ExecutionContext {
   client: Client;
   currentChannelId: string;
   guild: Guild | null;
+  mentionedUsers: User[];
   requester: User;
   requesterLabel: string;
   requesterMember: GuildMember | null;
@@ -64,7 +69,8 @@ export class AgentToolService {
     query: string,
     requester: User,
     client: Client,
-    currentChannelId: string
+    currentChannelId: string,
+    hints?: DmToolPlanningHints
   ): Promise<DmToolHandlingResult | null> {
     if (!looksLikeToolRequest(query)) {
       return null;
@@ -93,6 +99,12 @@ export class AgentToolService {
     }
 
     if (plan.toolCalls.length === 0) {
+      const deterministicRelay = this.buildDeterministicRelayFallback(query, hints?.mentionedUsers);
+      if (deterministicRelay) {
+        plan = {
+          toolCalls: [deterministicRelay]
+        };
+      } else {
       return looksLikeRelayIntent(query)
         ? {
             executedToolNames: [],
@@ -100,6 +112,7 @@ export class AgentToolService {
             components: undefined
           }
         : null;
+      }
     }
 
     const guild = await this.resolvePrimaryGuild(client);
@@ -111,6 +124,7 @@ export class AgentToolService {
       client,
       currentChannelId,
       guild,
+      mentionedUsers: hints?.mentionedUsers ?? [],
       requester,
       requesterLabel,
       requesterMember
@@ -135,6 +149,33 @@ export class AgentToolService {
       components: results.find((result) => result.components)?.components,
       executedToolNames: results.map((result) => result.toolName),
       reply: results.map((result) => result.summary).join('\n\n')
+    };
+  }
+
+  private buildDeterministicRelayFallback(
+    query: string,
+    mentionedUsers?: User[]
+  ): Extract<PlannedToolCall, { name: 'send_dm_relay' }> | null {
+    if (!looksLikeRelayIntent(query)) {
+      return null;
+    }
+
+    const relayMessage = extractQuotedRelayMessage(query);
+    if (!relayMessage) {
+      return null;
+    }
+
+    const nonBotMentions = (mentionedUsers ?? []).filter((user) => !user.bot);
+    if (nonBotMentions.length !== 1) {
+      return null;
+    }
+
+    const recipient = nonBotMentions[0];
+    return {
+      context: null,
+      message: relayMessage,
+      name: 'send_dm_relay',
+      recipientReference: `<@${recipient.id}>`
     };
   }
 
@@ -631,6 +672,10 @@ export class AgentToolService {
       return context.client.users.fetch(mentionedUserId).catch(() => null);
     }
 
+    if (context.mentionedUsers.length === 1 && looksLikeExplicitMentionReference(userReference)) {
+      return context.mentionedUsers[0] ?? null;
+    }
+
     if (!context.guild) {
       return null;
     }
@@ -764,6 +809,20 @@ function unresolvedUserSummary(reference: string | null, targetLabel: string): s
   }
 
   return `I could not resolve "${reference}" as the ${targetLabel}. Mention the user explicitly or use their exact Discord name.`;
+}
+
+function extractQuotedRelayMessage(query: string): string | null {
+  const match = query.match(/["“](?<message>[^"”]+)["”]/);
+  const message = match?.groups?.message?.trim() ?? null;
+  return message && message.length > 0 ? message : null;
+}
+
+function looksLikeExplicitMentionReference(value: string | null | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+
+  return value.includes('@') || value.includes('<@');
 }
 
 function looksLikeRelayIntent(query: string): boolean {

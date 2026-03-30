@@ -457,3 +457,81 @@ test('AgentToolService fails closed for relay-shaped requests when the planner d
   assert.match(result.reply, /could not turn that into a real DM relay request/i);
   assert.match(result.reply, /real pending action/i);
 });
+
+test('AgentToolService synthesizes a relay action from structured DM mentions when the planner misses it', async () => {
+  const { client, confirmationCalls, service } = createService({
+    dispatchAllowed: true,
+    recipientAllowed: true,
+    plan: {
+      toolCalls: []
+    },
+    relayPrompt: 'Confirm within 15 minutes and I will send that DM relay.'
+  });
+
+  const result = await service.maybeHandleDmQuery(
+    'can you dm <@123456789012345678> "hello there!"',
+    {
+      id: 'requester-1',
+      username: 'erick'
+    } as never,
+    client as never,
+    'dm-channel-1',
+    {
+      mentionedUsers: [
+        {
+          bot: false,
+          id: '123456789012345678',
+          username: 'mina'
+        } as never
+      ]
+    }
+  );
+
+  assert.ok(result);
+  assert.equal(confirmationCalls.length, 1);
+  assert.equal(confirmationCalls[0]?.recipientUserId, '123456789012345678');
+  assert.equal(confirmationCalls[0]?.message, 'hello there!');
+  assert.match(result.reply, /confirm within 15 minutes/i);
+});
+
+test('AgentToolService prefers structured mentioned users when planner relay references stay text-like', async () => {
+  const { client, confirmationCalls, service } = createService({
+    dispatchAllowed: true,
+    recipientAllowed: true,
+    plan: {
+      toolCalls: [
+        {
+          context: null,
+          message: 'hello there!',
+          name: 'send_dm_relay',
+          recipientReference: '@(｡•̀ᴗ-)✧ Gops ಡ ͜ ʖ ಡ'
+        }
+      ]
+    },
+    relayPrompt: 'Confirm within 15 minutes and I will send that DM relay.'
+  });
+
+  const result = await service.maybeHandleDmQuery(
+    'can you dm @(｡•̀ᴗ-)✧ Gops ಡ ͜ ʖ ಡ "hello there!"',
+    {
+      id: 'requester-1',
+      username: 'erick'
+    } as never,
+    client as never,
+    'dm-channel-1',
+    {
+      mentionedUsers: [
+        {
+          bot: false,
+          id: '123456789012345678',
+          username: 'mina'
+        } as never
+      ]
+    }
+  );
+
+  assert.ok(result);
+  assert.equal(confirmationCalls.length, 1);
+  assert.equal(confirmationCalls[0]?.recipientUserId, '123456789012345678');
+  assert.equal(confirmationCalls[0]?.message, 'hello there!');
+});

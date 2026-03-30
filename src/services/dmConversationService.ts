@@ -95,7 +95,10 @@ export class DmConversationService {
         query,
         message.author,
         client,
-        message.channelId
+        message.channelId,
+        {
+          mentionedUsers: [...message.mentions.users.values()].filter((user) => user.id !== client.user?.id)
+        }
       );
       if (toolResult) {
         const reply = await message.reply({
