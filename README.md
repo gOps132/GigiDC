@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/branding/gigidc-logo-circle.svg" width="128" alt="GigiDC logo" />
+  <img src="assets/branding/gigidc-logo-square.png" width="128" alt="GigiDC logo" />
 </p>
 
 <h1 align="center">GigiDC</h1>

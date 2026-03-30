@@ -4,8 +4,8 @@
   "name": "GigiDC",
   "description": "Gigi is a personalized Discord bot for CS/IT Archive.",
   "logo": {
-    "light": "/images/gigidc-logo-circle.svg",
-    "dark": "/images/gigidc-logo-circle.svg"
+    "light": "/images/gigidc-logo.png",
+    "dark": "/images/gigidc-logo.png"
   },
   "favicon": "/images/gigidc-favicon.png",
   "colors": {
