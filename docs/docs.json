@@ -9,9 +9,9 @@
   },
   "favicon": "/images/gigidc-favicon.png",
   "colors": {
-    "primary": "#0f766e",
-    "light": "#99f6e4",
-    "dark": "#115e59"
+    "primary": "#b36e9b",
+    "light": "#f3d7e7",
+    "dark": "#8a4f74"
   },
   "navigation": {
     "groups": [
@@ -43,6 +43,7 @@
         "group": "Project Workflow",
         "pages": [
           "agent-skills",
+          "human-agent-workflow",
           "project-visualization-workflow"
         ]
       },
