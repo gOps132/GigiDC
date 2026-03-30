@@ -1,3 +1,8 @@
+---
+title: Shared Identity Flow
+description: How GigiDC carries continuity across relays, tasks, and DM follow-ups.
+---
+
 # Shared Identity Flow
 
 This diagram captures the current shared-identity workflow for GigiDC: guild users can create relays or follow-up tasks, relays now wait for explicit confirmation, and participants can ask follow-up questions later in DM with bounded user-memory context.

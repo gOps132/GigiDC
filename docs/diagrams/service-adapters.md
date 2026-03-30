@@ -1,3 +1,8 @@
+---
+title: Service and Adapter Boundaries
+description: Ports-and-adapters view of the current GigiDC runtime.
+---
+
 # Service And Adapter Boundaries
 
 This diagram captures the current architecture seam that matters most for future upgrades: Discord-facing services depend on ports, and vendor-specific adapters sit behind those ports.

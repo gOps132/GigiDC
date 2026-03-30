@@ -22,7 +22,7 @@ Use this skill when you need to:
 
 ## Required Workflow
 
-1. If `Understand-Anything` is installed, start with its skills:
+1. If `Understand-Anything` is installed and the change is broad enough to justify it, start with its skills:
    - `understand-onboard` for repo onboarding
    - `understand-dashboard` for the visual graph
    - `understand-explain` for specific modules
@@ -34,6 +34,8 @@ Use this skill when you need to:
    - `docs/project-visualization-workflow.md` when the workflow itself changes
 4. If a new external tool or provider was used, update `docs/credits.md`.
 5. Review all generated diagrams and summaries for secrets, private data, and misleading claims before commit or sharing.
+
+For small local changes, skip `Understand-Anything` and rely on direct code inspection plus the maintained docs instead.
 
 ## Fallback
 

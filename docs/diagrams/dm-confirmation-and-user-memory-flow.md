@@ -1,3 +1,8 @@
+---
+title: DM Confirmation and User Memory Flow
+description: Confirmation lifecycle and requester-centric memory in the DM path.
+---
+
 # DM Confirmation And User Memory Flow
 
 This diagram captures the two new architectural seams added in this slice: persisted confirmation for cross-user relays, and bounded requester-centric memory snapshots for richer DM continuity.

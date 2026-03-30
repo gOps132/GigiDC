@@ -75,13 +75,13 @@ See `docs/agent-skills.md` for the current project-specific skill map and select
 
 ## Project Visualization Workflow
 
-Use `Understand-Anything` as the default architecture-analysis tool when understanding the repo, planning cross-cutting changes, or reviewing architectural impact.
+Use `Understand-Anything` as optional deep-analysis tooling for onboarding, large refactors, and cross-cutting architectural work when it adds more clarity than context cost.
 
-For repo understanding and architecture extraction, start with the generated graph and dashboard before broad manual doc reading.
+For repo understanding and architecture extraction, prefer the smallest high-signal source first: relevant human-maintained docs for known areas, and the generated graph/dashboard for broad or unclear boundaries.
 
-- use `Understand-Anything` first to identify entrypoints, layers, data boundaries, and cross-cutting dependencies
+- use `Understand-Anything` when you need help identifying entrypoints, layers, data boundaries, and cross-cutting dependencies across multiple modules
 - then read only the docs needed for intent, product context, operational exceptions, or future plans
-- treat graph-derived structure as the fastest way to find where to read next, not a replacement for intent-bearing docs
+- treat graph-derived structure as optional acceleration, not a replacement for intent-bearing docs
 
 For changes that alter system boundaries, data flow, deployment flow, permissions, or storage behavior:
 
@@ -89,6 +89,11 @@ For changes that alter system boundaries, data flow, deployment flow, permission
 - update `docs/architecture-v1.md` when the text architecture model changes
 - update or add diagrams under `docs/diagrams/` when a visual explanation would reduce future onboarding or review cost
 - update `docs/credits.md` when a new external visualization or generation tool is introduced
+
+If `Understand-Anything` stops being worth the context cost for the current change:
+
+- skip it and rely on direct code inspection plus the maintained architecture docs
+- do not regenerate graph artifacts just for routine small changes
 
 For architecture changes that increase memory, retrieval scope, shared identity, automation, or tool use:
 
@@ -98,6 +103,20 @@ For architecture changes that increase memory, retrieval scope, shared identity,
 - keep these tradeoffs in `docs/architecture-v1.md` and the relevant roadmap or diagram notes when the mental model changes
 
 Use `docs/project-visualization-workflow.md` as the standing checklist.
+
+## Architecture Documentation Rules
+
+Keep one canonical home per documentation concern so project docs stay readable and do not drift.
+
+- Keep [README.md](/Users/giancedrick/dev/projects/gigi/README.md) as a short project front door only: what GigiDC is, what it offers, high-signal visuals, and links to deeper docs.
+- Keep [docs/docs.json](/Users/giancedrick/dev/projects/gigi/docs/docs.json) as the docs-site navigation and information architecture source of truth.
+- Keep [docs/architecture-v1.md](/Users/giancedrick/dev/projects/gigi/docs/architecture-v1.md) as the detailed system model for runtime layers, data boundaries, permissions, memory, and tradeoffs.
+- Keep operational instructions in focused docs such as [docs/setup.md](/Users/giancedrick/dev/projects/gigi/docs/setup.md), [docs/deploy-ec2.md](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md), and [docs/ci-cd.md](/Users/giancedrick/dev/projects/gigi/docs/ci-cd.md), not in the README.
+- Keep visuals in `docs/diagrams/` when they explain a durable system concept; use README visuals only for the shortest overview-level mental model.
+- When architecture changes, update the doc that is the source of truth instead of copy-pasting the same explanation into multiple files.
+- Make it explicit what is current behavior, what is a constraint, and what is still future work; do not blur shipped architecture with roadmap intent.
+- Record tradeoffs, limits, and unresolved implications in the architecture docs whenever memory, permissions, automation, or sensitive-data behavior changes.
+- Review diagrams, screenshots, and prose for sensitive-data leakage before commit or sharing.
 
 ## Human-Agent Workflow
 

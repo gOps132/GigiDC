@@ -1,3 +1,8 @@
+---
+title: Ingestion Policy Flow
+description: Channel-ingestion control flow with capability checks, policy writes, and audit logging.
+---
+
 # Ingestion Policy Flow
 
 This diagram captures the new admin path for channel-ingestion control: permission check, policy write, cache refresh, and audit logging.

@@ -1,3 +1,8 @@
+---
+title: Diagram Guide
+description: Diagram conventions for the GigiDC docs and architecture workflow.
+---
+
 # Diagrams
 
 Store durable project diagrams here.

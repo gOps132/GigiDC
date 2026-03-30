@@ -1,3 +1,8 @@
+---
+title: Credits
+description: External resources, platforms, and tooling used by GigiDC.
+---
+
 # External Resources and Credits
 
 This project requires explicit attribution for external resources used in implementation or project workflow.
@@ -49,6 +54,12 @@ This project requires explicit attribution for external resources used in implem
 - `actions/download-artifact`
   - Use: Official GitHub Action used to retrieve the built release bundle in the deploy step
   - Source: https://github.com/actions/download-artifact
+- `Shields.io`
+  - Use: README badge strip for version and stack tags in the GitHub project overview
+  - Source: https://shields.io/
+- `Mintlify`
+  - Use: Docs-site platform for the repo's structured documentation, navigation, and future hosted docs experience
+  - Source: https://www.mintlify.com/
 
 ## Workflow and Planning References
 

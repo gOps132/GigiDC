@@ -1,0 +1,54 @@
+---
+title: GigiDC
+description: Gigi is a personalized Discord bot for CS/IT Archive.
+---
+
+# GigiDC
+
+<div style={{ display: "flex", justifyContent: "center", marginBottom: "1.5rem" }}>
+  <img src="/images/gigidc-logo-circle.svg" alt="GigiDC logo" width="112" />
+</div>
+
+Gigi is a personalized Discord bot for CS/IT Archive.
+
+<Columns cols={2}>
+  <Card title="Get started" href="/setup">
+    Set up the local bot, environment variables, and Discord app wiring.
+  </Card>
+  <Card title="Architecture" href="/architecture-v1">
+    Understand the DM-first runtime, permissions, memory, and data boundaries.
+  </Card>
+  <Card title="Deploy" href="/deploy-ec2">
+    Ship GigiDC to EC2 with the current release and service workflow.
+  </Card>
+  <Card title="Diagrams" href="/diagrams">
+    Browse visual references for the main runtime and data flows.
+  </Card>
+</Columns>
+
+## Core Capabilities
+
+- DM-first interaction for questions, memory-aware follow-ups, and supported actions
+- Permission-aware guild operations across DM and slash surfaces
+- Shared task and action memory for continuity
+- DM-only sensitive-data disclosure for the authorized user
+
+## System Snapshot
+
+```mermaid
+flowchart LR
+    User["Discord User"] --> Surface["DM / Slash / Buttons"]
+    Surface --> Gigi["GigiDC"]
+    Gigi --> Router["Intent + Permission Router"]
+    Router --> Memory["History, Tasks, User Memory"]
+    Router --> Admin["Guild Admin Actions"]
+    Router --> Secrets["Sensitive Data Vault"]
+```
+
+## Explore The Docs
+
+- [Setup](./setup)
+- [Architecture](./architecture-v1)
+- [Deployment](./deploy-ec2)
+- [CI/CD](./ci-cd)
+- [Diagrams](./diagrams/index)

@@ -1,3 +1,8 @@
+---
+title: CI/CD
+description: Continuous integration and deployment workflow for GigiDC.
+---
+
 # CI/CD Guide
 
 The repo includes:

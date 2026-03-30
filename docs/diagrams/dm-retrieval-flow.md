@@ -1,3 +1,8 @@
+---
+title: DM Retrieval Flow
+description: How GigiDC handles DM ingestion, scope selection, retrieval, and embedding work.
+---
+
 # DM Retrieval Flow
 
 This diagram captures the current DM runtime path after the indexing, persistence, and shared-identity upgrades: DM ingestion, durable scope selection, participant-visible action lookup, retrieval, and background embedding generation.

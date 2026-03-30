@@ -1,3 +1,8 @@
+---
+title: DM Tool Execution Flow
+description: Deterministic routing and bounded tool execution for DM requests.
+---
+
 # DM Tool Execution Flow
 
 This diagram captures the current DM runtime path: explicit DM requests can be routed deterministically, planned into bounded internal tool calls, and then executed through the shared-action path, the guild-admin path, or the permission-admin path. Cross-user relays still go through a real confirmation state instead of prompt-only approval theater.

@@ -1,3 +1,8 @@
+---
+title: Architecture
+description: Detailed architecture model for the current GigiDC runtime, memory, and permission boundaries.
+---
+
 # V1 Architecture
 
 ## Summary

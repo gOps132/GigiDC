@@ -1,6 +1,11 @@
+---
+title: Documentation Workflow
+description: How GigiDC keeps architecture docs, diagrams, and repo understanding current.
+---
+
 # Project Visualization Workflow
 
-This repo uses `Understand-Anything` as the primary codebase-visualization tool and keeps human-maintained diagrams alongside it.
+This repo keeps human-maintained docs and diagrams as the primary source of truth and uses `Understand-Anything` only when it adds enough value to justify the context cost.
 
 ## Goals
 
@@ -11,8 +16,10 @@ This repo uses `Understand-Anything` as the primary codebase-visualization tool 
 
 ## Tooling
 
+- `Mintlify`
+  - use for the structured docs site, navigation, and future hosted documentation experience
 - `Understand-Anything`
-  - use for codebase graph generation, dashboard views, onboarding, architecture explanation, and diff-impact analysis
+  - use optionally for codebase graph generation, dashboard views, onboarding, architecture explanation, and diff-impact analysis when the change is broad enough to justify it
 - repo-local `project-visualization` skill
   - use for the repo's standard analysis and refresh workflow
 - `docs/architecture-v1.md`
@@ -20,7 +27,30 @@ This repo uses `Understand-Anything` as the primary codebase-visualization tool 
 - `docs/diagrams/`
   - store durable visual diagrams that help humans understand the system
 
+## Documentation Layers
+
+Keep documentation layered so each file has a clear job.
+
+- [README.md](/Users/giancedrick/dev/projects/gigi/README.md)
+  - short project overview only
+  - explain what GigiDC is, what it offers, and where to read more
+  - keep visuals high-signal and overview-level
+- [architecture-v1.md](/Users/giancedrick/dev/projects/gigi/docs/architecture-v1.md)
+  - detailed architecture source of truth
+  - document current behavior, boundaries, tradeoffs, and known limits
+- setup, deploy, and CI docs
+  - operational instructions only
+  - do not duplicate them into the README
+- `docs/diagrams/`
+  - durable visuals for flows, boundaries, and mental models that future contributors will actually reuse
+
 ## Setup
+
+Preview the docs site locally:
+
+```bash
+npm run docs:dev
+```
 
 Install `Understand-Anything` locally:
 
@@ -40,23 +70,24 @@ Use this workflow for onboarding, architecture work, large feature work, refacto
 
 ### 1. Analyze the current codebase
 
-- Start with the graph, not a broad docs-reading pass.
-- Use `understand` or the current `.understand-anything/knowledge-graph.json` baseline first to identify actual entrypoints, layers, and dependency seams.
-- Then read the smallest relevant set of docs for product intent, operational exceptions, or planned future changes.
+- Start with the smallest high-signal source available.
+- Read the relevant human-maintained docs first when they already cover the area you are touching.
+- Use `understand` or the current `.understand-anything/knowledge-graph.json` baseline when you need help identifying entrypoints, layers, and dependency seams across multiple modules.
 - Use `understand-onboard` when entering the repo or when the architecture has changed materially.
 - Use `understand-dashboard` when you need the visual graph or dependency map.
 - Use `understand-explain` on specific modules before touching them.
+- Skip `Understand-Anything` for small local changes if it is adding more context cost than clarity.
 
 Typical prompts:
 
 - `Analyze this codebase and build a knowledge graph.`
 - `Help me understand this project's architecture.`
 - `Explain the assignment flow and the retrieval pipeline.`
-- `Use the graph first, then tell me which docs are worth reading.`
+- `Use the graph only if it helps, then tell me which docs are worth reading.`
 
 ### 2. Update the graph before and after significant changes
 
-- Use `understand` or `understand-dashboard` to refresh the graph after material code changes.
+- Use `understand` or `understand-dashboard` to refresh the graph only after material code changes where the graph will actually help future understanding.
 - Use `understand-diff` before merge or review when a change affects multiple modules or boundaries.
 
 Use diff analysis for:
@@ -87,6 +118,7 @@ When the workflow introduces or depends on a new external tool, skill, library, 
 
 - update [credits.md](/Users/giancedrick/dev/projects/gigi/docs/credits.md)
 - update setup or workflow docs when install steps or usage expectations change
+- update [README.md](/Users/giancedrick/dev/projects/gigi/README.md) only if the project overview, core value proposition, or top-level visuals changed
 
 ### 5. Review for secrets and private data
 
@@ -101,7 +133,7 @@ Before committing diagrams, exports, screenshots, or generated summaries:
 Before finalizing architecture-impacting work:
 
 - run the relevant code validation steps
-- refresh the `Understand-Anything` view for the touched area
+- refresh the `Understand-Anything` view for the touched area only when it adds value for the change
 - update `docs/architecture-v1.md` if the mental model changed
 - update `docs/diagrams/` if a visual explanation would help future work
 - update `docs/credits.md` if a new external source was introduced

@@ -1,3 +1,8 @@
+---
+title: Task Memory Flow
+description: Shared task/action memory path for follow-up work and retrieval.
+---
+
 # Task Memory Flow
 
 This diagram captures the new step-2 shared-identity layer: Gigi can now track open follow-up work in `agent_actions`, expose it through slash commands, and use it during DM retrieval.

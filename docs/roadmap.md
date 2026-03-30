@@ -1,3 +1,8 @@
+---
+title: Roadmap
+description: Planned evolution of GigiDC beyond the current V1 architecture.
+---
+
 # Roadmap
 
 ## V1

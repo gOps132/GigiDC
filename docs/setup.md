@@ -1,3 +1,8 @@
+---
+title: Setup
+description: Local development setup for GigiDC.
+---
+
 # Setup Guide
 
 ## Local Development

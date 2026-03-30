@@ -1,3 +1,8 @@
+---
+title: System Overview
+description: High-level view of the current GigiDC system layers and flows.
+---
+
 # System Overview
 
 This overview has been refreshed from the first real `Understand-Anything` graph pass. It reflects the current repo shape rather than the earlier placeholder runtime sketch.

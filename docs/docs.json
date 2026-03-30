@@ -1,0 +1,50 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "GigiDC",
+  "description": "Gigi is a personalized Discord bot for CS/IT Archive.",
+  "logo": {
+    "light": "/images/gigidc-logo-circle.svg",
+    "dark": "/images/gigidc-logo-circle.svg"
+  },
+  "favicon": "/images/gigidc-favicon.png",
+  "colors": {
+    "primary": "#0f766e",
+    "light": "#99f6e4",
+    "dark": "#115e59"
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Overview",
+        "pages": [
+          "index",
+          "architecture-v1",
+          "roadmap"
+        ]
+      },
+      {
+        "group": "Getting Started",
+        "pages": [
+          "setup",
+          "deploy-ec2",
+          "ci-cd"
+        ]
+      },
+      {
+        "group": "Project Workflow",
+        "pages": [
+          "agent-skills",
+          "project-visualization-workflow"
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "diagrams/index",
+          "credits"
+        ]
+      }
+    ]
+  }
+}

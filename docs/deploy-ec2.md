@@ -1,3 +1,8 @@
+---
+title: EC2 Deployment
+description: Deploy GigiDC to EC2 for the current reduced V1 architecture.
+---
+
 # EC2 Deployment Guide
 
 This guide deploys the Discord bot as a single EC2 service for the reduced V1 architecture.

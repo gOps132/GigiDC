@@ -1,3 +1,8 @@
+---
+title: Agent Skills
+description: Repo-local skills and how they fit the GigiDC workflow.
+---
+
 # Project Workflow Skills
 
 This repo keeps project-specific agent skills in `.codex/skills` so the workflow stays close to the codebase instead of depending on whatever happens to be installed globally.
@@ -8,7 +13,7 @@ This repo keeps project-specific agent skills in `.codex/skills` so the workflow
   - Use for Discord bot implementation work, especially slash commands, interaction handling, roles, and other Discord-specific patterns
 - `project-visualization`
   - Use for codebase understanding, architecture refresh work, visual diagram maintenance, and cross-cutting change analysis
-  - Pair it with `Understand-Anything` after running `bash scripts/setup-understand-anything.sh`
+  - Pair it with `Understand-Anything` selectively for onboarding, large refactors, or cross-cutting architecture work after running `bash scripts/setup-understand-anything.sh`
 - `supabase-postgres-best-practices`
   - Use for Supabase/Postgres schema design, migrations, SQL queries, indexes, performance work, and RLS reviews
 - `terraform-style-guide`

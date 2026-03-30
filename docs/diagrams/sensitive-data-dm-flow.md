@@ -1,3 +1,8 @@
+---
+title: Sensitive Data DM Flow
+description: DM-only path for encrypted sensitive-data access.
+---
+
 # Sensitive Data DM Flow
 
 This diagram captures the new sensitive-data path: sensitive records live outside normal message history, are encrypted at rest, and are only disclosed in DM through a deterministic service path that bypasses OpenAI and embedding storage.
