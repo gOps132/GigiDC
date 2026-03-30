@@ -6,6 +6,7 @@ import { AGENT_ACTION_SCOPES, AGENT_ACTION_STATUSES, AGENT_ACTION_TYPES, type Ag
 
 test('RetrievalService can answer from shared action history when message history is empty', async () => {
   const responseInputs: Array<{ instructions: string; model: string; text: string }> = [];
+  const usageCalls: Array<Record<string, unknown>> = [];
   const action: AgentActionRecord = {
     id: 'action-1',
     action_scope: AGENT_ACTION_SCOPES.action,
@@ -43,7 +44,10 @@ test('RetrievalService can answer from shared action history when message histor
     {
       async createTextResponse(input) {
         responseInputs.push(input);
-        return 'Erick wanted you to review the launch checklist before 5 PM.';
+        return {
+          text: 'Erick wanted you to review the launch checklist before 5 PM.',
+          usage: null
+        };
       }
     },
     {
@@ -71,6 +75,11 @@ test('RetrievalService can answer from shared action history when message histor
       }
     } as never,
     {
+      async record(input: Record<string, unknown>) {
+        usageCalls.push(input);
+      }
+    } as never,
+    {
       warn() {},
       debug() {},
       error() {},
@@ -92,6 +101,7 @@ test('RetrievalService can answer from shared action history when message histor
   assert.match(answer.answer, /launch checklist/i);
   assert.match(responseInputs[0]?.text ?? '', /Recent shared actions/i);
   assert.match(responseInputs[0]?.text ?? '', /Erick/i);
+  assert.equal(usageCalls.length, 0);
 });
 
 test('RetrievalService can answer from open tasks when the question is task-oriented', async () => {
@@ -131,7 +141,10 @@ test('RetrievalService can answer from open tasks when the question is task-orie
     {
       async createTextResponse(input) {
         responseInputs.push(input);
-        return 'You need to prepare the release notes before standup.';
+        return {
+          text: 'You need to prepare the release notes before standup.',
+          usage: null
+        };
       }
     },
     {
@@ -156,6 +169,11 @@ test('RetrievalService can answer from open tasks when the question is task-orie
     {
       async buildContext() {
         return [];
+      }
+    } as never,
+    {
+      async record() {
+        return;
       }
     } as never,
     {
@@ -193,7 +211,10 @@ test('RetrievalService falls back to direct answering when semantic search fails
     {
       async createTextResponse(input) {
         responseInputs.push(input);
-        return 'Hello.';
+        return {
+          text: 'Hello.',
+          usage: null
+        };
       }
     },
     {
@@ -218,6 +239,11 @@ test('RetrievalService falls back to direct answering when semantic search fails
     {
       async buildContext() {
         return [];
+      }
+    } as never,
+    {
+      async record() {
+        return;
       }
     } as never,
     {
@@ -260,7 +286,10 @@ test('RetrievalService includes requester-centric user-memory snapshots in the a
     {
       async createTextResponse(input) {
         responseInputs.push(input);
-        return 'You usually ask me for release planning help.';
+        return {
+          text: 'You usually ask me for release planning help.',
+          usage: null
+        };
       }
     },
     {
@@ -288,6 +317,11 @@ test('RetrievalService includes requester-centric user-memory snapshots in the a
           'User profile: username=erick | display_name=Erick',
           'Working context: Open work: Prepare release notes due 2026-04-01T09:00:00Z'
         ];
+      }
+    } as never,
+    {
+      async record() {
+        return;
       }
     } as never,
     {
@@ -351,6 +385,11 @@ test('RetrievalService returns a clean fallback when response generation fails',
       }
     } as never,
     {
+      async record() {
+        return;
+      }
+    } as never,
+    {
       warn() {},
       debug() {},
       error(message: string, metadata: Record<string, unknown>) {
@@ -376,4 +415,77 @@ test('RetrievalService returns a clean fallback when response generation fails',
   assert.equal(answer.answer, 'I could not reach my reasoning backend right now. Try again in a moment.');
   assert.equal(answer.source, 'direct');
   assert.equal(errors[0]?.message, 'OpenAI text response failed during retrieval');
+});
+
+test('RetrievalService records model usage for retrieval responses', async () => {
+  const usageCalls: Array<Record<string, unknown>> = [];
+
+  const service = new RetrievalService(
+    {
+      OPENAI_RETRIEVAL_MODEL: 'gpt-retrieval',
+      OPENAI_RESPONSE_MODEL: 'gpt-test'
+    } as never,
+    {
+      async createTextResponse() {
+        return {
+          text: 'Hello.',
+          usage: {
+            inputTokens: 90,
+            outputTokens: 12,
+            totalTokens: 102
+          }
+        };
+      }
+    },
+    {
+      async countPhrase() {
+        return 0;
+      },
+      async listRecentMessages() {
+        return [];
+      },
+      async searchSemantic() {
+        return [];
+      }
+    } as never,
+    {
+      async listRelevantVisibleActionsForUser() {
+        return [];
+      },
+      async listOpenTasksForUser() {
+        return [];
+      }
+    } as never,
+    {
+      async buildContext() {
+        return [];
+      }
+    } as never,
+    {
+      async record(input: Record<string, unknown>) {
+        usageCalls.push(input);
+      }
+    } as never,
+    {
+      warn() {},
+      debug() {},
+      error() {},
+      info() {}
+    } as never
+  );
+
+  await service.answerQuestion(
+    'hi',
+    {
+      dmUserId: 'user-2',
+      kind: 'dm'
+    },
+    'user-2',
+    'bot-user'
+  );
+
+  assert.equal(usageCalls.length, 1);
+  assert.equal(usageCalls[0]?.operation, 'retrieval_response');
+  assert.equal(usageCalls[0]?.model, 'gpt-retrieval');
+  assert.equal(usageCalls[0]?.requesterUserId, 'user-2');
 });

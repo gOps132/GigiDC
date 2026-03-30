@@ -3,6 +3,7 @@ import type { Logger } from '../lib/logger.js';
 import type { ResponseClient } from '../ports/ai.js';
 import type { AgentActionRecord, AgentActionService } from './agentActionService.js';
 import type { HistoryMessageRecord, HistoryScope, MessageHistoryService } from './messageHistoryService.js';
+import type { ModelUsageService } from './modelUsageService.js';
 import type { UserMemoryService } from './userMemoryService.js';
 
 export interface RetrievalAnswer {
@@ -12,6 +13,7 @@ export interface RetrievalAnswer {
 
 export interface RetrievalAnswerOptions {
   includeParticipantMemory?: boolean;
+  surface?: 'dm' | 'guild_mention';
   includeUserMemory?: boolean;
 }
 
@@ -22,6 +24,7 @@ export class RetrievalService {
     private readonly messageHistory: MessageHistoryService,
     private readonly agentActions: AgentActionService,
     private readonly userMemory: UserMemoryService,
+    private readonly modelUsage: ModelUsageService,
     private readonly logger: Logger
   ) {}
 
@@ -34,6 +37,7 @@ export class RetrievalService {
   ): Promise<RetrievalAnswer> {
     const includeParticipantMemory = options?.includeParticipantMemory ?? true;
     const includeUserMemory = options?.includeUserMemory ?? true;
+    const surface = options?.surface ?? 'dm';
     const phraseCountIntent = parsePhraseCountIntent(query, requesterUserId, botUserId);
 
     if (phraseCountIntent) {
@@ -50,7 +54,10 @@ export class RetrievalService {
     }
 
     const recent = await this.loadRecentMessages(scope);
-    const semanticMatches = await this.loadSemanticMatches(scope, query);
+    const semanticMatches = await this.loadSemanticMatches(scope, query, {
+      requesterUserId,
+      surface
+    });
     const taskMatches = includeParticipantMemory && isTaskAwareQuery(query)
       ? await this.loadTaskMatches(requesterUserId)
       : [];
@@ -72,7 +79,11 @@ export class RetrievalService {
       && userMemoryContext.length === 0
     ) {
       if (!isHistoryAwareQuery(query) && !isTaskAwareQuery(query)) {
-        const directAnswer = await this.answerDirect(query, []);
+        const directAnswer = await this.answerDirect(query, [], {
+          requesterUserId,
+          scope,
+          surface
+        });
         return {
           answer: directAnswer,
           source: 'direct'
@@ -86,7 +97,11 @@ export class RetrievalService {
     }
 
     const context = formatContext(recent, semanticMatches, actionMatches, taskMatches, userMemoryContext);
-    const answer = await this.answerDirect(query, context.length > 0 ? [context] : []);
+    const answer = await this.answerDirect(query, context.length > 0 ? [context] : [], {
+      requesterUserId,
+      scope,
+      surface
+    });
     const usedActionOnly =
       semanticMatches.length === 0
       && recent.length === 0
@@ -108,10 +123,19 @@ export class RetrievalService {
     };
   }
 
-  private async answerDirect(query: string, contextBlocks: string[]): Promise<string> {
+  private async answerDirect(
+    query: string,
+    contextBlocks: string[],
+    usageContext: {
+      requesterUserId: string;
+      scope: HistoryScope;
+      surface: 'dm' | 'guild_mention';
+    }
+  ): Promise<string> {
     try {
-      return await this.responses.createTextResponse({
-        model: this.env.OPENAI_RESPONSE_MODEL,
+      const model = this.env.OPENAI_RETRIEVAL_MODEL ?? this.env.OPENAI_RESPONSE_MODEL;
+      const response = await this.responses.createTextResponse({
+        model,
         instructions: [
           'You are GigiDC, a Discord assistant.',
           'Only describe the capabilities that actually exist in this bot runtime.',
@@ -125,6 +149,29 @@ export class RetrievalService {
           ? `Question: ${query}\n\nChat history context:\n${contextBlocks.join('\n\n')}`
           : `Question: ${query}`
       });
+
+      if (response.usage) {
+        await this.modelUsage.record({
+          channelId: usageContext.scope.channelId ?? null,
+          guildId: usageContext.scope.guildId ?? null,
+          inputTokens: response.usage.inputTokens,
+          messageId: null,
+          metadata: {
+            contextBlockCount: contextBlocks.length,
+            queryLength: query.length,
+          scopeKind: usageContext.scope.kind
+        },
+          model,
+          operation: 'retrieval_response',
+          outputTokens: response.usage.outputTokens,
+          provider: 'openai',
+          requesterUserId: usageContext.requesterUserId,
+          surface: usageContext.surface,
+          totalTokens: response.usage.totalTokens
+        });
+      }
+
+      return response.text;
     } catch (error) {
       this.logger.error('OpenAI text response failed during retrieval', {
         error: error instanceof Error ? error.message : 'Unknown response-generation error',
@@ -148,9 +195,19 @@ export class RetrievalService {
     }
   }
 
-  private async loadSemanticMatches(scope: HistoryScope, query: string): Promise<HistoryMessageRecord[]> {
+  private async loadSemanticMatches(
+    scope: HistoryScope,
+    query: string,
+    usageContext: {
+      requesterUserId: string;
+      surface: 'dm' | 'guild_mention';
+    }
+  ): Promise<HistoryMessageRecord[]> {
     try {
-      return await this.messageHistory.searchSemantic(scope, query, 8);
+      return await this.messageHistory.searchSemantic(scope, query, 8, {
+        requesterUserId: usageContext.requesterUserId,
+        surface: usageContext.surface
+      });
     } catch (error) {
       this.logger.warn('Semantic search failed during retrieval', {
         error: error instanceof Error ? error.message : 'Unknown semantic-search error',

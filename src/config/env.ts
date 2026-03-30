@@ -19,17 +19,28 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY is required'),
   OPENAI_API_KEY: z.string().min(1, 'OPENAI_API_KEY is required'),
   OPENAI_RESPONSE_MODEL: z.string().min(1).default('gpt-4.1-mini'),
+  OPENAI_RETRIEVAL_MODEL: z.string().min(1).optional(),
+  OPENAI_TOOL_PLANNING_MODEL: z.string().min(1).optional(),
   OPENAI_EMBEDDING_MODEL: z.string().min(1).default('text-embedding-3-small'),
   SENSITIVE_DATA_ENCRYPTION_KEY: z.string().min(1).optional()
 });
 
-export type Env = z.infer<typeof envSchema>;
+type RawEnv = z.infer<typeof envSchema>;
+
+export type Env = RawEnv & {
+  OPENAI_RETRIEVAL_MODEL: string;
+  OPENAI_TOOL_PLANNING_MODEL: string;
+};
 
 export function loadEnv(): Env {
   const parsed = envSchema.safeParse(process.env);
 
   if (parsed.success) {
-    return parsed.data;
+    return {
+      ...parsed.data,
+      OPENAI_RETRIEVAL_MODEL: parsed.data.OPENAI_RETRIEVAL_MODEL ?? parsed.data.OPENAI_RESPONSE_MODEL,
+      OPENAI_TOOL_PLANNING_MODEL: parsed.data.OPENAI_TOOL_PLANNING_MODEL ?? parsed.data.OPENAI_RESPONSE_MODEL
+    };
   }
 
   const message = parsed.error.issues

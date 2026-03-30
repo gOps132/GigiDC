@@ -10,6 +10,7 @@ import type {
   AssignmentStore,
   AuditLogStore,
   ChannelIngestionPolicyStore,
+  ModelUsageStore,
   RolePolicyStore
 } from '../ports/controlPlane.js';
 import type {
@@ -25,6 +26,7 @@ import type {
   ChannelIngestionPolicyRecord,
   SetChannelIngestionPolicyInput
 } from '../services/channelIngestionPolicyService.js';
+import type { RecordModelUsageInput } from '../services/modelUsageService.js';
 import type { Capability } from '../services/rolePolicyService.js';
 
 interface RolePolicyRow {
@@ -170,6 +172,31 @@ export class SupabaseAuditLogStore implements AuditLogStore {
 
     if (error) {
       throw new Error(`Failed to write audit log: ${error.message}`);
+    }
+  }
+}
+
+export class SupabaseModelUsageStore implements ModelUsageStore {
+  constructor(private readonly supabase: SupabaseClient) {}
+
+  async record(input: RecordModelUsageInput): Promise<void> {
+    const { error } = await this.supabase.from('model_usage_events').insert({
+      guild_id: input.guildId,
+      channel_id: input.channelId,
+      requester_user_id: input.requesterUserId,
+      message_id: input.messageId,
+      provider: input.provider,
+      operation: input.operation,
+      surface: input.surface,
+      model: input.model,
+      input_tokens: input.inputTokens,
+      output_tokens: input.outputTokens,
+      total_tokens: input.totalTokens,
+      metadata: input.metadata ?? {}
+    });
+
+    if (error) {
+      throw new Error(`Failed to record model usage event: ${error.message}`);
     }
   }
 }

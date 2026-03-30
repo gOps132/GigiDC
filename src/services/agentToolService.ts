@@ -28,6 +28,7 @@ import {
 } from './agentActionService.js';
 import type { GuildAdminActionService } from './guildAdminActionService.js';
 import { looksLikeToolRequest } from './dmIntentRouter.js';
+import type { ModelUsageService } from './modelUsageService.js';
 import type { PermissionAdminService } from './permissionAdminService.js';
 import { CAPABILITIES, type RolePolicyService } from './rolePolicyService.js';
 
@@ -73,6 +74,7 @@ export class AgentToolService {
     private readonly permissionAdmin: PermissionAdminService,
     private readonly rolePolicies: RolePolicyService,
     private readonly pendingRecipientSelections: PendingDmRelayRecipientSelectionStore,
+    private readonly modelUsage: ModelUsageService,
     private readonly logger: Logger
   ) {}
 
@@ -177,9 +179,10 @@ export class AgentToolService {
     }
 
     let plan;
+    const planningModel = this.env.OPENAI_TOOL_PLANNING_MODEL ?? this.env.OPENAI_RESPONSE_MODEL;
     try {
       plan = await this.planner.planDmTools({
-        model: this.env.OPENAI_RESPONSE_MODEL,
+        model: planningModel,
         instructions: buildPlannerInstructions(),
         text: query
       });
@@ -229,6 +232,26 @@ export class AgentToolService {
       requesterLabel,
       requesterMember
     };
+
+    if (plan.usage) {
+      await this.modelUsage.record({
+        channelId: currentChannelId,
+        guildId: guild?.id ?? null,
+        inputTokens: plan.usage.inputTokens,
+        messageId: null,
+        metadata: {
+          queryLength: query.length,
+          plannedToolCount: plan.toolCalls.length
+        },
+        model: planningModel,
+        operation: 'dm_tool_planning',
+        outputTokens: plan.usage.outputTokens,
+        provider: 'openai',
+        requesterUserId: requester.id,
+        surface: 'dm',
+        totalTokens: plan.usage.totalTokens
+      });
+    }
 
     const results: ToolExecutionResult[] = [];
     for (const toolCall of plan.toolCalls.slice(0, MAX_TOOL_CALLS_PER_TURN)) {

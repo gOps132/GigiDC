@@ -2,7 +2,13 @@ import type OpenAI from 'openai';
 import { zodTextFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 
-import type { EmbeddingClient, ResponseClient, ToolPlan, ToolPlanningClient } from '../ports/ai.js';
+import type {
+  EmbeddingClient,
+  ModelTokenUsage,
+  ResponseClient,
+  ToolPlan,
+  ToolPlanningClient
+} from '../ports/ai.js';
 
 const toolPlanSchema = z.object({
   toolCalls: z
@@ -78,7 +84,10 @@ const toolPlanSchema = z.object({
 export class OpenAIEmbeddingClient implements EmbeddingClient {
   constructor(private readonly openai: OpenAI) {}
 
-  async createEmbedding(model: string, input: string): Promise<number[]> {
+  async createEmbedding(model: string, input: string): Promise<{
+    usage: ModelTokenUsage | null;
+    vector: number[];
+  }> {
     const response = await this.openai.embeddings.create({
       model,
       input
@@ -89,7 +98,14 @@ export class OpenAIEmbeddingClient implements EmbeddingClient {
       throw new Error('OpenAI embedding response was empty');
     }
 
-    return vector;
+    return {
+      usage: {
+        inputTokens: response.usage?.prompt_tokens ?? null,
+        outputTokens: null,
+        totalTokens: response.usage?.total_tokens ?? null
+      },
+      vector
+    };
   }
 }
 
@@ -100,7 +116,10 @@ export class OpenAIResponseClient implements ResponseClient {
     instructions: string;
     model: string;
     text: string;
-  }): Promise<string> {
+  }): Promise<{
+    text: string;
+    usage: ModelTokenUsage | null;
+  }> {
     const response = await this.openai.responses.create({
       model: input.model,
       instructions: input.instructions,
@@ -117,7 +136,14 @@ export class OpenAIResponseClient implements ResponseClient {
       ]
     });
 
-    return response.output_text.trim() || 'I could not produce a useful answer for that yet.';
+    return {
+      text: response.output_text.trim() || 'I could not produce a useful answer for that yet.',
+      usage: {
+        inputTokens: response.usage?.input_tokens ?? null,
+        outputTokens: response.usage?.output_tokens ?? null,
+        totalTokens: response.usage?.total_tokens ?? null
+      }
+    };
   }
 }
 
@@ -140,8 +166,13 @@ export class OpenAIToolPlanningClient implements ToolPlanningClient {
       }
     });
 
-    return response.output_parsed ?? {
-      toolCalls: []
+    return {
+      toolCalls: response.output_parsed?.toolCalls ?? [],
+      usage: {
+        inputTokens: response.usage?.input_tokens ?? null,
+        outputTokens: response.usage?.output_tokens ?? null,
+        totalTokens: response.usage?.total_tokens ?? null
+      }
     };
   }
 }

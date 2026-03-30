@@ -14,6 +14,7 @@ import {
   SupabaseAssignmentStore,
   SupabaseAuditLogStore,
   SupabaseChannelIngestionPolicyStore,
+  SupabaseModelUsageStore,
   SupabaseRolePolicyStore
 } from './adapters/supabaseControlPlane.js';
 import {
@@ -36,6 +37,7 @@ import { DmConversationService } from './services/dmConversationService.js';
 import { GuildAdminActionService } from './services/guildAdminActionService.js';
 import { MessageHistoryService } from './services/messageHistoryService.js';
 import { MessageIndexingService } from './services/messageIndexingService.js';
+import { ModelUsageService } from './services/modelUsageService.js';
 import { PermissionAdminService } from './services/permissionAdminService.js';
 import { RetrievalService } from './services/retrievalService.js';
 import { RolePolicyService } from './services/rolePolicyService.js';
@@ -63,21 +65,24 @@ async function main(): Promise<void> {
   const channelIngestionPolicyStore = new SupabaseChannelIngestionPolicyStore(supabase);
   const assignmentStore = new SupabaseAssignmentStore(supabase);
   const auditLogStore = new SupabaseAuditLogStore(supabase);
+  const modelUsageStore = new SupabaseModelUsageStore(supabase);
   const agentActionStore = new SupabaseAgentActionStore(supabase);
   const rolePolicies = new RolePolicyService(rolePolicyStore);
   const agentActions = new AgentActionService(agentActionStore);
   const channelIngestionPolicies = new ChannelIngestionPolicyService(channelIngestionPolicyStore);
   const assignments = new AssignmentService(assignmentStore);
   const auditLogs = new AuditLogService(auditLogStore);
+  const modelUsage = new ModelUsageService(modelUsageStore);
   const sensitiveData = new SensitiveDataService(env, sensitiveDataStore, logger);
   const permissionAdmin = new PermissionAdminService(env, auditLogs, rolePolicies);
-  const messageIndexing = new MessageIndexingService(env, embeddings, historyRepository, logger);
+  const messageIndexing = new MessageIndexingService(env, embeddings, historyRepository, modelUsage, logger);
   const messageHistory = new MessageHistoryService(
     env,
     historyRepository,
     embeddings,
     channelIngestionPolicies,
     messageIndexing,
+    modelUsage,
     rolePolicies,
     logger
   );
@@ -88,7 +93,7 @@ async function main(): Promise<void> {
     agentActions,
     logger
   );
-  const retrieval = new RetrievalService(env, responses, messageHistory, agentActions, userMemory, logger);
+  const retrieval = new RetrievalService(env, responses, messageHistory, agentActions, userMemory, modelUsage, logger);
   const actionConfirmations = new ActionConfirmationService(
     env,
     agentActions,
@@ -115,6 +120,7 @@ async function main(): Promise<void> {
     permissionAdmin,
     rolePolicies,
     pendingDmRecipientSelections,
+    modelUsage,
     logger
   );
 

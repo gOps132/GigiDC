@@ -9,6 +9,11 @@ function createService(overrides?: {
   getActionByIdResult?: Record<string, unknown> | null;
   listOpenTasksResult?: Array<Record<string, unknown>>;
   pendingRecipientSelection?: Record<string, unknown> | null;
+  planUsage?: {
+    inputTokens: number | null;
+    outputTokens: number | null;
+    totalTokens: number | null;
+  } | null;
   plan?: {
     toolCalls: Array<Record<string, unknown>>;
   };
@@ -22,6 +27,7 @@ function createService(overrides?: {
   const listOpenTaskCalls: Array<Record<string, unknown>> = [];
   const markCompletedCalls: Array<Record<string, unknown>> = [];
   const savedRecipientSelections: Array<Record<string, unknown>> = [];
+  const usageCalls: Array<Record<string, unknown>> = [];
 
   const taskRecord = {
     id: 'task-1',
@@ -127,7 +133,10 @@ function createService(overrides?: {
     } as never,
     {
       async planDmTools() {
-        return overrides?.plan ?? { toolCalls: [] };
+        return {
+          toolCalls: overrides?.plan?.toolCalls ?? [],
+          usage: overrides?.planUsage ?? null
+        };
       }
     },
     {
@@ -234,6 +243,11 @@ function createService(overrides?: {
       }
     } as never,
     {
+      async record(input: Record<string, unknown>) {
+        usageCalls.push(input);
+      }
+    } as never,
+    {
       debug() {},
       error() {},
       info() {},
@@ -250,6 +264,7 @@ function createService(overrides?: {
     listOpenTaskCalls,
     markCompletedCalls,
     savedRecipientSelections,
+    usageCalls,
     service
   };
 }
@@ -290,6 +305,39 @@ test('AgentToolService can execute multiple planned tool calls in one DM turn', 
   assert.equal(listOpenTaskCalls.length, 1);
   assert.match(result.reply, /Created task `task-1`/);
   assert.match(result.reply, /Your open Gigi tasks/i);
+});
+
+test('AgentToolService records model usage for DM tool planning', async () => {
+  const { client, service, usageCalls } = createService({
+    planUsage: {
+      inputTokens: 120,
+      outputTokens: 18,
+      totalTokens: 138
+    },
+    plan: {
+      toolCalls: [
+        {
+          name: 'list_open_tasks',
+          userReference: 'me'
+        }
+      ]
+    }
+  });
+
+  await service.maybeHandleDmQuery(
+    'show me my open tasks',
+    {
+      id: 'requester-1',
+      username: 'erick'
+    } as never,
+    client as never,
+    'dm-channel-1'
+  );
+
+  assert.equal(usageCalls.length, 1);
+  assert.equal(usageCalls[0]?.operation, 'dm_tool_planning');
+  assert.equal(usageCalls[0]?.model, 'gpt-test');
+  assert.equal(usageCalls[0]?.requesterUserId, 'requester-1');
 });
 
 test('AgentToolService denies DM relay execution without shared dispatch capability', async () => {

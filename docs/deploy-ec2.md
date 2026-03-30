@@ -80,6 +80,8 @@ Fill in real values:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `OPENAI_API_KEY`
 - optional `OPENAI_RESPONSE_MODEL`
+- optional `OPENAI_RETRIEVAL_MODEL`
+- optional `OPENAI_TOOL_PLANNING_MODEL`
 - optional `OPENAI_EMBEDDING_MODEL`
 
 ## Systemd Setup

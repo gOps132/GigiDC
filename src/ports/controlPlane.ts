@@ -13,6 +13,7 @@ import type {
   AgentActionStatus,
   UpdateAgentActionStatusInput
 } from '../services/agentActionService.js';
+import type { RecordModelUsageInput } from '../services/modelUsageService.js';
 import type { Capability } from '../services/rolePolicyService.js';
 
 export interface AssignmentStore {
@@ -24,6 +25,10 @@ export interface AssignmentStore {
 
 export interface AuditLogStore {
   record(input: AuditLogInput): Promise<void>;
+}
+
+export interface ModelUsageStore {
+  record(input: RecordModelUsageInput): Promise<void>;
 }
 
 export interface AgentActionStore {

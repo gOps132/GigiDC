@@ -2,6 +2,7 @@ import type { Env } from '../config/env.js';
 import type { Logger } from '../lib/logger.js';
 import type { EmbeddingClient } from '../ports/ai.js';
 import type { MessageHistoryRepository } from '../ports/history.js';
+import type { ModelUsageService } from './modelUsageService.js';
 
 const MAX_EMBEDDING_INPUT_CHARS = 4000;
 
@@ -35,6 +36,7 @@ export class MessageIndexingService {
     private readonly env: Env,
     private readonly embeddings: EmbeddingClient,
     private readonly history: MessageHistoryRepository,
+    private readonly modelUsage: ModelUsageService,
     private readonly logger: Logger
   ) {}
 
@@ -100,11 +102,30 @@ export class MessageIndexingService {
   }
 
   private async indexMessage(task: MessageIndexingTask): Promise<void> {
-    const vector = await this.embeddings.createEmbedding(this.env.OPENAI_EMBEDDING_MODEL, task.content);
+    const embedding = await this.embeddings.createEmbedding(this.env.OPENAI_EMBEDDING_MODEL, task.content);
+
+    if (embedding.usage) {
+      await this.modelUsage.record({
+        channelId: null,
+        guildId: null,
+        inputTokens: embedding.usage.inputTokens,
+        messageId: task.messageId,
+        metadata: {
+          contentLength: task.content.length
+        },
+        model: this.env.OPENAI_EMBEDDING_MODEL,
+        operation: 'message_index_embedding',
+        outputTokens: embedding.usage.outputTokens,
+        provider: 'openai',
+        requesterUserId: null,
+        surface: 'background',
+        totalTokens: embedding.usage.totalTokens
+      });
+    }
 
     await this.history.upsertMessageEmbedding({
       embeddedText: task.content,
-      embedding: vector,
+      embedding: embedding.vector,
       messageId: task.messageId,
       model: this.env.OPENAI_EMBEDDING_MODEL,
       updatedAt: new Date().toISOString()

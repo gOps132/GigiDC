@@ -11,6 +11,7 @@ import type {
 } from '../ports/history.js';
 import type { ChannelIngestionPolicyService } from './channelIngestionPolicyService.js';
 import type { MessageIndexingService } from './messageIndexingService.js';
+import type { ModelUsageService } from './modelUsageService.js';
 import type { RolePolicyService } from './rolePolicyService.js';
 
 export type { HistoryMessageRecord, HistoryScope, SemanticSearchHit } from '../ports/history.js';
@@ -27,6 +28,7 @@ export class MessageHistoryService {
     private readonly embeddings: EmbeddingClient,
     private readonly channelIngestionPolicies: ChannelIngestionPolicyService,
     private readonly messageIndexing: MessageIndexingService,
+    private readonly modelUsage: ModelUsageService,
     private readonly rolePolicies: RolePolicyService,
     private readonly logger: Logger
   ) {}
@@ -137,9 +139,37 @@ export class MessageHistoryService {
     return this.history.countPhrase(scope, phrase, authorUserId);
   }
 
-  async searchSemantic(scope: HistoryScope, query: string, limit = 8): Promise<SemanticSearchHit[]> {
-    const vector = await this.embeddings.createEmbedding(this.env.OPENAI_EMBEDDING_MODEL, query.slice(0, 4000));
-    return this.history.searchSemantic(scope, vector, limit);
+  async searchSemantic(
+    scope: HistoryScope,
+    query: string,
+    limit = 8,
+    usageContext?: {
+      requesterUserId?: string | null;
+      surface?: 'dm' | 'guild_mention';
+    }
+  ): Promise<SemanticSearchHit[]> {
+    const embedding = await this.embeddings.createEmbedding(this.env.OPENAI_EMBEDDING_MODEL, query.slice(0, 4000));
+    if (embedding.usage) {
+      await this.modelUsage.record({
+        channelId: scope.channelId ?? null,
+        guildId: scope.guildId ?? null,
+        inputTokens: embedding.usage.inputTokens,
+        messageId: null,
+        metadata: {
+          queryLength: query.length,
+          scopeKind: scope.kind
+        },
+        model: this.env.OPENAI_EMBEDDING_MODEL,
+        operation: 'semantic_query_embedding',
+        outputTokens: embedding.usage.outputTokens,
+        provider: 'openai',
+        requesterUserId: usageContext?.requesterUserId ?? null,
+        surface: usageContext?.surface ?? 'dm',
+        totalTokens: embedding.usage.totalTokens
+      });
+    }
+
+    return this.history.searchSemantic(scope, embedding.vector, limit);
   }
 }
 

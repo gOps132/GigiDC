@@ -1,5 +1,14 @@
+export interface ModelTokenUsage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+}
+
 export interface EmbeddingClient {
-  createEmbedding(model: string, input: string): Promise<number[]>;
+  createEmbedding(model: string, input: string): Promise<{
+    usage: ModelTokenUsage | null;
+    vector: number[];
+  }>;
 }
 
 export interface ResponseClient {
@@ -7,7 +16,10 @@ export interface ResponseClient {
     instructions: string;
     model: string;
     text: string;
-  }): Promise<string>;
+  }): Promise<{
+    text: string;
+    usage: ModelTokenUsage | null;
+  }>;
 }
 
 export type PlannedToolCall =
@@ -75,6 +87,7 @@ export type PlannedToolCall =
 
 export interface ToolPlan {
   toolCalls: PlannedToolCall[];
+  usage: ModelTokenUsage | null;
 }
 
 export interface ToolPlanningClient {

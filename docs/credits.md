@@ -16,7 +16,7 @@ This project requires explicit attribution for external resources used in implem
   - Use: Postgres-backed storage for Discord control-plane state, role policy persistence, local job references, and the CLI-managed migration workflow
   - Source: https://supabase.com/
 - `OpenAI`
-  - Use: DM reasoning and semantic retrieval embeddings in the V1 architecture
+  - Use: DM reasoning, tool planning, semantic retrieval embeddings, and the official API pricing reference used for estimated USD cost views over model usage
   - Source: https://platform.openai.com/docs
 - `pgvector`
   - Use: Vector storage and similarity search over embedded Discord messages in Postgres

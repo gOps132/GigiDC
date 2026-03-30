@@ -13,6 +13,7 @@ V1 is a reduced Discord bot architecture built for:
 - mention-based channel conversation with current-channel history scope
 - participant-visible shared Gigi tasks and actions for relay and follow-up continuity
 - bounded multi-tool DM execution on top of that shared task/action substrate
+- per-usecase OpenAI model dispatch with separate retrieval, tool-planning, and embedding model seams
 - guild/admin actions reachable from DM when the requester has the same guild capability they would need through slash commands
 - DM-only sensitive-data retrieval that bypasses model prompts and embeddings
 - slash-command assignment notices
@@ -136,6 +137,9 @@ This layer holds the actual bot behavior:
   - handles DM-only sensitive-data list and retrieval requests without calling OpenAI
   - flags raw sensitive-value write attempts so the normal DM-history path can skip persistence
   - keeps sensitive disclosures out of canonical bot-authored message history
+- `ModelUsageService`
+  - records model-usage events for retrieval responses, DM tool planning, semantic query embeddings, and background indexing embeddings
+  - keeps usage tied to the actual runtime surface, requester, channel, and operation instead of generic provider counters
 - `RetrievalService`
   - routes phrase-count questions to exact SQL/RPC paths
   - falls back to recent-message context plus semantic search
@@ -143,7 +147,7 @@ This layer holds the actual bot behavior:
   - adds requester-centric user-memory snapshot context for self-oriented DM continuity
   - can answer from a channel-scoped guild history window for mention-based public conversation
   - can suppress participant memory and user-memory context for public channel replies
-  - asks OpenAI Responses for the final natural-language answer
+  - asks the retrieval response model for the final natural-language answer
 - `MessageHistoryService`
   - stores DM history immediately and stores guild history only for channels with ingestion enabled
   - explicitly stores outbound bot-authored DMs so Gigi's own replies and relay deliveries become canonical history
@@ -166,6 +170,14 @@ This layer is intentionally thin and now split into explicit ports plus vendor a
 - `lib/logger.ts` and `lib/http.ts` provide shared runtime helpers
 - `src/ports/*` define application-facing contracts for storage and AI access
 - `src/adapters/*` implement those contracts with Supabase and OpenAI
+
+Current OpenAI dispatch is:
+
+- retrieval answers -> `OPENAI_RETRIEVAL_MODEL` or `OPENAI_RESPONSE_MODEL`
+- DM tool planning -> `OPENAI_TOOL_PLANNING_MODEL` or `OPENAI_RESPONSE_MODEL`
+- embeddings -> `OPENAI_EMBEDDING_MODEL`
+
+Deterministic DM intent replies and sensitive-data reads bypass model calls entirely.
 
 ### Ports And Adapters Boundary
 
@@ -191,11 +203,18 @@ Control-plane schema:
 - `assignments`
 - `agent_actions`
 - `audit_logs`
+- `model_usage_events`
 - `pending_dm_scope_selections`
 - `pending_dm_recipient_selections`
 - `user_profiles`
 - `user_memory_snapshots`
 - `sensitive_data_records`
+
+Derived reporting views:
+
+- `model_usage_event_estimates`
+- `model_usage_daily_summary`
+- `model_usage_requester_daily_summary`
 
 Retrieval schema:
 
@@ -372,6 +391,9 @@ This architectural change improves continuity, but it also introduces real costs
 - **Extra model and latency cost**
   - tool-style DM requests now spend an additional model call on planning before any actual execution happens
   - that keeps execution safer and more structured, but it raises per-turn latency and API cost relative to direct retrieval-only turns
+- **Usage visibility is better, but still not cost accounting**
+  - `model_usage_events` now gives the repo a durable per-operation token trail for retrieval, planning, and embeddings
+  - that improves debugging and optimization, but it is still token telemetry rather than full dollar-cost attribution or budgeting enforcement
 - **Still not durable orchestration**
   - tool execution happens synchronously during the DM turn
   - a process crash mid-turn can still leave the user without a final reply even though some writes may already have happened

@@ -105,10 +105,12 @@ values
 ## OpenAI Setup
 
 1. Set `OPENAI_API_KEY`
-2. Optionally set `OPENAI_RESPONSE_MODEL`
-3. Optionally set `OPENAI_EMBEDDING_MODEL`
-4. Set `SENSITIVE_DATA_ENCRYPTION_KEY` to a 32-byte base64 or hex key if you want encrypted sensitive-data retrieval
-5. For production on EC2, follow [docs/deploy-ec2.md](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md)
+2. Optionally set `OPENAI_RESPONSE_MODEL` as the shared default fallback model
+3. Optionally set `OPENAI_RETRIEVAL_MODEL` if retrieval answers should use a different model than the shared default
+4. Optionally set `OPENAI_TOOL_PLANNING_MODEL` if DM tool planning should use a different model than the shared default
+5. Optionally set `OPENAI_EMBEDDING_MODEL`
+6. Set `SENSITIVE_DATA_ENCRYPTION_KEY` to a 32-byte base64 or hex key if you want encrypted sensitive-data retrieval
+7. For production on EC2, follow [docs/deploy-ec2.md](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md)
 
 ## Sensitive Data Administration
 
@@ -167,6 +169,8 @@ Then validate:
 - Confirm DM messages are being written immediately
 - Confirm bot-authored DM replies and successful relay deliveries are also written into `messages`
 - Confirm embeddings are written shortly after message storage rather than inline on the message hot path
+- Confirm `model_usage_events` rows are written for retrieval responses, DM tool planning, semantic-query embeddings, and background message indexing
+- Query `model_usage_daily_summary` and `model_usage_requester_daily_summary` in Supabase to confirm estimated USD cost rollups are populated
 - If you enabled `channel_ingestion_policies`, confirm only enabled guild channels are stored
 - Confirm ingestion policy changes create `audit_logs` rows without storing secrets or private message content
 - Confirm relay permission denials and success/failure outcomes create `audit_logs` rows

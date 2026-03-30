@@ -288,6 +288,11 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Fix or required workflow: Prefer structured mentions when Discord provides them, and when relay recipient text is still ambiguous persist a `pending_dm_recipient_selections` picker so the requester chooses the exact guild user before the real confirmation step is created.
   Verification step: DM Gigi with an ambiguous relay target and confirm it shows a recipient picker, then confirm the selected user produces a real relay confirmation instead of a guessed dispatch or a fake prompt.
 
+- Issue or symptom: Per-usecase model dispatch can silently collapse back to a single default model or break tests when code paths expect `OPENAI_RETRIEVAL_MODEL` or `OPENAI_TOOL_PLANNING_MODEL` but only `OPENAI_RESPONSE_MODEL` is set.
+  Root cause: The repo normalizes model env vars in `loadEnv()`, but tests or ad hoc service construction can bypass that bootstrap and provide only the shared default model field.
+  Fix or required workflow: Keep retrieval and tool-planning services resilient by falling back to `OPENAI_RESPONSE_MODEL` when the more specific model envs are absent, and record usage against the resolved model actually used.
+  Verification step: Run `npm run test` and confirm retrieval and DM tool planning still work when a test env only sets `OPENAI_RESPONSE_MODEL`.
+
 - Issue or symptom: Guild/admin capabilities can drift into slash-command-only behavior even though the same authenticated user should be able to invoke them from DM.
   Root cause: It is easy to treat Discord surface as the permission boundary instead of treating guild identity and `role_policies` capabilities as the actual authority model.
   Fix or required workflow: Keep guild/admin execution behind shared services that resolve the requester's primary-guild membership, check the same capabilities across surfaces, and fail closed when channel, role, or assignment targets are ambiguous in DM.
