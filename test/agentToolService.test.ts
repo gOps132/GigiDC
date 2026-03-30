@@ -433,3 +433,27 @@ test('AgentToolService denies DM relay execution when the recipient lacks receiv
   assert.match(result.reply, /agent_action_receive/i);
   assert.equal(auditCalls[0]?.action, 'dm.tools.send_dm_relay.recipient_permission_denied');
 });
+
+test('AgentToolService fails closed for relay-shaped requests when the planner does not emit a real relay action', async () => {
+  const { client, service } = createService({
+    dispatchAllowed: true,
+    plan: {
+      toolCalls: []
+    }
+  });
+
+  const result = await service.maybeHandleDmQuery(
+    'can you dm @(｡•̀ᴗ-)✧ Gops ಡ ͜ ʖ ಡ "hello"',
+    {
+      id: 'requester-1',
+      username: 'erick'
+    } as never,
+    client as never,
+    'dm-channel-1'
+  );
+
+  assert.ok(result);
+  assert.deepEqual(result.executedToolNames, []);
+  assert.match(result.reply, /could not turn that into a real DM relay request/i);
+  assert.match(result.reply, /real pending action/i);
+});

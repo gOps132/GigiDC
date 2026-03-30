@@ -83,11 +83,23 @@ export class AgentToolService {
         error: message,
         requesterUserId: requester.id
       });
-      return null;
+      return looksLikeRelayIntent(query)
+        ? {
+            executedToolNames: [],
+            reply: 'I could not turn that into a real DM relay request. Mention the user explicitly, use `me`, or use their exact Discord name so I can create a real pending action.',
+            components: undefined
+          }
+        : null;
     }
 
     if (plan.toolCalls.length === 0) {
-      return null;
+      return looksLikeRelayIntent(query)
+        ? {
+            executedToolNames: [],
+            reply: 'I could not turn that into a real DM relay request. Mention the user explicitly, use `me`, or use their exact Discord name so I can create a real pending action.',
+            components: undefined
+          }
+        : null;
     }
 
     const guild = await this.resolvePrimaryGuild(client);
@@ -110,7 +122,13 @@ export class AgentToolService {
     }
 
     if (results.length === 0) {
-      return null;
+      return looksLikeRelayIntent(query)
+        ? {
+            executedToolNames: [],
+            reply: 'I could not turn that into a real DM relay request. Mention the user explicitly, use `me`, or use their exact Discord name so I can create a real pending action.',
+            components: undefined
+          }
+        : null;
     }
 
     return {
@@ -746,6 +764,24 @@ function unresolvedUserSummary(reference: string | null, targetLabel: string): s
   }
 
   return `I could not resolve "${reference}" as the ${targetLabel}. Mention the user explicitly or use their exact Discord name.`;
+}
+
+function looksLikeRelayIntent(query: string): boolean {
+  const normalized = query.trim().toLowerCase();
+  return normalized.includes('can you dm')
+    || normalized.includes('send a dm')
+    || normalized.includes('send me a dm')
+    || normalized.includes('send them a dm')
+    || normalized.includes('send him a dm')
+    || normalized.includes('send her a dm')
+    || normalized.includes('dm me')
+    || normalized.includes('dm @')
+    || normalized.includes('message @')
+    || normalized.includes('relay')
+    || (normalized.includes(' dm ') && normalized.includes('"'))
+    || (normalized.includes(' dm ') && normalized.includes('“'))
+    || (normalized.includes('message ') && normalized.includes('"'))
+    || (normalized.includes('message ') && normalized.includes('“'));
 }
 
 function formatTaskSummary(task: AgentActionRecord): string {

@@ -92,7 +92,7 @@ export function getDeterministicDmReply(query: string): string | null {
 }
 
 export function looksLikeToolRequest(query: string): boolean {
-  return /\b(task|tasks|todo|to-do|remind|reminder|follow up|follow-up|complete|completed|done|finish|mark .* done|relay|send .* dm|dm .* to|message .* via dm|assign|assignment|assignments|publish assignment|ingestion|channel ingestion|permission|permissions|capability|capabilities|grant .* permission|revoke .* permission)\b/i.test(
+  return /\b(task|tasks|todo|to-do|remind|reminder|follow up|follow-up|complete|completed|done|finish|mark .* done|relay|send .* dm|can you dm|dm .* to|dm @|message @|message .* via dm|assign|assignment|assignments|publish assignment|ingestion|channel ingestion|permission|permissions|capability|capabilities|grant .* permission|revoke .* permission)\b/i.test(
     query
   );
 }

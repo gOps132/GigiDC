@@ -278,6 +278,11 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Fix or required workflow: Route cross-user relay requests through persisted `agent_actions` rows in `awaiting_confirmation`, use button-based confirm/cancel as the primary path, and only let free-text confirm/cancel resolve a single unambiguous pending action owned by the requester.
   Verification step: Create a relay request in Discord, confirm it, and verify the action moves through confirmation, audit, and delivery state instead of relying on conversational promise text.
 
+- Issue or symptom: A DM relay-shaped request can miss the real tool path and fall back to chat, which lets Gigi improvise confirmation-like language without creating a pending action.
+  Root cause: Tool-intent detection and relay-intent hardening were too narrow for some natural phrasings such as `can you dm @user "hello"`, so the request could bypass the real relay execution path.
+  Fix or required workflow: Keep relay-intent detection broad enough to catch common DM phrasings, and if the planner still does not emit a real relay action, fail closed with a recipient-resolution message instead of falling through to normal conversational retrieval.
+  Verification step: DM Gigi with a relay-shaped request like `can you dm @user "hello"` and confirm it either creates a real pending relay action or returns a hard failure, never a fake confirmation prompt.
+
 - Issue or symptom: Guild/admin capabilities can drift into slash-command-only behavior even though the same authenticated user should be able to invoke them from DM.
   Root cause: It is easy to treat Discord surface as the permission boundary instead of treating guild identity and `role_policies` capabilities as the actual authority model.
   Fix or required workflow: Keep guild/admin execution behind shared services that resolve the requester's primary-guild membership, check the same capabilities across surfaces, and fail closed when channel, role, or assignment targets are ambiguous in DM.
