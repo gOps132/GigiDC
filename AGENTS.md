@@ -112,10 +112,12 @@ Keep one canonical home per documentation concern so project docs stay readable 
 - Keep [docs/docs.json](/Users/giancedrick/dev/projects/gigi/docs/docs.json) as the docs-site navigation and information architecture source of truth.
 - Keep [docs/architecture-v1.md](/Users/giancedrick/dev/projects/gigi/docs/architecture-v1.md) as the detailed system model for runtime layers, data boundaries, permissions, memory, and tradeoffs.
 - Keep operational instructions in focused docs such as [docs/setup.md](/Users/giancedrick/dev/projects/gigi/docs/setup.md), [docs/deploy-ec2.md](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md), and [docs/ci-cd.md](/Users/giancedrick/dev/projects/gigi/docs/ci-cd.md), not in the README.
+- Keep end-user product behavior in focused user docs such as [docs/user-guide.mdx](/Users/giancedrick/dev/projects/gigi/docs/user-guide.mdx), [docs/discord-usage.mdx](/Users/giancedrick/dev/projects/gigi/docs/discord-usage.mdx), and [docs/permissions.mdx](/Users/giancedrick/dev/projects/gigi/docs/permissions.mdx), not buried only in architecture docs.
 - Keep visuals in `docs/diagrams/` when they explain a durable system concept; use README visuals only for the shortest overview-level mental model.
 - When architecture changes, update the doc that is the source of truth instead of copy-pasting the same explanation into multiple files.
 - Make it explicit what is current behavior, what is a constraint, and what is still future work; do not blur shipped architecture with roadmap intent.
 - Record tradeoffs, limits, and unresolved implications in the architecture docs whenever memory, permissions, automation, or sensitive-data behavior changes.
+- When shipped user-facing behavior changes, update the user docs and Mintlify navigation in the same change or an immediate follow-up. Do not leave Discord usage, permissions, DM-only behavior, or slash-command behavior documented only in code.
 - Review diagrams, screenshots, and prose for sensitive-data leakage before commit or sharing.
 
 ## Human-Agent Workflow

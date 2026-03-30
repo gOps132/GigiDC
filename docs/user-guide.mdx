@@ -1,0 +1,68 @@
+---
+title: User Guide
+description: How members can use Gigi in Discord.
+---
+
+# User Guide
+
+Gigi works best as a DM-first Discord bot with optional server commands for structured workflows.
+
+## Start Here
+
+The fastest way to use Gigi is to DM it in plain language.
+
+Examples:
+
+- `hi`
+- `what tasks do i still have?`
+- `create a task for me to review the launch notes due 2026-04-02T09:00:00Z`
+- `mark task <task-id> done`
+- `send a message to @user saying I need the final draft tonight`
+
+## What Gigi Can Do
+
+For most members, Gigi currently supports:
+
+- DM conversation and follow-up questions
+- Task creation, task listing, and task completion
+- Shared DM relays when the requester and recipient both have the right permission
+- Permission-aware recall from Gigi-visible history and shared task/action memory
+- DM-only sensitive-data retrieval for the authorized owning user
+
+## Where To Use Gigi
+
+### DM
+
+Use DM when you want:
+
+- normal conversation
+- follow-up questions
+- task management
+- relay requests
+- sensitive-data retrieval
+- guild/admin actions that your account is allowed to perform
+
+### Slash Commands
+
+Use slash commands when you want:
+
+- a structured form for assignments
+- a structured form for ingestion management
+- a structured form for permission changes
+- a structured form for relay and task actions inside a server
+
+DM and slash are both just interfaces. Your actual authority comes from your guild identity and Gigi permissions.
+
+## Important Limits
+
+- Gigi does not expose every server message to every user.
+- Sensitive data is only returned in DM and only to the authorized user.
+- Some actions require explicit confirmation before Gigi executes them.
+- If a person, task, or channel is ambiguous, Gigi should fail closed instead of guessing.
+- Unsupported capabilities should be refused instead of improvised.
+
+## Next Pages
+
+- [Using Gigi In Discord](./discord-usage)
+- [Permissions](./permissions)
+- [Architecture](./architecture-v1)

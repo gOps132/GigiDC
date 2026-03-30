@@ -24,6 +24,14 @@
         ]
       },
       {
+        "group": "Using Gigi",
+        "pages": [
+          "user-guide",
+          "discord-usage",
+          "permissions"
+        ]
+      },
+      {
         "group": "Getting Started",
         "pages": [
           "setup",

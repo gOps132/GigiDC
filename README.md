@@ -5,6 +5,9 @@
 <h1 align="center">GigiDC</h1>
 
 <p align="center">
+  <a href="https://gigi-f9937525.mintlify.app/">
+    <img alt="Docs" src="https://img.shields.io/badge/docs-live-0f766e?style=for-the-badge&logo=readthedocs&logoColor=white" />
+  </a>
   <img alt="Version" src="https://img.shields.io/badge/version-0.1.0-0f766e?style=for-the-badge" />
   <img alt="Node.js" src="https://img.shields.io/badge/node-22.12%2B-2563eb?style=for-the-badge&logo=node.js&logoColor=white" />
   <img alt="TypeScript" src="https://img.shields.io/badge/typescript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
@@ -14,6 +17,10 @@
 
 <p align="center">
   Gigi is a personalized Discord bot for CS/IT Archive.
+</p>
+
+<p align="center">
+  <a href="https://gigi-f9937525.mintlify.app/"><strong>Read the official docs</strong></a>
 </p>
 
 Gigi gives CS/IT Archive members one consistent bot experience across DMs and server workflows.
@@ -68,10 +75,8 @@ flowchart LR
 
 ## Docs
 
-- [Setup](/Users/giancedrick/dev/projects/gigi/docs/setup.md)
-- [Architecture](/Users/giancedrick/dev/projects/gigi/docs/architecture-v1.md)
-- [Diagrams](/Users/giancedrick/dev/projects/gigi/docs/diagrams/README.md)
-- [Project Visualization Workflow](/Users/giancedrick/dev/projects/gigi/docs/project-visualization-workflow.md)
-- [Deployment](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md)
-- [CI/CD](/Users/giancedrick/dev/projects/gigi/docs/ci-cd.md)
-- [Credits](/Users/giancedrick/dev/projects/gigi/docs/credits.md)
+- [Official docs](https://gigi-f9937525.mintlify.app/)
+- [User guide](https://gigi-f9937525.mintlify.app/user-guide)
+- [Using Gigi in Discord](https://gigi-f9937525.mintlify.app/discord-usage)
+- [Permissions](https://gigi-f9937525.mintlify.app/permissions)
+- [Architecture](https://gigi-f9937525.mintlify.app/architecture-v1)

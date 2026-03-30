@@ -1,0 +1,113 @@
+---
+title: Using Gigi In Discord
+description: Real examples of how to talk to Gigi in DMs and use slash commands in the server.
+---
+
+# Using Gigi In Discord
+
+This page covers the current supported ways to interact with Gigi.
+
+## DM Examples
+
+### Normal conversation
+
+Examples:
+
+- `hi`
+- `what did Erick want again?`
+- `how many times did I say "ship it"?`
+
+### Tasks
+
+Examples:
+
+- `create a task for me to review the launch notes due 2026-04-02T09:00:00Z`
+- `show me my open tasks`
+- `mark task <task-id> done`
+
+### DM relays
+
+Examples:
+
+- `send a message to @user saying I need the final draft tonight`
+- `send me a dm saying remind me to review the draft`
+
+Current relay behavior:
+
+- Gigi resolves the target conservatively.
+- The requester must have `agent_action_dispatch`.
+- The recipient must have `agent_action_receive`.
+- Cross-user relays may require confirmation before Gigi sends them.
+
+### Sensitive data
+
+Examples:
+
+- `show my sensitive data`
+- `what sensitive records do I have?`
+
+Sensitive data is only disclosed in DM and only to the owning authorized user.
+
+## Slash Commands
+
+### `/task`
+
+Use `/task` for structured shared task management.
+
+- `/task create`
+- `/task list`
+- `/task complete`
+
+### `/relay`
+
+Use `/relay dm` to send a direct message through Gigi from within a server.
+
+### `/permission`
+
+Use `/permission` to manage direct user capability grants.
+
+- `/permission list`
+- `/permission grant`
+- `/permission revoke`
+
+### `/ingestion`
+
+Use `/ingestion` to manage message-history ingestion for server channels.
+
+- `/ingestion status`
+- `/ingestion enable`
+- `/ingestion disable`
+
+### `/assignment`
+
+Use `/assignment` for assignment workflows.
+
+- `/assignment create`
+- `/assignment list`
+- `/assignment publish`
+
+## How Gigi Decides
+
+At a high level, Gigi follows this shape:
+
+1. Read the message or command.
+2. Determine whether it is a normal question, a tool/action request, or a sensitive-data request.
+3. Check identity, guild membership, and capability requirements.
+4. Validate the target user, task, or channel conservatively.
+5. Confirm if the action requires confirmation.
+6. Execute and record the result.
+
+## Good Usage Patterns
+
+- Use explicit mentions for people.
+- Use task IDs when completing tasks.
+- Use full ISO-8601 timestamps for due dates.
+- Use DM for personal questions and sensitive information.
+- Use slash commands when you want a structured server-side form.
+
+## Failure Cases You Should Expect
+
+- Permission-denied replies when you lack the required capability
+- Refusals when a user or task cannot be resolved safely
+- DM-only enforcement for sensitive-data retrieval
+- No action taken when a pending confirmation does not exist or has expired

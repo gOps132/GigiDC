@@ -1,0 +1,69 @@
+---
+title: Permissions
+description: How Gigi permissions work across DM and slash surfaces.
+---
+
+# Permissions
+
+Gigi uses permission-aware execution. A DM does not grant extra authority, and a slash command does not create authority by itself.
+
+Authority comes from your Discord identity plus Gigi capability checks.
+
+## Current Capabilities
+
+| Capability | What it allows |
+| --- | --- |
+| `agent_action_dispatch` | Create shared tasks, dispatch relays, and perform other shared Gigi actions |
+| `agent_action_receive` | Receive Gigi-mediated DM relays |
+| `assignment_admin` | Create, list, and publish assignments |
+| `ingestion_admin` | Check or change ingestion policy for channels and threads |
+| `history_guild_wide` | Access broader guild history where the retrieval flow allows it |
+| `permission_admin` | Inspect, grant, and revoke direct user capability grants |
+
+## How Permissions Are Granted
+
+Permissions can come from:
+
+- Discord role mappings in `role_policies`
+- direct user grants
+- Discord administrator bypass where supported by the runtime
+
+## Surface Rules
+
+- DM and slash follow the same capability checks.
+- DM is allowed to trigger guild/admin actions if the requesting user already has the required capability.
+- Sensitive data is stricter: it is returned only in DM and only to the authorized owning user.
+
+## Examples
+
+### Relay
+
+To send a DM relay through Gigi:
+
+- requester needs `agent_action_dispatch`
+- recipient needs `agent_action_receive`
+
+### Ingestion
+
+To manage channel ingestion:
+
+- requester needs `ingestion_admin`
+
+### Assignment workflows
+
+To create or publish assignments:
+
+- requester needs `assignment_admin`
+
+### Permission management
+
+To inspect or change direct grants for another user:
+
+- requester needs `permission_admin`
+
+## Practical Guidance
+
+- Prefer roles for normal group-based access.
+- Use direct grants for exceptions or small targeted overrides.
+- Audit direct grants regularly so they do not drift from the visible Discord role model.
+- Keep sensitive capabilities narrow and explicit.
