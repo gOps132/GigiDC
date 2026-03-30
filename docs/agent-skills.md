@@ -21,6 +21,8 @@ This repo keeps project-specific agent skills in `.codex/skills` so the workflow
   - Preserve this repo's Terraform 1.5.x compatibility rule from `AGENTS.md`; do not raise `required_version` just because a skill example uses a newer release
 - `security-best-practices`
   - Use for security reviews and secure-by-default changes involving secrets, Discord permissions, DM history, OpenAI requests, or Supabase access boundaries
+- `mintlify`
+  - Use for the project docs site, `docs/docs.json`, MDX page organization, Mintlify components, and documentation UX improvements
 - `github-workflow`
   - Use for `gh`-based PR workflows, branching strategy, merge flow, and general GitHub operations
 - `gh-fix-ci`
@@ -39,6 +41,7 @@ These were selected for this repo's actual stack and workflow:
 - Terraform-managed infrastructure
 - GitHub Actions CI/CD and pull-request review flow
 - Security-sensitive handling of Discord data, bot credentials, and service-role access
+- Mintlify-hosted docs site structure and docs-as-code workflow
 
 ## Selection Rule
 

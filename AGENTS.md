@@ -69,6 +69,7 @@ Prefer the repo-local skills in `.codex/skills` when a task matches their domain
 - Use `supabase-postgres-best-practices` for Supabase/Postgres schema, query, index, migration, and RLS work
 - Use `terraform-style-guide` for Terraform authoring and review, but keep the repo's Terraform Core compatibility aligned with 1.5.x unless the repo intentionally upgrades
 - Use `security-best-practices` for security reviews, secrets handling, auth boundaries, and DM/privacy-sensitive changes
+- Use `mintlify` for the docs site, docs navigation, MDX page structure, and Mintlify-specific documentation UX work
 - Use `github-workflow`, `gh-fix-ci`, and `gh-address-comments` for PR workflows, GitHub Actions failures, and review-comment resolution
 
 See `docs/agent-skills.md` for the current project-specific skill map and selection rationale.

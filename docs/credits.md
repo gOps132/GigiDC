@@ -60,6 +60,9 @@ This project requires explicit attribution for external resources used in implem
 - `Mintlify`
   - Use: Docs-site platform for the repo's structured documentation, navigation, and future hosted docs experience
   - Source: https://www.mintlify.com/
+- `Mintlify official docs and docs workflow`
+  - Use: Basis for the repo-local `mintlify` skill and the project’s Mintlify docs-site workflow conventions
+  - Source: https://mintlify.com/docs
 
 ## Workflow and Planning References
 
