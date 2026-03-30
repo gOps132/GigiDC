@@ -19,7 +19,8 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY is required'),
   OPENAI_API_KEY: z.string().min(1, 'OPENAI_API_KEY is required'),
   OPENAI_RESPONSE_MODEL: z.string().min(1).default('gpt-4.1-mini'),
-  OPENAI_EMBEDDING_MODEL: z.string().min(1).default('text-embedding-3-small')
+  OPENAI_EMBEDDING_MODEL: z.string().min(1).default('text-embedding-3-small'),
+  SENSITIVE_DATA_ENCRYPTION_KEY: z.string().min(1).optional()
 });
 
 export type Env = z.infer<typeof envSchema>;

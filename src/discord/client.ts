@@ -130,12 +130,18 @@ export async function handleIncomingDiscordMessage(
   context: BotContext
 ): Promise<void> {
   let storeSucceeded = true;
+  const skipHistoryStorage =
+    message.channel.isDMBased()
+    && !message.author.bot
+    && context.services.sensitiveData.shouldBypassHistoryStorage(message.content);
 
   try {
-    const result = await context.services.messageHistory.storeDiscordMessage(message);
+    if (!skipHistoryStorage) {
+      const result = await context.services.messageHistory.storeDiscordMessage(message);
 
-    if (message.inGuild() && !result.stored && result.reason === 'skipped_by_ingestion_policy') {
-      return;
+      if (message.inGuild() && !result.stored && result.reason === 'skipped_by_ingestion_policy') {
+        return;
+      }
     }
   } catch (error) {
     storeSucceeded = false;
@@ -163,7 +169,7 @@ export async function handleIncomingDiscordMessage(
       channelId: message.channelId,
       messageId: message.id,
       error: messageText,
-      historyStored: storeSucceeded
+      historyStored: !skipHistoryStorage && storeSucceeded
     });
 
     await message.reply({

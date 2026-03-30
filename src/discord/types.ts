@@ -16,9 +16,11 @@ import type { ChannelIngestionPolicyService } from '../services/channelIngestion
 import type { DmConversationService } from '../services/dmConversationService.js';
 import type { MessageHistoryService } from '../services/messageHistoryService.js';
 import type { MessageIndexingService } from '../services/messageIndexingService.js';
+import type { PermissionAdminService } from '../services/permissionAdminService.js';
 import type { RetrievalService } from '../services/retrievalService.js';
 import type { RolePolicyService } from '../services/rolePolicyService.js';
 import type { RuntimeStateService } from '../services/runtimeStateService.js';
+import type { SensitiveDataService } from '../services/sensitiveDataService.js';
 import type { UserMemoryService } from '../services/userMemoryService.js';
 
 export interface BotContext {
@@ -32,12 +34,14 @@ export interface BotContext {
     assignments: AssignmentService;
     auditLogs: AuditLogService;
     channelIngestionPolicies: ChannelIngestionPolicyService;
-    dmConversation: DmConversationService;
-    messageHistory: MessageHistoryService;
-    messageIndexing: MessageIndexingService;
-    retrieval: RetrievalService;
-    rolePolicies: RolePolicyService;
-    userMemory: UserMemoryService;
+      dmConversation: DmConversationService;
+      messageHistory: MessageHistoryService;
+      messageIndexing: MessageIndexingService;
+      permissionAdmin: PermissionAdminService;
+      retrieval: RetrievalService;
+      rolePolicies: RolePolicyService;
+      sensitiveData: SensitiveDataService;
+      userMemory: UserMemoryService;
   };
 }
 

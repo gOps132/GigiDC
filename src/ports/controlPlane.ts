@@ -48,5 +48,13 @@ export interface ChannelIngestionPolicyStore {
 
 export interface RolePolicyStore {
   ensureGuild(guild: Guild): Promise<void>;
+  grantUserCapability(input: {
+    capability: Capability;
+    grantedByUserId: string;
+    guildId: string;
+    userId: string;
+  }): Promise<void>;
+  listDirectUserCapabilities(guildId: string, userId: string): Promise<Capability[]>;
   memberHasCapability(guild: Guild, member: GuildMember, capability: Capability): Promise<boolean>;
+  revokeUserCapability(guildId: string, userId: string, capability: Capability): Promise<boolean>;
 }

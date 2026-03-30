@@ -20,6 +20,7 @@ import {
 } from './agentActionService.js';
 import type { GuildAdminActionService } from './guildAdminActionService.js';
 import { looksLikeToolRequest } from './dmIntentRouter.js';
+import type { PermissionAdminService } from './permissionAdminService.js';
 import { CAPABILITIES, type RolePolicyService } from './rolePolicyService.js';
 
 const MAX_TOOL_CALLS_PER_TURN = 3;
@@ -54,6 +55,7 @@ export class AgentToolService {
     private readonly agentActions: AgentActionService,
     private readonly auditLogs: AuditLogService,
     private readonly guildAdminActions: GuildAdminActionService,
+    private readonly permissionAdmin: PermissionAdminService,
     private readonly rolePolicies: RolePolicyService,
     private readonly logger: Logger
   ) {}
@@ -152,6 +154,18 @@ export class AgentToolService {
 
     if (toolCall.name === 'publish_assignment') {
       return this.executePublishAssignment(toolCall, context);
+    }
+
+    if (toolCall.name === 'grant_permission') {
+      return this.executeGrantPermission(toolCall, context);
+    }
+
+    if (toolCall.name === 'revoke_permission') {
+      return this.executeRevokePermission(toolCall, context);
+    }
+
+    if (toolCall.name === 'list_permissions') {
+      return this.executeListPermissions(toolCall, context);
     }
 
     return this.executeSendDmRelay(toolCall, context);
@@ -469,6 +483,80 @@ export class AgentToolService {
     };
   }
 
+  private async executeGrantPermission(
+    toolCall: Extract<PlannedToolCall, { name: 'grant_permission' }>,
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    const targetUser = await this.resolveUserReference(toolCall.userReference, context);
+    if (!targetUser) {
+      return {
+        handled: true,
+        summary: unresolvedUserSummary(toolCall.userReference, 'permission target'),
+        toolName: toolCall.name
+      };
+    }
+
+    return {
+      handled: true,
+      summary: await this.permissionAdmin.grantUserPermission({
+        capability: toolCall.capability,
+        client: context.client,
+        requester: context.requester,
+        targetUser
+      }),
+      toolName: toolCall.name
+    };
+  }
+
+  private async executeRevokePermission(
+    toolCall: Extract<PlannedToolCall, { name: 'revoke_permission' }>,
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    const targetUser = await this.resolveUserReference(toolCall.userReference, context);
+    if (!targetUser) {
+      return {
+        handled: true,
+        summary: unresolvedUserSummary(toolCall.userReference, 'permission target'),
+        toolName: toolCall.name
+      };
+    }
+
+    return {
+      handled: true,
+      summary: await this.permissionAdmin.revokeUserPermission({
+        capability: toolCall.capability,
+        client: context.client,
+        requester: context.requester,
+        targetUser
+      }),
+      toolName: toolCall.name
+    };
+  }
+
+  private async executeListPermissions(
+    toolCall: Extract<PlannedToolCall, { name: 'list_permissions' }>,
+    context: ExecutionContext
+  ): Promise<ToolExecutionResult> {
+    const targetUser = await this.resolveUserReference(toolCall.userReference, context);
+    if (!targetUser) {
+      return {
+        handled: true,
+        summary: unresolvedUserSummary(toolCall.userReference, 'permission target'),
+        toolName: toolCall.name
+      };
+    }
+
+    return {
+      handled: true,
+      summary: await this.permissionAdmin.listUserPermissions({
+        client: context.client,
+        requester: context.requester,
+        targetUser
+      }),
+      toolName: toolCall.name
+    };
+  }
+
   private async canDispatchSharedActions(context: ExecutionContext): Promise<boolean> {
     if (!context.guild || !context.requesterMember) {
       return false;
@@ -619,7 +707,7 @@ function buildPlannerInstructions(): string {
   return [
     'You are the internal DM tool planner for GigiDC.',
     'Decide whether the user is asking Gigi to execute internal tools instead of answering from retrieval.',
-    'Only use tools for explicit action requests such as creating tasks, listing tasks, completing tasks, sending a DM relay, checking or changing ingestion status, or listing, creating, or publishing assignments.',
+    'Only use tools for explicit action requests such as creating tasks, listing tasks, completing tasks, sending a DM relay, checking or changing ingestion status, listing, creating, or publishing assignments, or listing, granting, or revoking direct user permissions.',
     'Return no tool calls for pure history questions, freeform chat, or questions that should be handled by retrieval.',
     'Keep calls in the same order the user expects them to happen.',
     'Never invent user IDs or task IDs.',

@@ -8,6 +8,7 @@ V1 is a reduced Discord bot architecture built for:
 - participant-visible shared Gigi tasks and actions for relay and follow-up continuity
 - bounded multi-tool DM execution on top of that shared task/action substrate
 - guild/admin actions reachable from DM when the requester has the same guild capability they would need through slash commands
+- DM-only sensitive-data retrieval that bypasses model prompts and embeddings
 - slash-command assignment notices
 - exact + semantic retrieval over raw Discord history
 - role-gated guild-wide history access
@@ -107,6 +108,11 @@ This layer holds the actual bot behavior:
   - checks `ingestion_admin` and `assignment_admin` the same way slash commands do
   - executes ingestion status/policy writes and assignment create/list/publish actions from DM
   - records audit rows for permission denials and successful DM-triggered admin actions
+- `PermissionAdminService`
+  - manages direct user capability grants in `user_capability_grants`
+  - checks `permission_admin` before any grant, revoke, or permission-inspection action
+  - exposes the same capability-management path to slash commands and DM tool execution
+  - reports both effective capabilities and direct grants so direct user overrides are visible
 - `AgentActionService`
   - persists participant-visible Gigi actions such as DM relays and follow-up tasks
   - records requester, assignee/recipient, status, confirmation lifecycle, due date, and delivery metadata
@@ -115,6 +121,11 @@ This layer holds the actual bot behavior:
   - upserts requester-centric user profiles for the primary guild
   - generates bounded `identity_summary`, `working_context`, and `preferences` snapshots on demand
   - keeps those summaries traceable back to source messages and actions instead of promoting opaque memory
+- `SensitiveDataService`
+  - stores encrypted sensitive records outside normal chat history
+  - handles DM-only sensitive-data list and retrieval requests without calling OpenAI
+  - flags raw sensitive-value write attempts so the normal DM-history path can skip persistence
+  - keeps sensitive disclosures out of canonical bot-authored message history
 - `RetrievalService`
   - routes phrase-count questions to exact SQL/RPC paths
   - falls back to recent-message context plus semantic search
@@ -164,12 +175,14 @@ Control-plane schema:
 
 - `guilds`
 - `role_policies`
+- `user_capability_grants`
 - `assignments`
 - `agent_actions`
 - `audit_logs`
 - `pending_dm_scope_selections`
 - `user_profiles`
 - `user_memory_snapshots`
+- `sensitive_data_records`
 
 Retrieval schema:
 
@@ -243,11 +256,13 @@ It currently supports:
 - list open tasks
 - complete task
 - request a confirmed DM relay
+- list, grant, or revoke direct user permissions
 - get ingestion status for an explicit guild channel
 - enable or disable ingestion for an explicit guild channel
 - create assignments
 - list assignments
 - publish assignments
+- list or retrieve the requester's own sensitive records
 
 It does not support:
 
@@ -275,8 +290,10 @@ This means Gigi can now do limited multi-step work in DM, such as:
 - create a task and then list open tasks in the same turn
 - complete a task and confirm it
 - request a participant-visible DM relay without switching to slash commands, then confirm it explicitly
+- inspect or change direct user capability grants from DM when the requester has `permission_admin`
 - inspect or change channel-ingestion policy from DM when the requester has `ingestion_admin`
 - create, list, or publish assignments from DM when the requester has `assignment_admin`
+- retrieve the requester's own encrypted sensitive records in DM without involving OpenAI
 
 This is still not a general tool framework. It is a bounded internal action runtime attached to the shared task/action substrate.
 
@@ -431,8 +448,10 @@ DM tool execution uses the same permission boundaries:
 - creating shared tasks or sending relays still requires `agent_action_dispatch`
 - sending a relay also requires the recipient to have `agent_action_receive`
 - listing another user's tasks still requires `agent_action_dispatch`
+- listing, granting, or revoking direct user permissions requires `permission_admin`
 - checking or changing ingestion policy from DM requires `ingestion_admin`
 - creating, listing, or publishing assignments from DM requires `assignment_admin`
+- retrieving sensitive records is DM-only and currently limited to the owning user
 
 ## Current Risks
 
@@ -447,6 +466,9 @@ The current shared-identity foundation is intentionally narrow, but the repo sho
 - broader shared-memory features should not be added by simply widening retrieval scope; they need explicit visibility rules and task boundaries
 - the current DM tool planner can misclassify natural language or fail to resolve people unless the request is explicit
 - broadening DM authority to include guild/admin operations raises the risk of wrong-channel, wrong-role, or wrong-assignment mutations unless resource resolution stays conservative and fail-closed
+- direct user grants can quietly accumulate and diverge from the visible Discord role model unless they are audited periodically
+- sensitive data is safer in an encrypted control-plane table than in raw DM history, but the current design still depends on careful encryption-key management and a non-Discord write path
+- users can still paste secrets into plain DM by mistake, so the history-bypass detector is intentionally conservative but cannot guarantee perfect prevention for every phrasing
 - unsupported-capability questions still need explicit grounding rules or the language model will invent broader tool access than the bot actually has
 - multi-tool execution is still bounded to short synchronous internal actions and should not be mistaken for a general agent-worker system
 
@@ -469,8 +491,10 @@ The current audit surface is still selective, but ingestion-policy changes now f
 - relay permission denials are logged
 - relay success and failure outcomes are logged
 - task creation and completion outcomes are logged
+- permission grant, revoke, and inspection actions are logged
 - DM-triggered ingestion checks and writes are logged
 - DM-triggered assignment create/list/publish actions are logged
+- sensitive-data values themselves are not logged and are not sent to OpenAI
 
 This gives the repo a real operational trail around retention policy changes, which are more sensitive than ordinary read-only commands.
 

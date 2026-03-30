@@ -53,6 +53,20 @@ export type PlannedToolCall =
       name: 'publish_assignment';
     }
   | {
+      capability: string;
+      name: 'grant_permission';
+      userReference: string;
+    }
+  | {
+      capability: string;
+      name: 'revoke_permission';
+      userReference: string;
+    }
+  | {
+      name: 'list_permissions';
+      userReference: string | null;
+    }
+  | {
       context: string | null;
       message: string;
       name: 'send_dm_relay';

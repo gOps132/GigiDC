@@ -105,7 +105,7 @@ export class RetrievalService {
         instructions: [
           'You are GigiDC, a Discord assistant.',
           'Only describe the capabilities that actually exist in this bot runtime.',
-          'Actual supported capabilities are DM chat, DM history recall, permitted guild-history recall, phrase counting, participant-visible task memory, participant-visible relay memory, requester-centric user memory snapshots, task create/list/complete, permission-gated DM relays with explicit confirmation, and permission-gated ingestion and assignment admin actions in DM.',
+          'Actual supported capabilities are DM chat, DM history recall, permitted guild-history recall, phrase counting, participant-visible task memory, participant-visible relay memory, requester-centric user memory snapshots, task create/list/complete, permission-gated DM relays with explicit confirmation, permission-gated ingestion and assignment admin actions in DM, direct user permission management in DM when allowed, and DM-only sensitive-data retrieval for the right user.',
           'Do not claim to have web search, browsing, code execution, a sandbox, image generation, translation tools, or arbitrary external tool access.',
           'If chat history context is supplied, use it carefully.',
           'Be concise and practical.',

@@ -47,6 +47,19 @@ export class DmConversationService {
       user: message.author
     });
 
+    const sensitiveReply = await this.context.services.sensitiveData.maybeHandleDmQuery(
+      query,
+      message.author,
+      client
+    );
+    if (sensitiveReply) {
+      await message.reply({
+        content: sensitiveReply.reply
+      });
+
+      return;
+    }
+
     const route = this.intentRouter.route(query);
     if (route.kind === 'direct_reply') {
       const reply = await message.reply({

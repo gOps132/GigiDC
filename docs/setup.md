@@ -29,6 +29,7 @@ Required variables:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `OPENAI_API_KEY`
+- `SENSITIVE_DATA_ENCRYPTION_KEY` if you want encrypted sensitive-data retrieval
 
 ## Discord Setup
 
@@ -61,6 +62,7 @@ Current checked-in baseline migrations:
 - [supabase/migrations/20260329160104_add_agent_actions_shared_identity.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/20260329160104_add_agent_actions_shared_identity.sql)
 - [supabase/migrations/20260329162152_expand_agent_actions_task_model.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/20260329162152_expand_agent_actions_task_model.sql)
 - [supabase/migrations/20260330013000_solidify_dm_confirmations_and_user_memory.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/20260330013000_solidify_dm_confirmations_and_user_memory.sql)
+- [supabase/migrations/20260330023500_add_direct_permissions_and_sensitive_data.sql](/Users/giancedrick/dev/projects/gigi/supabase/migrations/20260330023500_add_direct_permissions_and_sensitive_data.sql)
 
 Use the CLI for all new migrations:
 
@@ -81,8 +83,11 @@ values
   ('your-discord-guild-id', 'agent_action_receive', 'your-gigi-dm-recipient-role-id'),
   ('your-discord-guild-id', 'assignment_admin', 'your-assignment-admin-role-id'),
   ('your-discord-guild-id', 'ingestion_admin', 'your-ingestion-admin-role-id'),
-  ('your-discord-guild-id', 'history_guild_wide', 'your-history-enabled-role-id');
+  ('your-discord-guild-id', 'history_guild_wide', 'your-history-enabled-role-id'),
+  ('your-discord-guild-id', 'permission_admin', 'your-permission-admin-role-id');
 ```
+
+Direct one-off user grants are now stored in `user_capability_grants` and can be managed from Discord with `/permission`.
 
 Example ingestion policy shape:
 
@@ -97,7 +102,22 @@ values
 1. Set `OPENAI_API_KEY`
 2. Optionally set `OPENAI_RESPONSE_MODEL`
 3. Optionally set `OPENAI_EMBEDDING_MODEL`
-4. For production on EC2, follow [docs/deploy-ec2.md](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md)
+4. Set `SENSITIVE_DATA_ENCRYPTION_KEY` to a 32-byte base64 or hex key if you want encrypted sensitive-data retrieval
+5. For production on EC2, follow [docs/deploy-ec2.md](/Users/giancedrick/dev/projects/gigi/docs/deploy-ec2.md)
+
+## Sensitive Data Administration
+
+Sensitive values are intentionally not written through normal DM chat because DM history is otherwise stored for retrieval.
+
+Use the local admin script instead:
+
+```bash
+printf '%s' 'your-secret-value' | npm run sensitive:data -- put --guild YOUR_GUILD_ID --owner YOUR_USER_ID --label github --description "GitHub personal access token"
+npm run sensitive:data -- list --guild YOUR_GUILD_ID --owner YOUR_USER_ID
+npm run sensitive:data -- delete --guild YOUR_GUILD_ID --owner YOUR_USER_ID --label github
+```
+
+The script encrypts the value with `SENSITIVE_DATA_ENCRYPTION_KEY` before it writes to Supabase. Gigi only discloses those values in DM to the owning user.
 
 ## Local Verification
 
@@ -115,6 +135,7 @@ npm run dev
 Then validate:
 
 - `/ping` responds
+- `/permission list`, `/permission grant`, and `/permission revoke` work for a user with `permission_admin`
 - `/ingestion status` shows whether the current channel is enabled
 - `/ingestion enable` turns ingestion on for the current or selected channel
 - `/ingestion disable` turns ingestion off again
@@ -133,6 +154,8 @@ Then validate:
 - DM the bot with a history question like `How many times did I say "ship it"?`
 - DM the bot with a relay request like `send Mina a DM saying the release moved to Friday`, confirm the prompt, and verify the DM is only sent after confirmation
 - DM the bot with `confirm!` or `cancel` when exactly one relay is pending and confirm the pending action resolves cleanly
+- Seed a sensitive record with the local admin script, then DM the bot with `show my sensitive data` and `what is my github token`
+- DM the bot with `remember my github token is ...` and confirm it refuses and skips ordinary history storage
 - After `/relay dm`, ask the bot in DM what the requester wanted and confirm the answer can come from `agent_actions`
 - Ask the bot in DM what tasks are still open and confirm the answer can come from open task records
 - Ask the bot something like `what am I working on lately?` and confirm the answer can draw from `user_profiles` and `user_memory_snapshots`
@@ -142,11 +165,13 @@ Then validate:
 - If you enabled `channel_ingestion_policies`, confirm only enabled guild channels are stored
 - Confirm ingestion policy changes create `audit_logs` rows without storing secrets or private message content
 - Confirm relay permission denials and success/failure outcomes create `audit_logs` rows
+- Confirm permission grants and revocations create `audit_logs` rows without storing secret values
 - Check both `/healthz` and `/readyz`
 
 ## Safety Notes
 
 - Never expose `SUPABASE_SERVICE_ROLE_KEY` or `OPENAI_API_KEY`
+- Never expose `SENSITIVE_DATA_ENCRYPTION_KEY`
 - Do not paste real secrets into docs, issues, or pull requests
 - Review logs and generated output for sensitive data before sharing
 - Do not commit linked-project credentials or copy remote database passwords into scripts

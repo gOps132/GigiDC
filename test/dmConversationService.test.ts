@@ -130,6 +130,7 @@ function createContext(overrides?: {
         }
       },
       messageIndexing: {},
+      permissionAdmin: {},
       retrieval: {
         async answerQuestion(query: string, scope: unknown, requesterUserId: string, botUserId: string) {
           answerCalls.push({
@@ -148,6 +149,11 @@ function createContext(overrides?: {
       rolePolicies: {
         async memberHasCapability() {
           return overrides?.allowGuildWideHistory ?? false;
+        }
+      },
+      sensitiveData: {
+        async maybeHandleDmQuery() {
+          return null;
         }
       },
       userMemory: {

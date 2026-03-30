@@ -66,6 +66,8 @@ export function getDeterministicDmReply(query: string): string | null {
       '- count exact phrases from stored history',
       '- recall participant-visible relays and tasks',
       '- manage ingestion status and assignment workflows in DM when your guild permissions allow it',
+      '- list or manage direct user permissions in DM when your guild permissions allow it',
+      '- list or retrieve your own stored sensitive records in DM',
       '- create, list, and complete tasks',
       '- request and confirm permission-gated Gigi-mediated DMs',
       '',
@@ -78,7 +80,7 @@ export function getDeterministicDmReply(query: string): string | null {
       normalized
     )
   ) {
-    return 'No. In this bot runtime I cannot run code, provide a sandbox, browse the web, generate images, or use arbitrary external tools. The only internal tools I can use here are task create/list/complete and permission-gated DM relays.';
+    return 'No. In this bot runtime I cannot run code, provide a sandbox, browse the web, generate images, or use arbitrary external tools. The internal tools here are bounded to task management, permission-gated DM relays, permission-gated ingestion and assignment admin actions, permission management, and DM-only sensitive-data retrieval.';
   }
 
   if (/^(how.?s ingestion going|how is ingestion going|what.?s ingestion status)[.!?]*$/i.test(normalized)) {
@@ -89,7 +91,7 @@ export function getDeterministicDmReply(query: string): string | null {
 }
 
 export function looksLikeToolRequest(query: string): boolean {
-  return /\b(task|tasks|todo|to-do|remind|reminder|follow up|follow-up|complete|completed|done|finish|mark .* done|relay|send .* dm|dm .* to|message .* via dm|assign|assignment|assignments|publish assignment|ingestion|channel ingestion)\b/i.test(
+  return /\b(task|tasks|todo|to-do|remind|reminder|follow up|follow-up|complete|completed|done|finish|mark .* done|relay|send .* dm|dm .* to|message .* via dm|assign|assignment|assignments|publish assignment|ingestion|channel ingestion|permission|permissions|capability|capabilities|grant .* permission|revoke .* permission)\b/i.test(
     query
   );
 }

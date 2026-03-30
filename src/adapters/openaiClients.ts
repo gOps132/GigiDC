@@ -45,6 +45,20 @@ const toolPlanSchema = z.object({
           channelReference: z.string().trim().min(1).max(120).nullable()
         }),
         z.object({
+          name: z.literal('grant_permission'),
+          userReference: z.string().trim().min(1).max(120),
+          capability: z.string().trim().min(1).max(120)
+        }),
+        z.object({
+          name: z.literal('revoke_permission'),
+          userReference: z.string().trim().min(1).max(120),
+          capability: z.string().trim().min(1).max(120)
+        }),
+        z.object({
+          name: z.literal('list_permissions'),
+          userReference: z.string().trim().min(1).max(120).nullable()
+        }),
+        z.object({
           name: z.literal('complete_task'),
           taskReference: z.string().trim().min(1).max(120),
           result: z.string().trim().min(1).max(500).nullable()

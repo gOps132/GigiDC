@@ -8,8 +8,10 @@ DM-first Discord bot for agentic chat, scoped history retrieval, shared Gigi ide
 - DM-first agent experience backed by OpenAI
 - Shared Gigi task/action memory for relays, follow-up questions, and tracked work
 - Explicit relay confirmation flow plus bounded requester-centric user memory
-- Bounded DM tool execution for task, relay, ingestion, and assignment workflows
+- Bounded DM tool execution for task, relay, permission, ingestion, and assignment workflows
 - Slash-command assignment notifier workflow, plus DM access to the same guild capabilities
+- Direct user capability grants alongside role-based capability mappings
+- Encrypted sensitive-data records with DM-only disclosure for the owning user
 - Supabase/Postgres-backed control-plane state
 - Raw message history + pgvector-ready retrieval foundation
 - Project rules and planning docs
@@ -37,6 +39,7 @@ Open `.env` and put your real API keys and IDs there:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `OPENAI_API_KEY`
+- `SENSITIVE_DATA_ENCRYPTION_KEY` if you want encrypted sensitive-data retrieval
 
 Do not commit `.env`.
 
@@ -119,6 +122,9 @@ CD setup instructions and required GitHub secrets are in [docs/ci-cd.md](/Users/
 ## Available Commands and Interaction Modes
 
 - `/ping`
+- `/permission grant`
+- `/permission revoke`
+- `/permission list`
 - `/ingestion enable`
 - `/ingestion disable`
 - `/ingestion status`
@@ -142,6 +148,8 @@ DM the bot for:
 - explicit relay requests like `send Mina a DM saying the release moved to Friday`
 - permission-gated ingestion admin requests like `show ingestion status for #shipping` or `enable ingestion for #shipping`
 - permission-gated assignment admin requests like `create an assignment called Chapter 5 homework for @Students due 2026-04-02T09:00:00Z` or `publish assignment assignment-1`
+- permission-management requests like `what permissions do i have?` or `grant permission_admin to @user`
+- DM-only sensitive-data requests like `show my sensitive data` or `what is my github token`
 - follow-up confirmations like `confirm!` or `cancel` when Gigi has exactly one pending relay waiting on you
 
 The DM runtime does not provide:
@@ -165,6 +173,7 @@ Capabilities used by the current command set:
 - `assignment_admin`
 - `ingestion_admin`
 - `history_guild_wide`
+- `permission_admin`
 
 Example:
 
@@ -175,8 +184,11 @@ values
   ('your-discord-guild-id', 'agent_action_receive', 'your-gigi-dm-recipient-role-id'),
   ('your-discord-guild-id', 'assignment_admin', 'your-assignment-admin-role-id'),
   ('your-discord-guild-id', 'ingestion_admin', 'your-ingestion-admin-role-id'),
-  ('your-discord-guild-id', 'history_guild_wide', 'your-history-enabled-role-id');
+  ('your-discord-guild-id', 'history_guild_wide', 'your-history-enabled-role-id'),
+  ('your-discord-guild-id', 'permission_admin', 'your-permission-admin-role-id');
 ```
+
+You can also grant a capability directly to a specific user with `/permission grant`, which writes to `user_capability_grants`.
 
 ## Retrieval Model
 
@@ -185,24 +197,30 @@ V1 uses a reduced retrieval-first architecture:
 - raw Discord messages are the source of truth
 - DM history is always eligible for storage
 - guild-channel ingestion is opt-in through `channel_ingestion_policies`
+- direct one-off user grants are stored in `user_capability_grants`
 - participant-visible Gigi actions and follow-up tasks are persisted in `agent_actions`
 - cross-user DM relays move through an explicit `awaiting_confirmation -> in_progress -> completed/failed/cancelled` lifecycle
 - requester-centric identity memory is stored in `user_profiles` and `user_memory_snapshots`
+- encrypted sensitive records are stored in `sensitive_data_records`
 - explicit tool-style DM requests can be planned into up to three internal tool calls before falling back to retrieval
 - Gigi-mediated DM relays require sender dispatch permission and recipient receive permission
 - DM-triggered ingestion and assignment admin actions use the same guild capability checks as their slash-command equivalents
+- DM-triggered permission management uses the same `permission_admin` capability as the slash surface
+- sensitive-data disclosure only happens in DM, is deterministic, and bypasses OpenAI completely
 - ingestion policy changes and permission denials are written to `audit_logs`
 - relay dispatch attempts and outcomes are written to `audit_logs`
 - task creation and completion events are written to `audit_logs`
 - DM-triggered ingestion and assignment admin actions are written to `audit_logs`
+- direct permission grants and revocations are written to `audit_logs`
 - DM scope-selection prompts are persisted briefly in Supabase so restarts do not invalidate active menus
 - bot-authored DM replies and relay deliveries are stored explicitly in canonical message history instead of relying only on gateway echoes
 - exact analytics use SQL/text search first
 - semantic questions use OpenAI embeddings over stored messages
 - history-aware DM answers can also draw from participant-visible relay actions and open tasks
-- DM tool execution is intentionally bounded to task, relay, ingestion, and assignment operations; there is still no browser worker, sandbox worker, or arbitrary external tool surface
+- DM tool execution is intentionally bounded to task, relay, permission, ingestion, and assignment operations; there is still no browser worker, sandbox worker, or arbitrary external tool surface
 - image attachments are stored as metadata only
 - no OCR, autonomous memory promotion, or digest pipeline in V1
+- raw sensitive values are not supposed to be stored through normal DM chat; use the local admin script instead
 
 Current implications and limits:
 
@@ -214,6 +232,9 @@ Current implications and limits:
 - this is still a permission-aware shared identity, not unrestricted global memory
 - the DM tool planner is conservative by design, so user resolution can fail without an explicit mention or exact Discord name
 - allowing guild/admin actions from DM raises the importance of conservative channel, role, and assignment resolution so Gigi does not mutate the wrong server resource from freeform text
+- direct user grants are convenient, but they can drift away from your Discord role model if they are not reviewed periodically
+- sensitive-data retrieval is safer than pushing secrets through OpenAI, but the current write path is intentionally outside Discord because sending new raw secret values through normal DM chat would otherwise leak them into ordinary history storage
+- sensitive-data disclosure replies are intentionally not persisted into canonical message history, which protects values but also means later retrieval cannot rely on bot-authored history for those replies
 - tool execution is still synchronous inside the DM turn, so this is not yet a durable worker or long-running orchestration system
 
 ## Development Scripts
@@ -229,6 +250,7 @@ npm run supabase:status
 npm run supabase:db:reset
 npm run supabase:db:push
 npm run supabase:migration:new -- add_feature_name
+npm run sensitive:data -- list --guild YOUR_GUILD_ID --owner YOUR_USER_ID
 ```
 
 ## Testing Guidance
@@ -240,6 +262,7 @@ Before opening a PR or deploying:
 - Run `terraform fmt -check` inside `terraform/` when infrastructure files change
 - Run `terraform validate` inside `terraform/` after `terraform init -backend=false` when infrastructure files change
 - Verify `/ping`
+- Verify `/permission list`, `/permission grant`, and `/permission revoke`
 - Verify `/ingestion status`, `/ingestion enable`, and `/ingestion disable` in a development Discord server
 - Verify `/relay dm` creates a confirmation prompt, confirm it, and then verify that a participant can ask a follow-up in DM
 - Verify `/task create`, `/task list`, and `/task complete`
@@ -248,10 +271,25 @@ Before opening a PR or deploying:
 - DM the bot with `what tools can you call?` and confirm the answer stays grounded to the actual runtime surface
 - DM the bot with a relay request, then `confirm!`, and verify only one pending relay executes
 - DM the bot with an ingestion request and an assignment request, and verify the same guild capability checks apply as they do through slash commands
+- Seed a sensitive record with `npm run sensitive:data -- put --guild YOUR_GUILD_ID --owner YOUR_USER_ID --label github` and pipe the value through stdin, then DM the bot with `show my sensitive data` and `what is my github token`
+- DM the bot with a raw sensitive-value write attempt like `remember my github token is ...` and confirm it refuses and skips normal history storage
 - Confirm DM messages are stored in Supabase
 - If you enable a row in `channel_ingestion_policies`, confirm guild messages for that channel are stored
 - Check `GET /readyz` as well as `GET /healthz`
 - Re-check all modified lines for secrets and private data leaks
+
+## Human-Agent Workflow
+
+For multi-terminal Codex work, use separate Git worktrees and explicit scope ownership.
+
+- one Codex terminal should own one branch
+- one branch should live in one worktree
+- one worktree should have one clearly defined scope
+- avoid parallel edits to the same files, shared service contracts, or Supabase migration
+- for architecture-heavy work, analyze and define seams first, then parallelize implementation
+
+The standing workflow is documented in [docs/human-agent-workflow.md](/Users/giancedrick/dev/projects/gigi/docs/human-agent-workflow.md).
+When a human asks an agent what it is working on, the preferred answer format is also defined there.
 
 ## Project Structure
 
@@ -275,6 +313,7 @@ docs/
   diagrams/         Durable architecture and flow diagrams
   discord-bot-plan.md
   agent-skills.md
+  human-agent-workflow.md
   project-visualization-workflow.md
   setup.md
   credits.md
@@ -284,6 +323,7 @@ docs/
 
 - [docs/discord-bot-plan.md](/Users/giancedrick/dev/projects/gigi/docs/discord-bot-plan.md)
 - [docs/agent-skills.md](/Users/giancedrick/dev/projects/gigi/docs/agent-skills.md)
+- [docs/human-agent-workflow.md](/Users/giancedrick/dev/projects/gigi/docs/human-agent-workflow.md)
 - [docs/project-visualization-workflow.md](/Users/giancedrick/dev/projects/gigi/docs/project-visualization-workflow.md)
 - [docs/architecture-v1.md](/Users/giancedrick/dev/projects/gigi/docs/architecture-v1.md)
 - [docs/roadmap.md](/Users/giancedrick/dev/projects/gigi/docs/roadmap.md)

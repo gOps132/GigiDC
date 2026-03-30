@@ -5,12 +5,14 @@ import { handleIncomingDiscordMessage } from '../src/discord/client.js';
 
 function createHarness(overrides?: {
   dmConversationError?: Error | null;
+  sensitiveWrite?: boolean;
   storageError?: Error | null;
   stored?: boolean;
   storeReason?: 'stored' | 'skipped_by_ingestion_policy' | 'unsupported_scope' | 'system_message';
 }) {
   const handleCalls: string[] = [];
   const replies: string[] = [];
+  const storageCalls: string[] = [];
 
   const context = {
     logger: {
@@ -30,6 +32,7 @@ function createHarness(overrides?: {
       },
       messageHistory: {
         async storeDiscordMessage() {
+          storageCalls.push('store');
           if (overrides?.storageError) {
             throw overrides.storageError;
           }
@@ -38,6 +41,11 @@ function createHarness(overrides?: {
             reason: overrides?.storeReason ?? 'stored',
             stored: overrides?.stored ?? true
           };
+        }
+      },
+      sensitiveData: {
+        shouldBypassHistoryStorage() {
+          return overrides?.sensitiveWrite ?? false;
         }
       }
     }
@@ -69,6 +77,8 @@ function createHarness(overrides?: {
     handleCalls,
     message,
     replies
+    ,
+    storageCalls
   };
 }
 
@@ -79,6 +89,18 @@ test('handleIncomingDiscordMessage still processes a DM when message storage fai
 
   await handleIncomingDiscordMessage(message as never, {} as never, context);
 
+  assert.deepEqual(handleCalls, ['hi']);
+  assert.deepEqual(replies, []);
+});
+
+test('handleIncomingDiscordMessage skips normal history storage for sensitive write attempts in DM', async () => {
+  const { context, handleCalls, message, replies, storageCalls } = createHarness({
+    sensitiveWrite: true
+  });
+
+  await handleIncomingDiscordMessage(message as never, {} as never, context);
+
+  assert.deepEqual(storageCalls, []);
   assert.deepEqual(handleCalls, ['hi']);
   assert.deepEqual(replies, []);
 });

@@ -99,6 +99,19 @@ For architecture changes that increase memory, retrieval scope, shared identity,
 
 Use `docs/project-visualization-workflow.md` as the standing checklist.
 
+## Human-Agent Workflow
+
+Use `docs/human-agent-workflow.md` as the standing guide for multi-terminal Codex collaboration, worktree usage, explicit scope ownership, and agent status reporting.
+
+When multiple Codex terminals are active:
+
+- keep each terminal on its own branch and Git worktree
+- assign one explicit owned scope per terminal before editing
+- avoid overlapping edits to the same files, shared contracts, or Supabase migrations
+- use one coordinating terminal for integration, rebases, and final verification
+
+When a human asks what scope a terminal is working on, answer concretely with the current objective, branch, worktree, owned files or subsystem, current task, blockers, and next validation step.
+
 ## Interaction Authority Model
 
 Treat Discord interaction surface as presentation, not authority.
@@ -107,6 +120,7 @@ Treat Discord interaction surface as presentation, not authority.
 - never assume a guild/admin action must stay slash-only if the requester can be resolved to a guild member with the required capability
 - never grant extra authority because a request came through DM; resolve guild membership, capability, and target resources explicitly
 - keep target resolution conservative and fail closed for user, channel, role, and assignment references when a DM request is ambiguous
+- direct user grants are allowed, but they should stay visible and auditable so they do not silently replace the Discord role model
 - keep audit coverage aligned across surfaces so a DM-triggered admin action leaves the same trail as a slash-command-triggered admin action
 
 ## Testing Instructions
@@ -241,3 +255,8 @@ Only promote issues into memory when they are recurring, costly, security-releva
   Root cause: It is easy to treat Discord surface as the permission boundary instead of treating guild identity and `role_policies` capabilities as the actual authority model.
   Fix or required workflow: Keep guild/admin execution behind shared services that resolve the requester's primary-guild membership, check the same capabilities across surfaces, and fail closed when channel, role, or assignment targets are ambiguous in DM.
   Verification step: Run targeted tests for the shared guild-admin service, then verify the same user can perform an allowed ingestion or assignment action from both slash command and DM while a user without the capability is denied in both surfaces.
+
+- Issue or symptom: Raw secret values can leak into ordinary DM history if users try to teach Gigi sensitive data through normal chat.
+  Root cause: The default DM pipeline stores messages for retrieval, so any secret sent through ordinary DM chat becomes normal history unless it is intercepted before storage.
+  Fix or required workflow: Keep sensitive-data writes out of ordinary Discord chat, use the encrypted sensitive-data store plus the local admin script for writes, and bypass normal DM history storage when a message looks like a raw secret-write attempt.
+  Verification step: Run the sensitive-data and Discord DM handler tests, then confirm a raw secret-write attempt is refused and skipped by normal message-history storage.

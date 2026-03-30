@@ -8,6 +8,7 @@ import {
   SupabaseUserMemorySnapshotStore,
   SupabaseUserProfileStore
 } from './adapters/supabaseIdentity.js';
+import { SupabaseSensitiveDataStore } from './adapters/supabaseSensitiveData.js';
 import {
   SupabaseAgentActionStore,
   SupabaseAssignmentStore,
@@ -34,9 +35,11 @@ import { DmConversationService } from './services/dmConversationService.js';
 import { GuildAdminActionService } from './services/guildAdminActionService.js';
 import { MessageHistoryService } from './services/messageHistoryService.js';
 import { MessageIndexingService } from './services/messageIndexingService.js';
+import { PermissionAdminService } from './services/permissionAdminService.js';
 import { RetrievalService } from './services/retrievalService.js';
 import { RolePolicyService } from './services/rolePolicyService.js';
 import { RuntimeStateService } from './services/runtimeStateService.js';
+import { SensitiveDataService } from './services/sensitiveDataService.js';
 import { UserMemoryService } from './services/userMemoryService.js';
 import { startWebhookServer } from './web/server.js';
 
@@ -53,6 +56,7 @@ async function main(): Promise<void> {
   const pendingDmScopeSelections = new SupabasePendingDmScopeSelectionStore(supabase);
   const userProfileStore = new SupabaseUserProfileStore(supabase);
   const userMemorySnapshotStore = new SupabaseUserMemorySnapshotStore(supabase);
+  const sensitiveDataStore = new SupabaseSensitiveDataStore(supabase);
   const rolePolicyStore = new SupabaseRolePolicyStore(supabase);
   const channelIngestionPolicyStore = new SupabaseChannelIngestionPolicyStore(supabase);
   const assignmentStore = new SupabaseAssignmentStore(supabase);
@@ -63,6 +67,8 @@ async function main(): Promise<void> {
   const channelIngestionPolicies = new ChannelIngestionPolicyService(channelIngestionPolicyStore);
   const assignments = new AssignmentService(assignmentStore);
   const auditLogs = new AuditLogService(auditLogStore);
+  const sensitiveData = new SensitiveDataService(env, sensitiveDataStore, logger);
+  const permissionAdmin = new PermissionAdminService(env, auditLogs, rolePolicies);
   const messageIndexing = new MessageIndexingService(env, embeddings, historyRepository, logger);
   const messageHistory = new MessageHistoryService(
     env,
@@ -104,6 +110,7 @@ async function main(): Promise<void> {
     agentActions,
     auditLogs,
     guildAdminActions,
+    permissionAdmin,
     rolePolicies,
     logger
   );
@@ -122,8 +129,10 @@ async function main(): Promise<void> {
       dmConversation: null as unknown as DmConversationService,
       messageHistory,
       messageIndexing,
+      permissionAdmin,
       retrieval,
       rolePolicies,
+      sensitiveData,
       userMemory
     }
   };

@@ -179,6 +179,17 @@ function createService(overrides?: {
       }
     } as never,
     {
+      async grantUserPermission() {
+        return 'Granted `permission_admin` directly to <@recipient-1>.';
+      },
+      async listUserPermissions() {
+        return 'Permissions for <@requester-1>:\nEffective capabilities: `agent_action_dispatch`';
+      },
+      async revokeUserPermission() {
+        return 'Revoked direct grant `permission_admin` from <@recipient-1>.';
+      }
+    } as never,
+    {
       async memberHasCapability(_guild: unknown, _member: unknown, capability: string) {
         if (capability === 'agent_action_receive') {
           return overrides?.recipientAllowed ?? false;
@@ -333,6 +344,33 @@ test('AgentToolService routes ingestion status requests through guild admin acti
   assert.ok(result);
   assert.deepEqual(result.executedToolNames, ['get_ingestion_status']);
   assert.match(result.reply, /Ingestion for <#channel-1> is enabled/i);
+});
+
+test('AgentToolService routes permission inspection requests through permission admin actions', async () => {
+  const { client, service } = createService({
+    plan: {
+      toolCalls: [
+        {
+          name: 'list_permissions',
+          userReference: 'me'
+        }
+      ]
+    }
+  });
+
+  const result = await service.maybeHandleDmQuery(
+    'What permissions do I have?',
+    {
+      id: 'requester-1',
+      username: 'erick'
+    } as never,
+    client as never,
+    'dm-channel-1'
+  );
+
+  assert.ok(result);
+  assert.deepEqual(result.executedToolNames, ['list_permissions']);
+  assert.match(result.reply, /Effective capabilities/i);
 });
 
 test('AgentToolService can complete a task by title reference', async () => {

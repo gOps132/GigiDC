@@ -31,6 +31,10 @@ interface RolePolicyRow {
   discord_role_id: string;
 }
 
+interface UserCapabilityGrantRow {
+  capability: Capability;
+}
+
 interface ChannelIngestionPolicyRow {
   channel_id: string;
   created_at: string;
@@ -388,7 +392,23 @@ export class SupabaseRolePolicyStore implements RolePolicyStore {
     }
 
     const rows = (data ?? []) as RolePolicyRow[];
-    return rows.some((row) => member.roles.cache.has(row.discord_role_id));
+    if (rows.some((row) => member.roles.cache.has(row.discord_role_id))) {
+      return true;
+    }
+
+    const { data: directGrantData, error: directGrantError } = await this.supabase
+      .from('user_capability_grants')
+      .select('capability')
+      .eq('guild_id', guild.id)
+      .eq('user_id', member.id)
+      .eq('capability', capability)
+      .limit(1);
+
+    if (directGrantError) {
+      throw new Error(`Failed to load direct user capability grants: ${directGrantError.message}`);
+    }
+
+    return ((directGrantData ?? []) as UserCapabilityGrantRow[]).length > 0;
   }
 
   async ensureGuild(guild: Guild): Promise<void> {
@@ -406,5 +426,61 @@ export class SupabaseRolePolicyStore implements RolePolicyStore {
     if (error) {
       throw new Error(`Failed to upsert guild: ${error.message}`);
     }
+  }
+
+  async grantUserCapability(input: {
+    capability: Capability;
+    grantedByUserId: string;
+    guildId: string;
+    userId: string;
+  }): Promise<void> {
+    const { error } = await this.supabase
+      .from('user_capability_grants')
+      .upsert(
+        {
+          capability: input.capability,
+          granted_by_user_id: input.grantedByUserId,
+          guild_id: input.guildId,
+          user_id: input.userId
+        },
+        {
+          onConflict: 'guild_id,user_id,capability'
+        }
+      );
+
+    if (error) {
+      throw new Error(`Failed to grant direct user capability: ${error.message}`);
+    }
+  }
+
+  async revokeUserCapability(guildId: string, userId: string, capability: Capability): Promise<boolean> {
+    const { data, error } = await this.supabase
+      .from('user_capability_grants')
+      .delete()
+      .eq('guild_id', guildId)
+      .eq('user_id', userId)
+      .eq('capability', capability)
+      .select('capability');
+
+    if (error) {
+      throw new Error(`Failed to revoke direct user capability: ${error.message}`);
+    }
+
+    return ((data ?? []) as UserCapabilityGrantRow[]).length > 0;
+  }
+
+  async listDirectUserCapabilities(guildId: string, userId: string): Promise<Capability[]> {
+    const { data, error } = await this.supabase
+      .from('user_capability_grants')
+      .select('capability')
+      .eq('guild_id', guildId)
+      .eq('user_id', userId)
+      .order('capability', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to list direct user capability grants: ${error.message}`);
+    }
+
+    return ((data ?? []) as UserCapabilityGrantRow[]).map((row) => row.capability);
   }
 }
