@@ -211,6 +211,41 @@ When adding a remembered issue, use a short entry under a future `Known Issues a
 
 Only promote issues into memory when they are recurring, costly, security-relevant, or easy to repeat by accident.
 
+## Knowledge Capture Workflow
+
+Use `knowledge/` as the repo's domain-based insight library for reusable learnings captured after meaningful tasks.
+
+Directory rules:
+
+- keep `knowledge/INDEX.md` as the routing index for all active knowledge domains
+- store domain notes in `knowledge/<domain>/knowledge.md`, `knowledge/<domain>/hypotheses.md`, and `knowledge/<domain>/rules.md`
+- use stable domain names such as `discord`, `permissions`, `retrieval`, `deploy`, `pricing`, or `workflows`
+- do not create one domain folder per ticket or one-off task
+
+Content rules:
+
+- put confirmed facts and recurring patterns in `knowledge.md`
+- put plausible but still unconfirmed ideas in `hypotheses.md`
+- put short operational defaults in `rules.md`
+- include confirmation counts for hypotheses when evidence is accumulating
+
+Promotion rules:
+
+- promote a hypothesis to `rules.md` after 5 independent confirmations by default
+- if a rule is contradicted by new evidence, demote it back to `hypotheses.md`
+- keep the entries concise, sanitized, and decision-useful rather than turning `knowledge/` into a journal
+
+Relationship to `AGENTS.md`:
+
+- use `knowledge/` for domain-specific reusable learnings
+- use `AGENTS.md` for project-wide guidance that every future agent should see immediately
+- when a lesson is recurring, costly, security-relevant, or easy to repeat by accident, also add or update the corresponding guidance in `AGENTS.md`
+
+Safety rules:
+
+- never store secrets, tokens, raw private message content, or sensitive identifiers in `knowledge/`
+- prefer sanitized summaries over copied logs or transcripts
+
 ## Known Issues and Fixes
 
 - Issue or symptom: Discord slash command builders with subcommands fail strict TypeScript checks when command interfaces assume only `SlashCommandBuilder`.

@@ -66,6 +66,9 @@ This project requires explicit attribution for external resources used in implem
 
 ## Workflow and Planning References
 
+- `User-provided external knowledge-capture workflow outline`
+  - Use: Basis for the repo's adapted `knowledge/` domain-folder workflow and promotion/demotion rules
+  - Source: Original online source link was not provided in the request
 - `claude-skills / discord-bot`
   - Use: Local Codex skill used to guide Discord bot scaffolding workflow
   - Source: https://github.com/inbharatai/claude-skills/tree/main/skills/discord-bot

@@ -43,6 +43,7 @@
         "group": "Project Workflow",
         "pages": [
           "agent-skills",
+          "knowledge-workflow",
           "human-agent-workflow",
           "project-visualization-workflow"
         ]
