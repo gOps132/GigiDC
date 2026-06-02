@@ -48,10 +48,15 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 	}
 
 	if cfg.DiscordEnabled && application.discordClient == nil {
+		router, err := discord.NewCommandRouter(discord.CoreCommands()...)
+		if err != nil {
+			return nil, err
+		}
 		client, err := discord.NewGateway(discord.Options{
-			Token:    cfg.DiscordToken,
-			ClientID: cfg.DiscordClientID,
-			Logger:   logger,
+			Token:         cfg.DiscordToken,
+			ClientID:      cfg.DiscordClientID,
+			Logger:        logger,
+			CommandRouter: router,
 		})
 		if err != nil {
 			return nil, err

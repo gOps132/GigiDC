@@ -15,7 +15,7 @@ Gigi is in a foundation rebuild. The old Node/Supabase runtime is gone. The curr
 - config loading through `internal/config`
 - database reachability through `internal/storage`
 
-Discord login is at the gateway-adapter stage and is disabled by default through `GIGI_DISCORD_ENABLED=false`. Plugin execution, retrieval, and LLM calls are intentionally not active yet.
+Discord login is at the gateway-adapter stage and is disabled by default through `GIGI_DISCORD_ENABLED=false`. A minimal slash router can answer `/ping` if the command is already registered. Plugin execution, retrieval, and LLM calls are intentionally not active yet.
 
 ## Target Shape
 
@@ -53,6 +53,7 @@ Gigi will discover approved plugins from manifests. A guild admin can enable an 
 ## Known Limits
 
 - No Discord gateway connection unless `GIGI_DISCORD_ENABLED=true`.
+- No automatic slash command publishing yet.
 - No music or `!play` implementation yet.
 - No LLM calls yet.
 - No retrieval or memory behavior yet.

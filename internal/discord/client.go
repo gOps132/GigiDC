@@ -15,10 +15,11 @@ type Client interface {
 }
 
 type Options struct {
-	Token    string
-	ClientID string
-	Intents  discordgo.Intent
-	Logger   *slog.Logger
+	Token         string
+	ClientID      string
+	Intents       discordgo.Intent
+	Logger        *slog.Logger
+	CommandRouter *CommandRouter
 }
 
 type Gateway struct {
@@ -28,6 +29,7 @@ type Gateway struct {
 }
 
 type gatewaySession interface {
+	AddHandler(handler interface{}) func()
 	Open() error
 	Close() error
 }
@@ -59,6 +61,13 @@ func newGatewayWithFactory(opts Options, factory sessionFactory) (*Gateway, erro
 	session, err := factory(botToken(opts.Token), opts.Intents)
 	if err != nil {
 		return nil, fmt.Errorf("create discord session: %w", err)
+	}
+	if opts.CommandRouter != nil {
+		session.AddHandler(func(session *discordgo.Session, event *discordgo.InteractionCreate) {
+			if err := opts.CommandRouter.HandleInteraction(context.Background(), session, event); err != nil {
+				opts.Logger.Error("discord interaction failed", "error", err)
+			}
+		})
 	}
 
 	return &Gateway{
