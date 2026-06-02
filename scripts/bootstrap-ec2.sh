@@ -13,21 +13,15 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
-apt-get install -y curl git nginx rsync ca-certificates gnupg
+apt-get install -y ca-certificates curl docker.io docker-compose-plugin git nginx rsync
 
-if ! command -v node >/dev/null 2>&1; then
-  mkdir -p /etc/apt/keyrings
-  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
-    | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" \
-    > /etc/apt/sources.list.d/nodesource.list
-  apt-get update
-  apt-get install -y nodejs
-fi
+systemctl enable --now docker
 
 if ! id "${APP_USER}" >/dev/null 2>&1; then
   useradd --create-home --shell /bin/bash "${APP_USER}"
 fi
+
+usermod -aG docker "${APP_USER}"
 
 mkdir -p "${APP_DIR}"
 chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"
@@ -39,9 +33,7 @@ cat <<EOF
 Bootstrap complete.
 
 Next steps:
-1. Copy this repo into ${APP_DIR}
-2. Copy .env.example to /etc/gigi-discord-bot/gigi-discord-bot.env and fill in real values
-3. Install the systemd unit from deploy/systemd/gigi-discord-bot.service
-4. Install the Nginx site from deploy/nginx/gigi-discord-bot.conf
-5. Run npm ci && npm run build as ${APP_USER}
+1. Copy .env.example to /etc/gigi-discord-bot/gigi-discord-bot.env and fill in real values.
+2. Install deploy/nginx/gigi-discord-bot.conf if exposing health checks through Nginx.
+3. Deploy the release image and compose files with scripts/install-release.sh.
 EOF

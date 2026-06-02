@@ -1,0 +1,15 @@
+.git
+.agents
+.codex
+.understand-anything
+AGENTS.md
+AGENTS.local.md
+*.agent.md
+*.agent.local.md
+node_modules
+dist
+coverage
+bin
+.env
+.env.local
+.env.*.local

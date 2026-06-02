@@ -2,18 +2,26 @@
 
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/opt/gigi-discord-bot}"
-SERVICE_NAME="${SERVICE_NAME:-gigi-discord-bot}"
+DEPLOY_HOST="${DEPLOY_HOST:?DEPLOY_HOST is required}"
+DEPLOY_USER="${DEPLOY_USER:-ubuntu}"
+DEPLOY_PORT="${DEPLOY_PORT:-22}"
+IMAGE_TAG="${IMAGE_TAG:-local}"
+BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+COMMIT="$(git rev-parse --short HEAD)"
 
-if [[ ! -d "${APP_DIR}" ]]; then
-  echo "APP_DIR does not exist: ${APP_DIR}" >&2
-  exit 1
-fi
+docker build \
+  --build-arg VERSION="${IMAGE_TAG}" \
+  --build-arg COMMIT="${COMMIT}" \
+  --build-arg BUILD_TIME="${BUILD_TIME}" \
+  -t "gigi-discord-bot:${IMAGE_TAG}" .
 
-cd "${APP_DIR}"
+docker save "gigi-discord-bot:${IMAGE_TAG}" -o /tmp/gigi-discord-bot-image.tar
 
-npm ci
-npm run build
+ssh -p "${DEPLOY_PORT}" "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p /tmp/gigi-discord-bot-release/db/migrations"
+scp -P "${DEPLOY_PORT}" /tmp/gigi-discord-bot-image.tar "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/gigi-discord-bot-image.tar"
+scp -P "${DEPLOY_PORT}" compose.prod.yaml "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/gigi-discord-bot-release/compose.prod.yaml"
+scp -P "${DEPLOY_PORT}" db/migrations/*.sql "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/gigi-discord-bot-release/db/migrations/"
+scp -P "${DEPLOY_PORT}" scripts/install-release.sh "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/gigi-discord-bot-release/install-release.sh"
 
-sudo systemctl restart "${SERVICE_NAME}"
-sudo systemctl status "${SERVICE_NAME}" --no-pager
+ssh -p "${DEPLOY_PORT}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+  "sudo IMAGE_TAG='${IMAGE_TAG}' RELEASE_DIR=/tmp/gigi-discord-bot-release bash /tmp/gigi-discord-bot-release/install-release.sh"

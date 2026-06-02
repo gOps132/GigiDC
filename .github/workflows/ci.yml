@@ -13,88 +13,167 @@ concurrency:
   group: gigi-discord-bot-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  GO_VERSION_FILE: go.mod
+  IMAGE_NAME: gigi-discord-bot
+
 jobs:
-  app:
-    name: App Validation
+  go-check:
+    name: Go Validation
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.12.0
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Build
-        run: npm run build
-
-      - name: Package release bundle
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Verify foundation boundaries
         run: |
-          tar -czf gigi-discord-bot-release.tar.gz \
-            dist \
-            deploy \
-            package.json \
-            package-lock.json \
-            .env.example \
-            scripts/install-release.sh
+          missing_paths=0
 
-      - name: Upload release bundle
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v4
+          for path in src test supabase dist terraform package.json package-lock.json tsconfig.json docs/terraform.md; do
+            if [[ -e "${path}" ]]; then
+              echo "Removed foundation path still exists: ${path}" >&2
+              missing_paths=1
+            fi
+          done
+
+          for path in .codex .understand-anything AGENTS.md docs/agent-skills.md docs/human-agent-workflow.md docs/project-visualization-workflow.md docs/knowledge-workflow.md knowledge; do
+            if [[ -n "$(git ls-files "${path}")" ]]; then
+              echo "Agent artifact still tracked: ${path}" >&2
+              missing_paths=1
+            fi
+          done
+
+          for path in .agents/probe .codex/probe .understand-anything/probe AGENTS.md AGENTS.local.md probe.agent.md probe.agent.local.md; do
+            if ! git check-ignore -q "${path}"; then
+              echo "Agent artifact is not ignored: ${path}" >&2
+              missing_paths=1
+            fi
+          done
+
+          exit "${missing_paths}"
+
+      - name: Scan for obvious committed secrets
+        run: |
+          if git grep -nE '(sk-[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|discord[a-z_]*token[[:space:]]*=[[:space:]]*[^[:space:]<#]+|openai[a-z_]*key[[:space:]]*=[[:space:]]*[^[:space:]<#]+)' -- . ':!.env.example'; then
+            echo "Potential secret-looking value found." >&2
+            exit 1
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
         with:
-          name: gigi-discord-bot-release
-          path: gigi-discord-bot-release.tar.gz
-          retention-days: 7
-
-  terraform:
-    name: Terraform Validation
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.5.7
+          go-version-file: ${{ env.GO_VERSION_FILE }}
 
       - name: Check formatting
-        working-directory: terraform
-        run: terraform fmt -check
+        run: |
+          files="$(gofmt -l .)"
+          if [[ -n "${files}" ]]; then
+            echo "${files}" >&2
+            exit 1
+          fi
 
-      - name: Initialize Terraform
-        working-directory: terraform
-        run: terraform init -backend=false
+      - name: Vet
+        run: go vet ./...
 
-      - name: Validate Terraform
-        working-directory: terraform
-        run: terraform validate
+      - name: Test
+        run: go test ./...
+
+      - name: Build binary
+        run: |
+          go build \
+            -ldflags "-X github.com/gOps132/GigiDC/internal/buildinfo.Version=${GITHUB_SHA} -X github.com/gOps132/GigiDC/internal/buildinfo.Commit=${GITHUB_SHA} -X github.com/gOps132/GigiDC/internal/buildinfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            ./cmd/gigi
+
+  compose-smoke:
+    name: Docker Compose Smoke
+    runs-on: ubuntu-latest
+    needs:
+      - go-check
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Build and start Compose stack
+        run: docker compose up --build -d
+
+      - name: Verify health endpoints
+        run: |
+          for _ in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8080/healthz >/dev/null \
+              && curl --fail --silent http://127.0.0.1:8080/readyz >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps
+          docker compose logs --tail=100
+          exit 1
+
+      - name: Stop Compose stack
+        if: always()
+        run: docker compose down --volumes
+
+  package:
+    name: Package Docker Image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - go-check
+      - compose-smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Build image
+        run: |
+          docker build \
+            --build-arg VERSION="${GITHUB_SHA}" \
+            --build-arg COMMIT="${GITHUB_SHA}" \
+            --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -t "${IMAGE_NAME}:${GITHUB_SHA}" .
+
+      - name: Save image
+        run: docker save "${IMAGE_NAME}:${GITHUB_SHA}" -o gigi-discord-bot-image.tar
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gigi-discord-bot-image
+          path: gigi-discord-bot-image.tar
+          retention-days: 7
+
+      - name: Upload deploy files
+        uses: actions/upload-artifact@v4
+        with:
+          name: gigi-discord-bot-deploy
+          path: |
+            compose.prod.yaml
+            db/migrations/*.sql
+            scripts/install-release.sh
+          retention-days: 7
 
   deploy:
     name: Deploy
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs:
-      - app
-      - terraform
+      - package
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download release bundle
+      - name: Download image artifact
         uses: actions/download-artifact@v4
         with:
-          name: gigi-discord-bot-release
+          name: gigi-discord-bot-image
           path: .
+
+      - name: Download deploy files
+        uses: actions/download-artifact@v4
+        with:
+          name: gigi-discord-bot-deploy
+          path: release
 
       - name: Configure SSH
         env:
@@ -118,30 +197,22 @@ jobs:
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          scp -P "${DEPLOY_PORT:-22}" \
-            gigi-discord-bot-release.tar.gz \
-            "${DEPLOY_USER:-ubuntu}@${DEPLOY_HOST}:/tmp/gigi-discord-bot-release.tar.gz"
+          ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER:-ubuntu}@${DEPLOY_HOST}" \
+            "rm -rf /tmp/gigi-discord-bot-release && mkdir -p /tmp/gigi-discord-bot-release/db/migrations"
+          scp -P "${DEPLOY_PORT:-22}" gigi-discord-bot-image.tar \
+            "${DEPLOY_USER:-ubuntu}@${DEPLOY_HOST}:/tmp/gigi-discord-bot-image.tar"
+          scp -P "${DEPLOY_PORT:-22}" release/compose.prod.yaml \
+            "${DEPLOY_USER:-ubuntu}@${DEPLOY_HOST}:/tmp/gigi-discord-bot-release/compose.prod.yaml"
+          scp -P "${DEPLOY_PORT:-22}" release/db/migrations/*.sql \
+            "${DEPLOY_USER:-ubuntu}@${DEPLOY_HOST}:/tmp/gigi-discord-bot-release/db/migrations/"
+          scp -P "${DEPLOY_PORT:-22}" release/scripts/install-release.sh \
+            "${DEPLOY_USER:-ubuntu}@${DEPLOY_HOST}:/tmp/gigi-discord-bot-release/install-release.sh"
 
       - name: Install release on EC2
         env:
-          DEPLOY_APP_DIR: ${{ secrets.DEPLOY_APP_DIR }}
-          DEPLOY_APP_USER: ${{ secrets.DEPLOY_APP_USER }}
-          DEPLOY_SERVICE_NAME: ${{ secrets.DEPLOY_SERVICE_NAME }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER:-ubuntu}@${DEPLOY_HOST}" <<EOF
-          set -euo pipefail
-
-          RELEASE_DIR=\$(mktemp -d)
-          trap 'rm -rf "\${RELEASE_DIR}"' EXIT
-
-          tar -xzf /tmp/gigi-discord-bot-release.tar.gz -C "\${RELEASE_DIR}" scripts/install-release.sh
-
-          sudo APP_DIR="${DEPLOY_APP_DIR:-/opt/gigi-discord-bot}" \
-            APP_USER="${DEPLOY_APP_USER:-gigi}" \
-            SERVICE_NAME="${DEPLOY_SERVICE_NAME:-gigi-discord-bot}" \
-            RELEASE_ARCHIVE="/tmp/gigi-discord-bot-release.tar.gz" \
-            bash "\${RELEASE_DIR}/scripts/install-release.sh"
-          EOF
+          ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER:-ubuntu}@${DEPLOY_HOST}" \
+            "sudo IMAGE_TAG='${GITHUB_SHA}' RELEASE_DIR=/tmp/gigi-discord-bot-release bash /tmp/gigi-discord-bot-release/install-release.sh"
