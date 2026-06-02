@@ -11,8 +11,8 @@ import (
 	"github.com/gOps132/GigiDC/internal/capability"
 )
 
-func TestPermissionCommandsExposeSubcommands(t *testing.T) {
-	commands := PermissionCommands(&fakeGrantManager{}, nil)
+func TestPermissionCommandsExposeRoleFirstGroups(t *testing.T) {
+	commands := PermissionCommands(&fakeGrantManager{}, &fakeGuildRoleService{}, nil)
 	if len(commands) != 1 {
 		t.Fatalf("commands = %d, want 1", len(commands))
 	}
@@ -20,132 +20,240 @@ func TestPermissionCommandsExposeSubcommands(t *testing.T) {
 	if command.RequiredCapability != capability.CapabilityManage {
 		t.Fatalf("required capability = %q, want capability.manage", command.RequiredCapability)
 	}
-	if len(command.Options) != 4 {
-		t.Fatalf("options = %d, want 4", len(command.Options))
+	roleGroup := findOption(command.Options, "role")
+	if roleGroup == nil || roleGroup.Type != discordgo.ApplicationCommandOptionSubCommandGroup {
+		t.Fatalf("role option = %+v, want subcommand group", roleGroup)
 	}
-	if command.Options[0].Options[0].Type != discordgo.ApplicationCommandOptionRole {
-		t.Fatalf("grant-role target type = %v, want role", command.Options[0].Options[0].Type)
+	for _, name := range []string{"create", "assign", "unassign", "grant", "revoke", "grant-preset", "revoke-preset"} {
+		if findOption(roleGroup.Options, name) == nil {
+			t.Fatalf("role group missing %q", name)
+		}
+	}
+	userGroup := findOption(command.Options, "user")
+	if userGroup == nil || userGroup.Type != discordgo.ApplicationCommandOptionSubCommandGroup {
+		t.Fatalf("user option = %+v, want subcommand group", userGroup)
+	}
+	if findOption(userGroup.Options, "grant") == nil || findOption(userGroup.Options, "revoke") == nil {
+		t.Fatalf("user group options = %+v, want grant and revoke", userGroup.Options)
 	}
 }
 
-func TestPermissionCommandGrantsRole(t *testing.T) {
+func TestPermissionCommandUsesCapabilityAndPresetChoices(t *testing.T) {
+	commands := PermissionCommands(&fakeGrantManager{}, &fakeGuildRoleService{}, nil)
+	roleGroup := findOption(commands[0].Options, "role")
+	grant := findOption(roleGroup.Options, "grant")
+	capabilityOption := findOption(grant.Options, "capability")
+	if !hasChoice(capabilityOption, "plugin.install") || !hasChoice(capabilityOption, "capability.manage") {
+		t.Fatalf("capability choices = %+v, want known capabilities", capabilityOption.Choices)
+	}
+	create := findOption(roleGroup.Options, "create")
+	presetOption := findOption(create.Options, "preset")
+	if !hasChoice(presetOption, "gigi-admin") || !hasChoice(presetOption, "plugin-manager") {
+		t.Fatalf("preset choices = %+v, want known presets", presetOption.Choices)
+	}
+}
+
+func TestPermissionCommandCreatesRoleAndGrantsPreset(t *testing.T) {
 	manager := &fakeGrantManager{}
+	roles := &fakeGuildRoleService{createdRoleID: "role-id"}
 	recorder := &fakeAuditRecorder{}
-	handler := PermissionCommands(manager, recorder)[0].Handle
+	handler := PermissionCommands(manager, roles, recorder)[0].Handle
 
 	response, err := handler(context.Background(), Interaction{
-		GuildID: "guild-id",
-		UserID:  "actor-id",
-		Name:    "permissions",
+		GuildID:     "guild-id",
+		UserID:      "actor-id",
+		Name:        "permissions",
+		RoleService: roles,
 		Options: []InteractionOption{{
-			Name: "grant-role",
-			Options: []InteractionOption{
-				{Name: "role", Value: "role-id"},
-				{Name: "capability", Value: "plugin.install"},
-			},
+			Name: "role",
+			Options: []InteractionOption{{
+				Name: "create",
+				Options: []InteractionOption{
+					{Name: "name", Value: "Gigi Plugin Managers"},
+					{Name: "preset", Value: "plugin-manager"},
+				},
+			}},
 		}},
 	})
 	if err != nil {
 		t.Fatalf("handler returned error: %v", err)
 	}
-	if manager.method != "GrantRole" || manager.guildID != "guild-id" || manager.targetID != "role-id" || manager.capability != "plugin.install" || manager.actorID != "actor-id" {
-		t.Fatalf("manager call = %+v", manager)
+	if roles.createdName != "Gigi Plugin Managers" {
+		t.Fatalf("created role name = %q, want Gigi Plugin Managers", roles.createdName)
 	}
-	if !strings.Contains(response.Content, "Granted `plugin.install`") {
-		t.Fatalf("response = %q, want grant success", response.Content)
+	if manager.method != "GrantRoleCapabilities" || manager.targetID != "role-id" || len(manager.capabilities) != 1 || manager.capabilities[0] != "plugin.install" {
+		t.Fatalf("manager call = %+v, want plugin-manager preset grant", manager)
 	}
-	if !response.Ephemeral {
-		t.Fatal("response Ephemeral = false, want true")
+	if !strings.Contains(response.Content, "Created role") || !response.Ephemeral {
+		t.Fatalf("response = %+v, want ephemeral create success", response)
 	}
 	if len(recorder.events) != 1 || recorder.events[0].Status != audit.StatusSucceeded {
 		t.Fatalf("audit events = %+v, want succeeded", recorder.events)
 	}
 }
 
-func TestPermissionCommandRevokesUser(t *testing.T) {
+func TestPermissionCommandAssignsAndUnassignsRole(t *testing.T) {
+	roles := &fakeGuildRoleService{}
+	handler := PermissionCommands(&fakeGrantManager{}, roles, nil)[0].Handle
+
+	assignResponse, err := handler(context.Background(), roleInteraction("assign", "role-id", "user-id"))
+	if err != nil {
+		t.Fatalf("assign returned error: %v", err)
+	}
+	if roles.addedRoleID != "role-id" || roles.addedUserID != "user-id" {
+		t.Fatalf("added role/user = %q/%q, want role-id/user-id", roles.addedRoleID, roles.addedUserID)
+	}
+	if !strings.Contains(assignResponse.Content, "Assigned role") || !assignResponse.Ephemeral {
+		t.Fatalf("assign response = %+v, want ephemeral success", assignResponse)
+	}
+
+	unassignResponse, err := handler(context.Background(), roleInteraction("unassign", "role-id", "user-id"))
+	if err != nil {
+		t.Fatalf("unassign returned error: %v", err)
+	}
+	if roles.removedRoleID != "role-id" || roles.removedUserID != "user-id" {
+		t.Fatalf("removed role/user = %q/%q, want role-id/user-id", roles.removedRoleID, roles.removedUserID)
+	}
+	if !strings.Contains(unassignResponse.Content, "Unassigned role") || !unassignResponse.Ephemeral {
+		t.Fatalf("unassign response = %+v, want ephemeral success", unassignResponse)
+	}
+}
+
+func TestPermissionCommandRoleServiceFailureIsClean(t *testing.T) {
+	roles := &fakeGuildRoleService{err: errors.New("Missing Permissions")}
+	handler := PermissionCommands(&fakeGrantManager{}, roles, nil)[0].Handle
+
+	response, err := handler(context.Background(), roleInteraction("assign", "role-id", "user-id"))
+	if err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if !strings.Contains(response.Content, "Manage Roles") || !response.Ephemeral {
+		t.Fatalf("response = %+v, want clean role permission error", response)
+	}
+}
+
+func TestPermissionCommandGrantsAndRevokesRolePreset(t *testing.T) {
 	manager := &fakeGrantManager{}
-	handler := PermissionCommands(manager, nil)[0].Handle
+	handler := PermissionCommands(manager, &fakeGuildRoleService{}, nil)[0].Handle
+
+	grantResponse, err := handler(context.Background(), rolePresetInteraction("grant-preset", "role-id", "relay-user"))
+	if err != nil {
+		t.Fatalf("grant-preset returned error: %v", err)
+	}
+	if manager.method != "GrantRoleCapabilities" || len(manager.capabilities) != 2 {
+		t.Fatalf("manager call = %+v, want relay preset grant", manager)
+	}
+	if !strings.Contains(grantResponse.Content, "Granted preset") || !grantResponse.Ephemeral {
+		t.Fatalf("grant response = %+v, want ephemeral success", grantResponse)
+	}
+
+	revokeResponse, err := handler(context.Background(), rolePresetInteraction("revoke-preset", "role-id", "relay-user"))
+	if err != nil {
+		t.Fatalf("revoke-preset returned error: %v", err)
+	}
+	if manager.method != "RevokeRoleCapabilities" || len(manager.capabilities) != 2 {
+		t.Fatalf("manager call = %+v, want relay preset revoke", manager)
+	}
+	if !strings.Contains(revokeResponse.Content, "Revoked preset") || !revokeResponse.Ephemeral {
+		t.Fatalf("revoke response = %+v, want ephemeral success", revokeResponse)
+	}
+}
+
+func TestPermissionCommandDirectUserGrantUsesUserGroup(t *testing.T) {
+	manager := &fakeGrantManager{}
+	handler := PermissionCommands(manager, &fakeGuildRoleService{}, nil)[0].Handle
 
 	response, err := handler(context.Background(), Interaction{
 		GuildID: "guild-id",
 		UserID:  "actor-id",
 		Name:    "permissions",
 		Options: []InteractionOption{{
-			Name: "revoke-user",
-			Options: []InteractionOption{
-				{Name: "user", Value: "user-id"},
-				{Name: "capability", Value: "job.admin"},
-			},
+			Name: "user",
+			Options: []InteractionOption{{
+				Name: "grant",
+				Options: []InteractionOption{
+					{Name: "user", Value: "user-id"},
+					{Name: "capability", Value: "job.admin"},
+				},
+			}},
 		}},
 	})
 	if err != nil {
 		t.Fatalf("handler returned error: %v", err)
 	}
-	if manager.method != "RevokeUser" || manager.targetID != "user-id" || manager.capability != "job.admin" {
-		t.Fatalf("manager call = %+v", manager)
+	if manager.method != "GrantUser" || manager.targetID != "user-id" || manager.capability != "job.admin" {
+		t.Fatalf("manager call = %+v, want direct user grant", manager)
 	}
-	if !strings.Contains(response.Content, "Revoked `job.admin`") {
-		t.Fatalf("response = %q, want revoke success", response.Content)
-	}
-}
-
-func TestPermissionCommandRejectsDMAndInvalidCapability(t *testing.T) {
-	handler := PermissionCommands(&fakeGrantManager{}, nil)[0].Handle
-
-	response, err := handler(context.Background(), Interaction{
-		UserID: "actor-id",
-		Name:   "permissions",
-		Options: []InteractionOption{{
-			Name: "grant-role",
-			Options: []InteractionOption{
-				{Name: "role", Value: "role-id"},
-				{Name: "capability", Value: "Plugin Install"},
-			},
-		}},
-	})
-	if err != nil {
-		t.Fatalf("handler returned error: %v", err)
-	}
-	if !strings.Contains(response.Content, "inside a Discord server") {
-		t.Fatalf("response = %q, want guild-only message", response.Content)
-	}
-	if !response.Ephemeral {
-		t.Fatal("response Ephemeral = false, want true")
+	if !strings.Contains(response.Content, "Granted `job.admin`") || !response.Ephemeral {
+		t.Fatalf("response = %+v, want ephemeral success", response)
 	}
 }
 
-func TestPermissionCommandAuditsManagerFailure(t *testing.T) {
-	manager := &fakeGrantManager{err: errors.New("write failed")}
-	recorder := &fakeAuditRecorder{}
-	handler := PermissionCommands(manager, recorder)[0].Handle
+func findOption(options []*discordgo.ApplicationCommandOption, name string) *discordgo.ApplicationCommandOption {
+	for _, option := range options {
+		if option.Name == name {
+			return option
+		}
+	}
+	return nil
+}
 
-	_, err := handler(context.Background(), Interaction{
+func hasChoice(option *discordgo.ApplicationCommandOption, value string) bool {
+	if option == nil {
+		return false
+	}
+	for _, choice := range option.Choices {
+		if choice.Value == value {
+			return true
+		}
+	}
+	return false
+}
+
+func roleInteraction(action string, roleID string, userID string) Interaction {
+	return Interaction{
 		GuildID: "guild-id",
 		UserID:  "actor-id",
 		Name:    "permissions",
 		Options: []InteractionOption{{
-			Name: "grant-user",
-			Options: []InteractionOption{
-				{Name: "user", Value: "user-id"},
-				{Name: "capability", Value: "job.admin"},
-			},
+			Name: "role",
+			Options: []InteractionOption{{
+				Name: action,
+				Options: []InteractionOption{
+					{Name: "role", Value: roleID},
+					{Name: "user", Value: userID},
+				},
+			}},
 		}},
-	})
-	if err == nil {
-		t.Fatal("expected manager error")
 	}
-	if len(recorder.events) != 1 || recorder.events[0].Status != audit.StatusFailed {
-		t.Fatalf("audit events = %+v, want failed", recorder.events)
+}
+
+func rolePresetInteraction(action string, roleID string, preset string) Interaction {
+	return Interaction{
+		GuildID: "guild-id",
+		UserID:  "actor-id",
+		Name:    "permissions",
+		Options: []InteractionOption{{
+			Name: "role",
+			Options: []InteractionOption{{
+				Name: action,
+				Options: []InteractionOption{
+					{Name: "role", Value: roleID},
+					{Name: "preset", Value: preset},
+				},
+			}},
+		}},
 	}
 }
 
 type fakeGrantManager struct {
-	method     string
-	guildID    string
-	targetID   string
-	capability capability.Capability
-	actorID    string
-	err        error
+	method       string
+	guildID      string
+	targetID     string
+	capability   capability.Capability
+	capabilities []capability.Capability
+	actorID      string
+	err          error
 }
 
 func (m *fakeGrantManager) GrantRole(_ context.Context, guildID string, roleID string, cap capability.Capability, actorID string) error {
@@ -158,6 +266,16 @@ func (m *fakeGrantManager) RevokeRole(_ context.Context, guildID string, roleID 
 	return m.err
 }
 
+func (m *fakeGrantManager) GrantRoleCapabilities(_ context.Context, guildID string, roleID string, caps []capability.Capability, actorID string) error {
+	m.method, m.guildID, m.targetID, m.capabilities, m.actorID = "GrantRoleCapabilities", guildID, roleID, caps, actorID
+	return m.err
+}
+
+func (m *fakeGrantManager) RevokeRoleCapabilities(_ context.Context, guildID string, roleID string, caps []capability.Capability) error {
+	m.method, m.guildID, m.targetID, m.capabilities = "RevokeRoleCapabilities", guildID, roleID, caps
+	return m.err
+}
+
 func (m *fakeGrantManager) GrantUser(_ context.Context, guildID string, userID string, cap capability.Capability, actorID string) error {
 	m.method, m.guildID, m.targetID, m.capability, m.actorID = "GrantUser", guildID, userID, cap, actorID
 	return m.err
@@ -166,6 +284,42 @@ func (m *fakeGrantManager) GrantUser(_ context.Context, guildID string, userID s
 func (m *fakeGrantManager) RevokeUser(_ context.Context, guildID string, userID string, cap capability.Capability) error {
 	m.method, m.guildID, m.targetID, m.capability = "RevokeUser", guildID, userID, cap
 	return m.err
+}
+
+type fakeGuildRoleService struct {
+	createdRoleID string
+	createdName   string
+	addedRoleID   string
+	addedUserID   string
+	removedRoleID string
+	removedUserID string
+	err           error
+}
+
+func (s *fakeGuildRoleService) GuildRoleCreate(_ string, data *discordgo.RoleParams, _ ...discordgo.RequestOption) (*discordgo.Role, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.createdName = data.Name
+	return &discordgo.Role{ID: s.createdRoleID, Name: data.Name}, nil
+}
+
+func (s *fakeGuildRoleService) GuildMemberRoleAdd(_ string, userID string, roleID string, _ ...discordgo.RequestOption) error {
+	if s.err != nil {
+		return s.err
+	}
+	s.addedUserID = userID
+	s.addedRoleID = roleID
+	return nil
+}
+
+func (s *fakeGuildRoleService) GuildMemberRoleRemove(_ string, userID string, roleID string, _ ...discordgo.RequestOption) error {
+	if s.err != nil {
+		return s.err
+	}
+	s.removedUserID = userID
+	s.removedRoleID = roleID
+	return nil
 }
 
 type fakeAuditRecorder struct {

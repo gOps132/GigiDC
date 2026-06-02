@@ -60,7 +60,7 @@ Gigi will discover approved plugins from manifests. A guild admin can enable an 
 - No Discord gateway connection unless `GIGI_DISCORD_ENABLED=true`.
 - No slash command publishing unless `GIGI_DISCORD_SYNC_COMMANDS=true`.
 - DM and guild-mention routing only has `ping` plus placeholder replies.
-- `/permissions` can grant and revoke role/user capabilities, but no broader user-facing admin command family is live yet.
+- `/permissions` can create/assign Discord roles, grant/revoke role capabilities and presets, and manage direct user exceptions; no broader user-facing admin command family is live yet.
 - Durable audit store is used for permission checks and permission changes, but current Discord liveness replies do not depend on it yet.
 - No music or `!play` implementation yet.
 - No LLM calls yet.

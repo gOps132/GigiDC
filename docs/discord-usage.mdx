@@ -12,7 +12,8 @@ The current codebase has a disabled-by-default Discord gateway adapter, a minima
 ## Current Discord Behavior
 
 - `/ping` replies `pong`.
-- `/permissions grant-role|revoke-role|grant-user|revoke-user` grants or revokes a capability when the requester has `capability.manage` or Discord administrator override.
+- `/permissions role create|assign|unassign|grant|revoke|grant-preset|revoke-preset` manages role-first capability access when the requester has `capability.manage` or Discord administrator override.
+- `/permissions user grant|revoke` manages direct user capability exceptions.
 - DM `ping` replies `pong`.
 - Guild message `<@Gigi> ping` replies `pong`.
 - Other DMs or guild mentions reply with a placeholder so users know Gigi is online.
@@ -28,6 +29,17 @@ Future slices should support:
 - plugin manifests that declare triggers, surfaces, permissions, and attribution
 - durable jobs for work that outlives one Discord interaction
 - fail-closed permissions for private, admin, and sensitive actions
+
+## Permission Flow
+
+For normal access, create a Discord role with a preset, then assign that role to users:
+
+```text
+/permissions role create name:Gigi Plugin Managers preset:plugin-manager
+/permissions role assign role:@Gigi Plugin Managers user:@person
+```
+
+Use direct user grants only when one person needs an exception without a Discord role.
 
 ## Current Verification
 

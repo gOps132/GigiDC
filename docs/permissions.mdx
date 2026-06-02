@@ -16,14 +16,21 @@ Capability foundation is now present:
 - audit events are validated so secret-looking metadata is rejected
 - `/permissions` lets authorized admins grant or revoke capabilities for a Discord role or user
 
-`/permissions` supports:
+`/permissions` is role-first:
 
-- `grant-role`
-- `revoke-role`
-- `grant-user`
-- `revoke-user`
+- `role create`: create a Discord role and grant a Gigi capability preset
+- `role assign`: assign a Discord role to a user
+- `role unassign`: remove a Discord role from a user
+- `role grant`: grant one capability to a role
+- `role revoke`: revoke one capability from a role
+- `role grant-preset`: grant multiple preset capabilities to a role
+- `role revoke-preset`: revoke multiple preset capabilities from a role
+- `user grant`: grant a direct user exception
+- `user revoke`: revoke a direct user exception
 
-The command is protected by `capability.manage`. A Discord server administrator can bootstrap grants through admin override, then use role/user grants for narrower control.
+The command is protected by `capability.manage`. A Discord server administrator can bootstrap grants through admin override, then use Discord roles for normal access control. Direct user grants remain available for rare audited exceptions.
+
+Role create, assign, and unassign require Gigi's Discord bot role to have `Manage Roles` and to sit higher in the Discord role hierarchy than the target role.
 
 Future Discord slices should keep the earlier authority rule: surface is presentation, not authority. DM, slash commands, message commands, buttons, and plugin triggers must resolve the same guild identity and capability model before doing work.
 
@@ -42,12 +49,23 @@ Future Discord slices should keep the earlier authority rule: surface is present
 | `llm.provider.test` | Test a guild-scoped provider credential without viewing it |
 | `llm.provider.select` | Choose active guild provider/model |
 
+## Presets
+
+| Preset | Capabilities |
+| --- | --- |
+| `gigi-admin` | `capability.manage`, `plugin.install`, `job.admin`, `llm.provider.write`, `llm.provider.test`, `llm.provider.select` |
+| `plugin-manager` | `plugin.install` |
+| `llm-manager` | `llm.provider.write`, `llm.provider.test`, `llm.provider.select` |
+| `memory-reader` | `memory.read.guild` |
+| `relay-user` | `relay.dispatch`, `relay.receive` |
+
 ## Rules To Preserve
 
 - Do not grant extra authority because the request came from DM.
 - Do not grant extra authority because a plugin created the command.
 - Resolve guild, member, channel, role, and target user conservatively.
 - Map capabilities by Discord role ID or user ID, never mutable role names.
+- Prefer Discord role grants; use direct user grants only for rare exceptions.
 - Keep plugin permissions auditable by guild and plugin version.
 - Keep sensitive actions private or confirmation-gated.
 - Fail closed when identity or target resolution is ambiguous.

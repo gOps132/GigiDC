@@ -205,11 +205,17 @@ func TestCommandRouterPassesNestedOptions(t *testing.T) {
 			Data: discordgo.ApplicationCommandInteractionData{
 				Name: "permissions",
 				Options: []*discordgo.ApplicationCommandInteractionDataOption{{
-					Name: "grant-role",
-					Type: discordgo.ApplicationCommandOptionSubCommand,
+					Name: "role",
+					Type: discordgo.ApplicationCommandOptionSubCommandGroup,
 					Options: []*discordgo.ApplicationCommandInteractionDataOption{
-						{Name: "role", Type: discordgo.ApplicationCommandOptionRole, Value: "role-id"},
-						{Name: "capability", Type: discordgo.ApplicationCommandOptionString, Value: "plugin.install"},
+						{
+							Name: "grant",
+							Type: discordgo.ApplicationCommandOptionSubCommand,
+							Options: []*discordgo.ApplicationCommandInteractionDataOption{
+								{Name: "role", Type: discordgo.ApplicationCommandOptionRole, Value: "role-id"},
+								{Name: "capability", Type: discordgo.ApplicationCommandOptionString, Value: "plugin.install"},
+							},
+						},
 					},
 				}},
 			},
@@ -218,11 +224,15 @@ func TestCommandRouterPassesNestedOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HandleInteraction returned error: %v", err)
 	}
-	if len(got.Options) != 1 || got.Options[0].Name != "grant-role" || len(got.Options[0].Options) != 2 {
-		t.Fatalf("options = %+v, want nested subcommand options", got.Options)
+	if len(got.Options) != 1 || got.Options[0].Name != "role" || len(got.Options[0].Options) != 1 {
+		t.Fatalf("options = %+v, want nested subcommand group options", got.Options)
 	}
-	if got.Options[0].Options[1].Value != "plugin.install" {
-		t.Fatalf("capability option = %+v, want plugin.install", got.Options[0].Options[1])
+	grant := got.Options[0].Options[0]
+	if grant.Name != "grant" || len(grant.Options) != 2 {
+		t.Fatalf("grant options = %+v, want nested subcommand options", grant)
+	}
+	if grant.Options[1].Value != "plugin.install" {
+		t.Fatalf("capability option = %+v, want plugin.install", grant.Options[1])
 	}
 }
 

@@ -65,6 +65,43 @@ func TestSQLGrantManagerRevokesUser(t *testing.T) {
 	}
 }
 
+func TestSQLGrantManagerGrantsRoleCapabilitiesInTransaction(t *testing.T) {
+	tx := &fakeGrantTx{}
+	db := &fakeExecDB{tx: tx}
+	manager := newSQLGrantManagerWithTx(db, func() string { return "grant-id" })
+
+	err := manager.GrantRoleCapabilities(context.Background(), "guild-id", "role-id", []Capability{"relay.dispatch", "relay.receive"}, "actor-id")
+	if err != nil {
+		t.Fatalf("GrantRoleCapabilities returned error: %v", err)
+	}
+	if !db.began {
+		t.Fatal("transaction not started")
+	}
+	if !tx.committed || tx.rolledBack {
+		t.Fatalf("tx committed=%v rolledBack=%v, want committed without rollback", tx.committed, tx.rolledBack)
+	}
+	if tx.commitCalls != 1 || tx.rollbackCalls != 0 {
+		t.Fatalf("tx commit/rollback calls = %d/%d, want 1/0", tx.commitCalls, tx.rollbackCalls)
+	}
+	if len(tx.queries) != 3 {
+		t.Fatalf("tx queries = %d, want guild upsert plus two grants", len(tx.queries))
+	}
+}
+
+func TestSQLGrantManagerRollsBackRoleCapabilitiesOnFailure(t *testing.T) {
+	tx := &fakeGrantTx{errAt: 3, err: errors.New("insert failed")}
+	db := &fakeExecDB{tx: tx}
+	manager := newSQLGrantManagerWithTx(db, func() string { return "grant-id" })
+
+	err := manager.GrantRoleCapabilities(context.Background(), "guild-id", "role-id", []Capability{"relay.dispatch", "relay.receive"}, "actor-id")
+	if err == nil {
+		t.Fatal("expected grant failure")
+	}
+	if tx.commitCalls != 0 || tx.rollbackCalls != 1 {
+		t.Fatalf("tx commit/rollback calls = %d/%d, want 0/1", tx.commitCalls, tx.rollbackCalls)
+	}
+}
+
 func TestSQLGrantManagerValidatesInputs(t *testing.T) {
 	db := &fakeExecDB{}
 	manager := NewSQLGrantManager(db, func() string { return "grant-id" })
@@ -92,6 +129,8 @@ type fakeExecDB struct {
 	queries []string
 	args    [][]any
 	err     error
+	tx      *fakeGrantTx
+	began   bool
 }
 
 func (db *fakeExecDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
@@ -107,3 +146,40 @@ type fakeSQLResult int64
 
 func (fakeSQLResult) LastInsertId() (int64, error) { return 0, nil }
 func (fakeSQLResult) RowsAffected() (int64, error) { return 0, nil }
+
+func (db *fakeExecDB) beginGrantTx(context.Context) (grantTx, error) {
+	db.began = true
+	return db.tx, nil
+}
+
+type fakeGrantTx struct {
+	queries       []string
+	calls         int
+	errAt         int
+	err           error
+	commitCalls   int
+	rollbackCalls int
+	committed     bool
+	rolledBack    bool
+}
+
+func (tx *fakeGrantTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	tx.calls++
+	tx.queries = append(tx.queries, query)
+	if tx.errAt == tx.calls {
+		return nil, tx.err
+	}
+	return fakeSQLResult(0), nil
+}
+
+func (tx *fakeGrantTx) Commit() error {
+	tx.commitCalls++
+	tx.committed = true
+	return nil
+}
+
+func (tx *fakeGrantTx) Rollback() error {
+	tx.rollbackCalls++
+	tx.rolledBack = true
+	return nil
+}
