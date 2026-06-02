@@ -15,11 +15,13 @@ description: Planned evolution of the Go foundation rebuild.
 
 ## V1 Discord Surface
 
-- Discord gateway login
+- Discord gateway adapter behind `GIGI_DISCORD_ENABLED`
 - slash command registration
 - guild mention handling
 - DM handling
 - permission model
+
+Current status: gateway adapter started; slash commands, mention handling, DM handling, permission model, and audit remain.
 
 ## V2 Memory And Actions
 

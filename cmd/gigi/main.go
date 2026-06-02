@@ -23,7 +23,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	application := app.New(cfg, logger)
+	application, err := app.New(cfg, logger)
+	if err != nil {
+		logger.Error("app init failed", "error", err)
+		os.Exit(1)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

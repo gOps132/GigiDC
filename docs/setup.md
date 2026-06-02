@@ -16,7 +16,9 @@ description: Local setup for the Go foundation runtime.
 cp .env.example .env
 ```
 
-The foundation runtime only requires `GIGI_DATABASE_URL`. Discord and OpenAI env vars are reserved for later slices.
+The default runtime only requires `GIGI_DATABASE_URL`.
+
+Set `GIGI_DISCORD_ENABLED=true` only when `DISCORD_TOKEN` and `DISCORD_CLIENT_ID` are configured. Discord starts as a gateway connection first; slash commands, DMs, mentions, and plugin execution land in later slices.
 
 ## Run Checks
 
