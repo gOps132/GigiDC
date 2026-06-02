@@ -5,17 +5,27 @@ description: Permission model status for the Go foundation rebuild.
 
 # Permissions
 
-The current foundation only answers safe Discord liveness messages: `/ping`, DM `ping`, and guild mention `@Gigi ping`. It does not execute privileged Discord actions yet.
+The current foundation answers safe Discord liveness messages and has the first privileged admin surface: `/permissions`.
 
-Capability foundation is now present for future privileged actions:
+Capability foundation is now present:
 
 - guild owner and Discord `ADMINISTRATOR` can receive admin override
 - role grants use Discord role IDs, not role names
 - direct user grants are allowed for explicit exceptions
 - missing identity, ambiguous identity, and missing capability fail closed
 - audit events are validated so secret-looking metadata is rejected
+- `/permissions` lets authorized admins grant or revoke capabilities for a Discord role or user
 
-The next Discord slices should keep the earlier authority rule: surface is presentation, not authority. DM, slash commands, message commands, buttons, and plugin triggers must resolve the same guild identity and capability model before doing work.
+`/permissions` supports:
+
+- `grant-role`
+- `revoke-role`
+- `grant-user`
+- `revoke-user`
+
+The command is protected by `capability.manage`. A Discord server administrator can bootstrap grants through admin override, then use role/user grants for narrower control.
+
+Future Discord slices should keep the earlier authority rule: surface is presentation, not authority. DM, slash commands, message commands, buttons, and plugin triggers must resolve the same guild identity and capability model before doing work.
 
 ## Planned Capability Shape
 
@@ -23,6 +33,7 @@ The next Discord slices should keep the earlier authority rule: surface is prese
 | --- | --- |
 | `plugin.install` | Install or configure guild plugins |
 | `plugin.run.<id>` | Use a plugin-provided command or trigger |
+| `capability.manage` | Grant or revoke role/user capabilities |
 | `job.admin` | Inspect, retry, or cancel durable jobs |
 | `memory.read.guild` | Read permitted guild memory scope |
 | `relay.dispatch` | Ask Gigi to send a mediated message |

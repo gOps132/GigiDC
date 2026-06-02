@@ -27,6 +27,7 @@ POSTGRES_USER=gigi
 POSTGRES_PASSWORD=<secure-password>
 
 GIGI_ENV=production
+GIGI_MIGRATIONS_DIR=/app/db/migrations
 GIGI_DISCORD_ENABLED=false
 GIGI_DISCORD_SYNC_COMMANDS=false
 GIGI_DISCORD_GUILD_ID=
@@ -40,7 +41,7 @@ OPENAI_API_KEY=
 
 Do not paste `docker compose config` output into issues, PRs, or chat after real secrets are set; Compose expands environment values.
 
-Only enable Discord after `/healthz` and `/readyz` pass. With Discord enabled, the current safe smoke test is `/ping`, DM `ping`, or `@Gigi ping`.
+Only enable Discord after `/healthz` and `/readyz` pass. With Discord enabled, the current safe smoke test is `/ping`, DM `ping`, `@Gigi ping`, or `/permissions grant-role` against a test role in a private admin channel.
 
 ## Health Checks
 
@@ -58,4 +59,4 @@ Expected response:
 
 ## Current Limits
 
-This deploy proves container, database, health/readiness wiring, Discord gateway login, slash command sync, and basic DM/mention routing. Capability and audit foundations exist for future privileged actions. It does not provide rich DM chat, rich mention chat, admin grant commands, LLM calls, or plugin execution yet.
+This deploy proves container, database, startup migrations, health/readiness wiring, Discord gateway login, slash command sync, basic DM/mention routing, and admin-gated capability grants. It does not provide rich DM chat, rich mention chat, usage/assignment/task commands, LLM calls, or plugin execution yet.

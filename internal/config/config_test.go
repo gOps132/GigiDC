@@ -28,11 +28,27 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Env != "development" {
 		t.Fatalf("Env = %q, want development", cfg.Env)
 	}
+	if cfg.MigrationsDir != "db/migrations" {
+		t.Fatalf("MigrationsDir = %q, want db/migrations", cfg.MigrationsDir)
+	}
 	if cfg.DiscordEnabled {
 		t.Fatal("DiscordEnabled = true, want false")
 	}
 	if cfg.DiscordSyncCommands {
 		t.Fatal("DiscordSyncCommands = true, want false")
+	}
+}
+
+func TestLoadMigrationDir(t *testing.T) {
+	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_MIGRATIONS_DIR", "/app/db/migrations")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.MigrationsDir != "/app/db/migrations" {
+		t.Fatalf("MigrationsDir = %q, want /app/db/migrations", cfg.MigrationsDir)
 	}
 }
 

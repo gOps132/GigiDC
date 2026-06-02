@@ -24,6 +24,30 @@ func TestCommandRouterApplicationCommands(t *testing.T) {
 	}
 }
 
+func TestCommandRouterApplicationCommandsIncludeOptions(t *testing.T) {
+	router, err := NewCommandRouter(Command{
+		Name:        "admin",
+		Description: "admin command",
+		Options: []*discordgo.ApplicationCommandOption{{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "inspect",
+			Description: "inspect things",
+		}},
+		Handle: okHandler,
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+
+	commands := router.ApplicationCommands()
+	if len(commands) != 1 || len(commands[0].Options) != 1 {
+		t.Fatalf("commands = %+v, want one option", commands)
+	}
+	if commands[0].Options[0].Name != "inspect" {
+		t.Fatalf("option name = %q, want inspect", commands[0].Options[0].Name)
+	}
+}
+
 func TestCommandRouterRejectsInvalidCommands(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -159,6 +183,49 @@ func TestCommandRouterPassesInteractionContext(t *testing.T) {
 	}
 }
 
+func TestCommandRouterPassesNestedOptions(t *testing.T) {
+	var got Interaction
+	router, err := NewCommandRouter(Command{
+		Name:        "permissions",
+		Description: "permissions command",
+		Handle: func(ctx context.Context, interaction Interaction) (CommandResponse, error) {
+			got = interaction
+			return CommandResponse{Content: "ok"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+
+	err = router.HandleInteraction(context.Background(), &fakeResponder{}, &discordgo.InteractionCreate{
+		Interaction: &discordgo.Interaction{
+			Type:    discordgo.InteractionApplicationCommand,
+			GuildID: "guild-id",
+			Member:  &discordgo.Member{User: &discordgo.User{ID: "user-id"}},
+			Data: discordgo.ApplicationCommandInteractionData{
+				Name: "permissions",
+				Options: []*discordgo.ApplicationCommandInteractionDataOption{{
+					Name: "grant-role",
+					Type: discordgo.ApplicationCommandOptionSubCommand,
+					Options: []*discordgo.ApplicationCommandInteractionDataOption{
+						{Name: "role", Type: discordgo.ApplicationCommandOptionRole, Value: "role-id"},
+						{Name: "capability", Type: discordgo.ApplicationCommandOptionString, Value: "plugin.install"},
+					},
+				}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if len(got.Options) != 1 || got.Options[0].Name != "grant-role" || len(got.Options[0].Options) != 2 {
+		t.Fatalf("options = %+v, want nested subcommand options", got.Options)
+	}
+	if got.Options[0].Options[1].Value != "plugin.install" {
+		t.Fatalf("capability option = %+v, want plugin.install", got.Options[0].Options[1])
+	}
+}
+
 func TestCommandRouterDeniesMissingCapability(t *testing.T) {
 	calls := 0
 	router, err := NewCommandRouter(Command{
@@ -188,6 +255,9 @@ func TestCommandRouterDeniesMissingCapability(t *testing.T) {
 	}
 	if responder.content() != "Permission denied." {
 		t.Fatalf("response = %q, want permission denied", responder.content())
+	}
+	if responder.flags() != discordgo.MessageFlagsEphemeral {
+		t.Fatalf("flags = %v, want ephemeral", responder.flags())
 	}
 }
 
@@ -291,6 +361,13 @@ func (r *fakeResponder) content() string {
 		return ""
 	}
 	return r.response.Data.Content
+}
+
+func (r *fakeResponder) flags() discordgo.MessageFlags {
+	if r.response == nil || r.response.Data == nil {
+		return 0
+	}
+	return r.response.Data.Flags
 }
 
 type fakeCommandAuthorizer struct {

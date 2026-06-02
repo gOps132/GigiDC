@@ -14,13 +14,15 @@ type Command struct {
 	Name               string
 	Description        string
 	RequiredCapability capability.Capability
+	Options            []*discordgo.ApplicationCommandOption
 	Handle             CommandHandler
 }
 
 type CommandHandler func(context.Context, Interaction) (CommandResponse, error)
 
 type CommandResponse struct {
-	Content string
+	Content   string
+	Ephemeral bool
 }
 
 type CommandRouter struct {
@@ -88,6 +90,7 @@ func (r *CommandRouter) ApplicationCommands() []*discordgo.ApplicationCommand {
 		commands = append(commands, &discordgo.ApplicationCommand{
 			Name:        command.Name,
 			Description: command.Description,
+			Options:     cloneCommandOptions(command.Options),
 		})
 	}
 	return commands
@@ -104,7 +107,7 @@ func (r *CommandRouter) HandleInteraction(ctx context.Context, responder interac
 	data := event.ApplicationCommandData()
 	command, ok := r.commands[data.Name]
 	if !ok {
-		return respond(responder, event.Interaction, "Command not supported yet.")
+		return respond(responder, event.Interaction, CommandResponse{Content: "Command not supported yet."})
 	}
 
 	interaction := Interaction{
@@ -115,17 +118,18 @@ func (r *CommandRouter) HandleInteraction(ctx context.Context, responder interac
 		HasAdministrator: interactionHasAdministrator(event.Interaction),
 		Name:             data.Name,
 		Text:             "",
+		Options:          interactionOptions(data.Options),
 	}
 	if command.RequiredCapability != "" {
 		if r.authorizer == nil {
-			return respond(responder, event.Interaction, "Permission denied.")
+			return respond(responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
 		}
 		decision, err := r.authorizer.Check(ctx, interaction, command.RequiredCapability)
 		if err != nil {
-			return respond(responder, event.Interaction, "Permission check failed.")
+			return respond(responder, event.Interaction, CommandResponse{Content: "Permission check failed.", Ephemeral: true})
 		}
 		if !decision.Allowed {
-			return respond(responder, event.Interaction, "Permission denied.")
+			return respond(responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
 		}
 	}
 
@@ -137,22 +141,25 @@ func (r *CommandRouter) HandleInteraction(ctx context.Context, responder interac
 		HasAdministrator: interaction.HasAdministrator,
 		Name:             interaction.Name,
 		Text:             interaction.Text,
+		Options:          interaction.Options,
 	})
 	if err != nil {
-		return respond(responder, event.Interaction, "Command failed.")
+		return respond(responder, event.Interaction, CommandResponse{Content: "Command failed.", Ephemeral: command.RequiredCapability != ""})
 	}
 	if strings.TrimSpace(response.Content) == "" {
 		response.Content = "ok"
 	}
-	return respond(responder, event.Interaction, response.Content)
+	return respond(responder, event.Interaction, response)
 }
 
-func respond(responder interactionResponder, interaction *discordgo.Interaction, content string) error {
+func respond(responder interactionResponder, interaction *discordgo.Interaction, response CommandResponse) error {
+	data := &discordgo.InteractionResponseData{Content: response.Content}
+	if response.Ephemeral {
+		data.Flags = discordgo.MessageFlagsEphemeral
+	}
 	return responder.InteractionRespond(interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: content,
-		},
+		Data: data,
 	})
 }
 
@@ -178,4 +185,47 @@ func interactionHasAdministrator(interaction *discordgo.Interaction) bool {
 		return false
 	}
 	return interaction.Member.Permissions&discordgo.PermissionAdministrator != 0
+}
+
+func interactionOptions(options []*discordgo.ApplicationCommandInteractionDataOption) []InteractionOption {
+	out := make([]InteractionOption, 0, len(options))
+	for _, option := range options {
+		if option == nil {
+			continue
+		}
+		out = append(out, InteractionOption{
+			Name:    option.Name,
+			Type:    option.Type,
+			Value:   optionValue(option),
+			Options: interactionOptions(option.Options),
+		})
+	}
+	return out
+}
+
+func optionValue(option *discordgo.ApplicationCommandInteractionDataOption) string {
+	if option.Value == nil {
+		return ""
+	}
+	value, ok := option.Value.(string)
+	if ok {
+		return value
+	}
+	return fmt.Sprint(option.Value)
+}
+
+func cloneCommandOptions(options []*discordgo.ApplicationCommandOption) []*discordgo.ApplicationCommandOption {
+	if len(options) == 0 {
+		return nil
+	}
+	cloned := make([]*discordgo.ApplicationCommandOption, 0, len(options))
+	for _, option := range options {
+		if option == nil {
+			continue
+		}
+		copy := *option
+		copy.Options = cloneCommandOptions(option.Options)
+		cloned = append(cloned, &copy)
+	}
+	return cloned
 }

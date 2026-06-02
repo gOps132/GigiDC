@@ -20,7 +20,7 @@
 
 ## Current Foundation
 
-This branch intentionally removes the old Node/Supabase runtime. The current Go foundation exposes health/readiness endpoints plus a minimal Discord surface: `/ping`, DM `ping`, and guild mention `ping` answer `pong`; other DM/mention text receives a placeholder while LLM, retrieval, and plugin layers are rebuilt.
+This branch intentionally removes the old Node/Supabase runtime. The current Go foundation exposes health/readiness endpoints plus a minimal Discord surface: `/ping`, DM `ping`, guild mention `ping`, and admin-gated `/permissions` capability grants; other DM/mention text receives a placeholder while LLM, retrieval, and plugin layers are rebuilt.
 
 ```mermaid
 flowchart LR

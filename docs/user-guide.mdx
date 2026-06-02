@@ -7,13 +7,14 @@ description: Current user-facing status for Gigi.
 
 Gigi is in a foundation rebuild.
 
-The current runtime can log in to Discord when enabled, sync `/ping`, and answer simple DM or guild-mention `ping` messages. LLM chat, memory, plugin commands, and admin actions are not live yet.
+The current runtime can log in to Discord when enabled, sync `/ping`, answer simple DM or guild-mention `ping` messages, and let authorized admins manage role/user capability grants through `/permissions`. LLM chat, memory, plugin commands, tasks, and relay actions are not live yet.
 
 ## Current Live Checks
 
 - `GET /healthz`: process is alive and reports build metadata.
 - `GET /readyz`: process is configured and can reach PostgreSQL.
 - `/ping`: replies `pong` in Discord when command sync is enabled.
+- `/permissions`: grants or revokes role/user capabilities for authorized admins.
 - DM `ping`: replies `pong`.
 - Guild mention `@Gigi ping`: replies `pong`.
 
@@ -23,7 +24,7 @@ Future Discord slices are expected to restore and expand:
 
 - rich DM conversation
 - rich channel mentions
-- structured commands
+- more structured commands
 - plugin-provided commands such as music controls
 - admin-installed plugin capabilities
 - permission-aware task, relay, memory, and retrieval features

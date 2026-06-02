@@ -7,11 +7,12 @@ description: Discord status for the Go foundation rebuild.
 
 Discord usage is active in a narrow foundation slice.
 
-The current codebase has a disabled-by-default Discord gateway adapter, a minimal `/ping` slash-command handler, opt-in command sync, DM routing, and guild-mention routing. It intentionally does not run LLM chat, memory retrieval, admin actions, or plugin commands yet.
+The current codebase has a disabled-by-default Discord gateway adapter, a minimal `/ping` slash-command handler, opt-in command sync, DM routing, guild-mention routing, and admin-gated `/permissions` capability grants. It intentionally does not run LLM chat, memory retrieval, task actions, relay actions, or plugin commands yet.
 
 ## Current Discord Behavior
 
 - `/ping` replies `pong`.
+- `/permissions grant-role|revoke-role|grant-user|revoke-user` grants or revokes a capability when the requester has `capability.manage` or Discord administrator override.
 - DM `ping` replies `pong`.
 - Guild message `<@Gigi> ping` replies `pong`.
 - Other DMs or guild mentions reply with a placeholder so users know Gigi is online.
