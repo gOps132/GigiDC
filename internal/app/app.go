@@ -52,6 +52,10 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		if err != nil {
 			return nil, err
 		}
+		messageRouter, err := discord.NewMessageRouter(cfg.DiscordClientID, discord.CoreMessageHandler(), nil)
+		if err != nil {
+			return nil, err
+		}
 		client, err := discord.NewGateway(discord.Options{
 			Token:         cfg.DiscordToken,
 			ClientID:      cfg.DiscordClientID,
@@ -59,6 +63,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			SyncCommands:  cfg.DiscordSyncCommands,
 			Logger:        logger,
 			CommandRouter: router,
+			MessageRouter: messageRouter,
 		})
 		if err != nil {
 			return nil, err

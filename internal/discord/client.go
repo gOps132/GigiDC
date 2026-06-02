@@ -22,6 +22,7 @@ type Options struct {
 	Intents       discordgo.Intent
 	Logger        *slog.Logger
 	CommandRouter *CommandRouter
+	MessageRouter *MessageRouter
 }
 
 type Gateway struct {
@@ -31,6 +32,7 @@ type Gateway struct {
 	guildID       string
 	syncCommands  bool
 	commandRouter *CommandRouter
+	messageRouter *MessageRouter
 	started       bool
 }
 
@@ -79,6 +81,13 @@ func newGatewayWithFactory(opts Options, factory sessionFactory) (*Gateway, erro
 			}
 		})
 	}
+	if opts.MessageRouter != nil {
+		session.AddHandler(func(session *discordgo.Session, event *discordgo.MessageCreate) {
+			if err := opts.MessageRouter.HandleMessage(context.Background(), session, event); err != nil {
+				opts.Logger.Error("discord message failed", "error", err)
+			}
+		})
+	}
 
 	return &Gateway{
 		session:       session,
@@ -87,6 +96,7 @@ func newGatewayWithFactory(opts Options, factory sessionFactory) (*Gateway, erro
 		guildID:       strings.TrimSpace(opts.GuildID),
 		syncCommands:  opts.SyncCommands,
 		commandRouter: opts.CommandRouter,
+		messageRouter: opts.MessageRouter,
 	}, nil
 }
 
