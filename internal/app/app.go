@@ -55,6 +55,8 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		client, err := discord.NewGateway(discord.Options{
 			Token:         cfg.DiscordToken,
 			ClientID:      cfg.DiscordClientID,
+			GuildID:       cfg.DiscordGuildID,
+			SyncCommands:  cfg.DiscordSyncCommands,
 			Logger:        logger,
 			CommandRouter: router,
 		})

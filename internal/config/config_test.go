@@ -16,6 +16,7 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("GIGI_HTTP_ADDR", "")
 	t.Setenv("GIGI_ENV", "")
 	t.Setenv("GIGI_DISCORD_ENABLED", "")
+	t.Setenv("GIGI_DISCORD_SYNC_COMMANDS", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -29,6 +30,9 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.DiscordEnabled {
 		t.Fatal("DiscordEnabled = true, want false")
+	}
+	if cfg.DiscordSyncCommands {
+		t.Fatal("DiscordSyncCommands = true, want false")
 	}
 }
 
@@ -68,5 +72,25 @@ func TestLoadEnablesDiscordWithCredentials(t *testing.T) {
 	}
 	if !cfg.DiscordEnabled {
 		t.Fatal("DiscordEnabled = false, want true")
+	}
+}
+
+func TestLoadDiscordCommandSyncSettings(t *testing.T) {
+	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_DISCORD_ENABLED", "true")
+	t.Setenv("GIGI_DISCORD_SYNC_COMMANDS", "on")
+	t.Setenv("GIGI_DISCORD_GUILD_ID", "guild-id")
+	t.Setenv("DISCORD_TOKEN", "token")
+	t.Setenv("DISCORD_CLIENT_ID", "client-id")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.DiscordSyncCommands {
+		t.Fatal("DiscordSyncCommands = false, want true")
+	}
+	if cfg.DiscordGuildID != "guild-id" {
+		t.Fatalf("DiscordGuildID = %q, want guild-id", cfg.DiscordGuildID)
 	}
 }

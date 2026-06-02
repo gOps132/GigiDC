@@ -56,6 +56,15 @@ func TestNewGatewayRequiresToken(t *testing.T) {
 	}
 }
 
+func TestNewGatewayRequiresClientIDWhenCommandSyncEnabled(t *testing.T) {
+	_, err := newGatewayWithFactory(Options{Token: "token", SyncCommands: true}, func(token string, intents discordgo.Intent) (gatewaySession, error) {
+		return &fakeSession{}, nil
+	})
+	if err == nil {
+		t.Fatal("expected client ID error")
+	}
+}
+
 func TestGatewayStartAndClose(t *testing.T) {
 	session := &fakeSession{}
 	gateway := &Gateway{session: session}
@@ -75,6 +84,59 @@ func TestGatewayStartAndClose(t *testing.T) {
 	}
 	if err := gateway.Close(context.Background()); err != nil {
 		t.Fatalf("second Close returned error: %v", err)
+	}
+	if session.closes != 1 {
+		t.Fatalf("closes = %d, want 1", session.closes)
+	}
+}
+
+func TestGatewaySyncsApplicationCommands(t *testing.T) {
+	router, err := NewCommandRouter(CoreCommands()...)
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	session := &fakeSession{}
+	gateway := &Gateway{
+		session:       session,
+		clientID:      "client-id",
+		guildID:       "guild-id",
+		syncCommands:  true,
+		commandRouter: router,
+	}
+
+	if err := gateway.Start(context.Background()); err != nil {
+		t.Fatalf("Start returned error: %v", err)
+	}
+	if session.bulkAppID != "client-id" {
+		t.Fatalf("bulk app ID = %q, want client-id", session.bulkAppID)
+	}
+	if session.bulkGuildID != "guild-id" {
+		t.Fatalf("bulk guild ID = %q, want guild-id", session.bulkGuildID)
+	}
+	if len(session.bulkCommands) != 1 || session.bulkCommands[0].Name != "ping" {
+		t.Fatalf("bulk commands = %+v", session.bulkCommands)
+	}
+}
+
+func TestGatewayClosesWhenCommandSyncFails(t *testing.T) {
+	router, err := NewCommandRouter(CoreCommands()...)
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	session := &fakeSession{bulkErr: errors.New("boom")}
+	gateway := &Gateway{
+		session:       session,
+		clientID:      "client-id",
+		syncCommands:  true,
+		commandRouter: router,
+	}
+
+	err = gateway.Start(context.Background())
+	if err == nil {
+		t.Fatal("expected command sync error")
+	}
+	if session.opens != 1 {
+		t.Fatalf("opens = %d, want 1", session.opens)
 	}
 	if session.closes != 1 {
 		t.Fatalf("closes = %d, want 1", session.closes)
@@ -122,17 +184,28 @@ func TestGatewayCloseHonorsContext(t *testing.T) {
 }
 
 type fakeSession struct {
-	opens      int
-	closes     int
-	openErr    error
-	closeErr   error
-	closeBlock chan struct{}
-	handlers   []interface{}
+	opens        int
+	closes       int
+	openErr      error
+	closeErr     error
+	closeBlock   chan struct{}
+	handlers     []interface{}
+	bulkAppID    string
+	bulkGuildID  string
+	bulkCommands []*discordgo.ApplicationCommand
+	bulkErr      error
 }
 
 func (s *fakeSession) AddHandler(handler interface{}) func() {
 	s.handlers = append(s.handlers, handler)
 	return func() {}
+}
+
+func (s *fakeSession) ApplicationCommandBulkOverwrite(appID string, guildID string, commands []*discordgo.ApplicationCommand, _ ...discordgo.RequestOption) ([]*discordgo.ApplicationCommand, error) {
+	s.bulkAppID = appID
+	s.bulkGuildID = guildID
+	s.bulkCommands = commands
+	return commands, s.bulkErr
 }
 
 func (s *fakeSession) Open() error {

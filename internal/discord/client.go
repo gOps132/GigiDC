@@ -17,19 +17,26 @@ type Client interface {
 type Options struct {
 	Token         string
 	ClientID      string
+	GuildID       string
+	SyncCommands  bool
 	Intents       discordgo.Intent
 	Logger        *slog.Logger
 	CommandRouter *CommandRouter
 }
 
 type Gateway struct {
-	session gatewaySession
-	logger  *slog.Logger
-	started bool
+	session       gatewaySession
+	logger        *slog.Logger
+	clientID      string
+	guildID       string
+	syncCommands  bool
+	commandRouter *CommandRouter
+	started       bool
 }
 
 type gatewaySession interface {
 	AddHandler(handler interface{}) func()
+	ApplicationCommandBulkOverwrite(appID string, guildID string, commands []*discordgo.ApplicationCommand, options ...discordgo.RequestOption) ([]*discordgo.ApplicationCommand, error)
 	Open() error
 	Close() error
 }
@@ -54,6 +61,9 @@ func newGatewayWithFactory(opts Options, factory sessionFactory) (*Gateway, erro
 	if opts.Intents == 0 {
 		opts.Intents = DefaultIntents()
 	}
+	if opts.SyncCommands && strings.TrimSpace(opts.ClientID) == "" {
+		return nil, fmt.Errorf("discord client ID is required when command sync is enabled")
+	}
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
 	}
@@ -71,8 +81,12 @@ func newGatewayWithFactory(opts Options, factory sessionFactory) (*Gateway, erro
 	}
 
 	return &Gateway{
-		session: session,
-		logger:  opts.Logger,
+		session:       session,
+		logger:        opts.Logger,
+		clientID:      strings.TrimSpace(opts.ClientID),
+		guildID:       strings.TrimSpace(opts.GuildID),
+		syncCommands:  opts.SyncCommands,
+		commandRouter: opts.CommandRouter,
 	}, nil
 }
 
@@ -90,6 +104,12 @@ func (g *Gateway) Start(ctx context.Context) error {
 		return fmt.Errorf("open discord gateway: %w", err)
 	}
 	g.started = true
+	if err := g.syncApplicationCommands(ctx); err != nil {
+		if closeErr := g.Close(ctx); closeErr != nil {
+			return fmt.Errorf("%w; close discord gateway: %v", err, closeErr)
+		}
+		return err
+	}
 	g.log().Info("discord gateway connected")
 	return nil
 }
@@ -122,6 +142,25 @@ func (g *Gateway) log() *slog.Logger {
 		return slog.Default()
 	}
 	return g.logger
+}
+
+func (g *Gateway) syncApplicationCommands(ctx context.Context) error {
+	if !g.syncCommands || g.commandRouter == nil {
+		return nil
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	commands := g.commandRouter.ApplicationCommands()
+	if _, err := g.session.ApplicationCommandBulkOverwrite(g.clientID, g.guildID, commands); err != nil {
+		return fmt.Errorf("sync discord application commands: %w", err)
+	}
+	g.log().Info("discord application commands synced", "count", len(commands), "guild_id", g.guildID)
+	return nil
 }
 
 func discordgoSession(token string, intents discordgo.Intent) (gatewaySession, error) {

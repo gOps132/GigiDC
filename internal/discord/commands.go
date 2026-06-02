@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -64,8 +65,15 @@ func CoreCommands() []Command {
 }
 
 func (r *CommandRouter) ApplicationCommands() []*discordgo.ApplicationCommand {
+	names := make([]string, 0, len(r.commands))
+	for name := range r.commands {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
 	commands := make([]*discordgo.ApplicationCommand, 0, len(r.commands))
-	for _, command := range r.commands {
+	for _, name := range names {
+		command := r.commands[name]
 		commands = append(commands, &discordgo.ApplicationCommand{
 			Name:        command.Name,
 			Description: command.Description,

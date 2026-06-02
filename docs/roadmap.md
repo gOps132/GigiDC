@@ -21,7 +21,7 @@ description: Planned evolution of the Go foundation rebuild.
 - DM handling
 - permission model
 
-Current status: gateway adapter and `/ping` slash handler started; slash publishing, mention handling, DM handling, permission model, and audit remain.
+Current status: gateway adapter, `/ping` slash handler, and opt-in slash publishing started; mention handling, DM handling, permission model, and audit remain.
 
 ## V2 Memory And Actions
 
