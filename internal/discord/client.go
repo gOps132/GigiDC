@@ -198,4 +198,12 @@ type Interaction struct {
 	HasAdministrator bool
 	Name             string
 	Text             string
+	Options          []InteractionOption
+}
+
+type InteractionOption struct {
+	Name    string
+	Type    discordgo.ApplicationCommandOptionType
+	Value   string
+	Options []InteractionOption
 }

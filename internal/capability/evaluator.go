@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 type Capability string
+
+const CapabilityManage Capability = "capability.manage"
 
 type Subject struct {
 	GuildID          string
@@ -44,6 +47,28 @@ type Evaluator struct {
 
 func NewEvaluator(store GrantStore) Evaluator {
 	return Evaluator{store: store}
+}
+
+func Normalize(value string) (Capability, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", fmt.Errorf("capability is required")
+	}
+	if len(value) > 128 {
+		return "", fmt.Errorf("capability is too long")
+	}
+	for _, r := range value {
+		if unicode.IsLower(r) || unicode.IsDigit(r) {
+			continue
+		}
+		switch r {
+		case '.', ':', '_', '-':
+			continue
+		default:
+			return "", fmt.Errorf("capability contains unsupported character %q", r)
+		}
+	}
+	return Capability(value), nil
 }
 
 func (e Evaluator) Check(ctx context.Context, subject Subject, capability Capability) (Decision, error) {

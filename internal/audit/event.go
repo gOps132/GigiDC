@@ -8,9 +8,10 @@ import (
 type Status string
 
 const (
-	StatusAllowed Status = "allowed"
-	StatusDenied  Status = "denied"
-	StatusFailed  Status = "failed"
+	StatusAllowed   Status = "allowed"
+	StatusDenied    Status = "denied"
+	StatusFailed    Status = "failed"
+	StatusSucceeded Status = "succeeded"
 )
 
 type Event struct {

@@ -28,6 +28,9 @@ description: External resources, platforms, and tooling used by GigiDC.
 - `discordgo`
   - Use: Go client library for the Discord gateway adapter
   - Source: https://github.com/bwmarrin/discordgo
+- `pgx`
+  - Use: Go PostgreSQL driver used by the local database-backed Discord permission grants
+  - Source: https://github.com/jackc/pgx
 - `OpenAI API`
   - Use: Planned LLM response, tool-planning, and embedding provider behind an adapter
   - Source: https://platform.openai.com/docs/

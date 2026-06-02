@@ -25,6 +25,7 @@ RUN adduser -D -H -u 10001 gigi
 USER gigi
 WORKDIR /app
 COPY --from=build /out/gigi /app/gigi
+COPY db/migrations /app/db/migrations
 
 EXPOSE 8080
 ENTRYPOINT ["/app/gigi"]

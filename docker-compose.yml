@@ -28,6 +28,7 @@ services:
       GIGI_ENV: ${GIGI_ENV:-production}
       GIGI_HTTP_ADDR: :8080
       GIGI_DATABASE_URL: postgres://${POSTGRES_USER:-gigi}:${POSTGRES_PASSWORD:?}@db:5432/${POSTGRES_DB:-gigi}?sslmode=disable
+      GIGI_MIGRATIONS_DIR: /app/db/migrations
       GIGI_DISCORD_ENABLED: ${GIGI_DISCORD_ENABLED:-false}
       GIGI_DISCORD_SYNC_COMMANDS: ${GIGI_DISCORD_SYNC_COMMANDS:-false}
       GIGI_DISCORD_GUILD_ID: ${GIGI_DISCORD_GUILD_ID:-}

@@ -16,9 +16,9 @@ description: Local setup for the Go foundation runtime.
 cp .env.example .env
 ```
 
-The default runtime only requires `GIGI_DATABASE_URL`.
+The default runtime requires `GIGI_DATABASE_URL` and can use `GIGI_MIGRATIONS_DIR` when migrations are not under `db/migrations`.
 
-Set `GIGI_DISCORD_ENABLED=true` only when `DISCORD_TOKEN` and `DISCORD_CLIENT_ID` are configured. Discord starts as a gateway connection first; slash commands, DMs, mentions, and plugin execution land in later slices.
+Set `GIGI_DISCORD_ENABLED=true` only when `DISCORD_TOKEN` and `DISCORD_CLIENT_ID` are configured. Discord starts with `/ping`, DM/mention liveness routing, and `/permissions`; rich chat and plugin execution land in later slices.
 
 Set `GIGI_DISCORD_SYNC_COMMANDS=true` only when you want Gigi to bulk-overwrite its current slash command set. Use `GIGI_DISCORD_GUILD_ID` for a test server during development; leaving it blank targets global application commands.
 
@@ -45,7 +45,7 @@ curl http://127.0.0.1:8080/readyz
 
 ## Database
 
-Local PostgreSQL starts through Docker Compose. The initial schema lives under `db/migrations/` and is mounted into the Postgres container for fresh database creation.
+Local PostgreSQL starts through Docker Compose. The initial schema lives under `db/migrations/` and is mounted into the Postgres container for fresh database creation. The app also runs the same idempotent migration files on startup, which lets an existing Docker volume catch up after schema-only foundation changes.
 
 The database is exposed on `127.0.0.1:55432` by default to avoid collisions with a local Postgres on `5432`. Override with `GIGI_DB_PORT` if needed.
 

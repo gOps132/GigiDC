@@ -11,6 +11,7 @@ type Config struct {
 	Env                 string
 	HTTPAddr            string
 	DatabaseURL         string
+	MigrationsDir       string
 	DiscordEnabled      bool
 	DiscordSyncCommands bool
 	DiscordGuildID      string
@@ -24,6 +25,7 @@ func Load() (Config, error) {
 		Env:                 envOrDefault("GIGI_ENV", "development"),
 		HTTPAddr:            envOrDefault("GIGI_HTTP_ADDR", ":8080"),
 		DatabaseURL:         strings.TrimSpace(os.Getenv("GIGI_DATABASE_URL")),
+		MigrationsDir:       envOrDefault("GIGI_MIGRATIONS_DIR", "db/migrations"),
 		DiscordEnabled:      boolEnv("GIGI_DISCORD_ENABLED"),
 		DiscordSyncCommands: boolEnv("GIGI_DISCORD_SYNC_COMMANDS"),
 		DiscordGuildID:      strings.TrimSpace(os.Getenv("GIGI_DISCORD_GUILD_ID")),
