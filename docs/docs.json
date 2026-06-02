@@ -24,28 +24,11 @@
         ]
       },
       {
-        "group": "Using Gigi",
-        "pages": [
-          "user-guide",
-          "discord-usage",
-          "permissions"
-        ]
-      },
-      {
-        "group": "Getting Started",
+        "group": "Operations",
         "pages": [
           "setup",
           "deploy-ec2",
           "ci-cd"
-        ]
-      },
-      {
-        "group": "Project Workflow",
-        "pages": [
-          "agent-skills",
-          "knowledge-workflow",
-          "human-agent-workflow",
-          "project-visualization-workflow"
         ]
       },
       {

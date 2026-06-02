@@ -1,76 +1,30 @@
 ---
 title: Permissions
-description: How Gigi permissions work across DM and slash surfaces.
+description: Permission model status for the Go foundation rebuild.
 ---
 
 # Permissions
 
-Gigi uses permission-aware execution. A DM does not grant extra authority, and a slash command does not create authority by itself.
+The current foundation does not execute Discord actions yet, so no runtime permission checks are live beyond configuration and database readiness.
 
-Authority comes from your Discord identity plus Gigi capability checks.
+The next Discord slices should keep the earlier authority rule: surface is presentation, not authority. DM, slash commands, message commands, buttons, and plugin triggers must resolve the same guild identity and capability model before doing work.
 
-## Current Capabilities
+## Planned Capability Shape
 
 | Capability | What it allows |
 | --- | --- |
-| `agent_action_dispatch` | Create shared tasks, dispatch relays, and perform other shared Gigi actions |
-| `agent_action_receive` | Receive Gigi-mediated DM relays |
-| `assignment_admin` | Create, list, and publish assignments |
-| `ingestion_admin` | Check or change ingestion policy for channels and threads |
-| `history_guild_wide` | Legacy capability kept for compatibility; ordinary DM server-context retrieval now follows primary-server membership instead |
-| `permission_admin` | Inspect, grant, and revoke direct user capability grants |
-| `usage_admin` | Inspect token usage and estimated USD cost summaries |
+| `plugin.install` | Install or configure guild plugins |
+| `plugin.run.<id>` | Use a plugin-provided command or trigger |
+| `job.admin` | Inspect, retry, or cancel durable jobs |
+| `memory.read.guild` | Read permitted guild memory scope |
+| `relay.dispatch` | Ask Gigi to send a mediated message |
+| `relay.receive` | Receive mediated messages from Gigi |
 
-## How Permissions Are Granted
+## Rules To Preserve
 
-Permissions can come from:
-
-- Discord role mappings in `role_policies`
-- direct user grants
-- Discord administrator bypass where supported by the runtime
-
-## Surface Rules
-
-- DM and slash follow the same capability checks.
-- DM is allowed to trigger guild/admin actions if the requesting user already has the required capability.
-- Sensitive data is stricter: it is returned only in DM and only to the authorized owning user.
-
-## Examples
-
-### Relay
-
-To send a DM relay through Gigi:
-
-- requester needs `agent_action_dispatch`
-- recipient needs `agent_action_receive`
-
-### Ingestion
-
-To manage channel ingestion:
-
-- requester needs `ingestion_admin`
-
-### Assignment workflows
-
-To create or publish assignments:
-
-- requester needs `assignment_admin`
-
-### Permission management
-
-To inspect or change direct grants for another user:
-
-- requester needs `permission_admin`
-
-### Usage reporting
-
-To inspect server or per-user usage summaries:
-
-- requester needs `usage_admin`
-
-## Practical Guidance
-
-- Prefer roles for normal group-based access.
-- Use direct grants for exceptions or small targeted overrides.
-- Audit direct grants regularly so they do not drift from the visible Discord role model.
-- Keep sensitive capabilities narrow and explicit.
+- Do not grant extra authority because the request came from DM.
+- Do not grant extra authority because a plugin created the command.
+- Resolve guild, member, channel, role, and target user conservatively.
+- Keep plugin permissions auditable by guild and plugin version.
+- Keep sensitive actions private or confirmation-gated.
+- Fail closed when identity or target resolution is ambiguous.

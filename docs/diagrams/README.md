@@ -21,20 +21,18 @@ Use this folder for diagrams that explain system shape or change impact, not for
 Prefer explicit names:
 
 - `system-overview.excalidraw`
-- `assignment-publish-flow.excalidraw`
-- `dm-retrieval-flow.excalidraw`
-- `dm-tool-execution-flow.excalidraw`
-- `dm-confirmation-and-user-memory-flow.excalidraw`
-- `sensitive-data-dm-flow.excalidraw`
+- `plugin-install-flow.excalidraw`
+- `discord-command-flow.excalidraw`
+- `job-worker-flow.excalidraw`
 - `deploy-release-flow.excalidraw`
 
 Markdown + Mermaid documents are also acceptable when they are easier to diff and maintain in-repo:
 
 - `system-overview.md`
-- `dm-retrieval-flow.md`
-- `dm-tool-execution-flow.md`
-- `dm-confirmation-and-user-memory-flow.md`
-- `sensitive-data-dm-flow.md`
+- `service-adapters.md`
+- `plugin-install-flow.md`
+- `discord-command-flow.md`
+- `job-worker-flow.md`
 - `deploy-release-flow.md`
 
 ## Rules

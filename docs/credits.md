@@ -5,94 +5,56 @@ description: External resources, platforms, and tooling used by GigiDC.
 
 # External Resources and Credits
 
-This project requires explicit attribution for external resources used in implementation or project workflow.
-
 ## Runtime and Platform Dependencies
 
-- `discord.js`
-  - Use: Discord gateway client, slash command registration, and interaction handling
-  - Source: https://discord.js.org/
-- `Supabase`
-  - Use: Postgres-backed storage for Discord control-plane state, role policy persistence, local job references, and the CLI-managed migration workflow
-  - Source: https://supabase.com/
-- `OpenAI`
-  - Use: DM reasoning, tool planning, semantic retrieval embeddings, and the official API pricing reference used for estimated USD cost views over model usage
-  - Source: https://platform.openai.com/docs
+- `Go`
+  - Use: Primary application runtime for the rebuilt Gigi service
+  - Source: https://go.dev/
+- `PostgreSQL`
+  - Use: Local relational database for runtime state, jobs, plugins, and future history storage
+  - Source: https://www.postgresql.org/
 - `pgvector`
-  - Use: Vector storage and similarity search over embedded Discord messages in Postgres
+  - Use: PostgreSQL vector extension planned for semantic retrieval
   - Source: https://github.com/pgvector/pgvector
+- `Docker`
+  - Use: Local and production container build/runtime workflow
+  - Source: https://www.docker.com/
+- `Docker Compose`
+  - Use: Local and EC2 app/Postgres orchestration
+  - Source: https://docs.docker.com/compose/
+- `Discord API`
+  - Use: Planned Discord gateway, slash commands, interactions, messages, and voice/plugin surfaces
+  - Source: https://discord.com/developers/docs/
+- `OpenAI API`
+  - Use: Planned LLM response, tool-planning, and embedding provider behind an adapter
+  - Source: https://platform.openai.com/docs/
 - `AWS`
-  - Use: Planned bot runtime hosting on a dedicated instance
+  - Use: EC2 hosting target
   - Source: https://aws.amazon.com/
-- `Terraform`
-  - Use: Planned infrastructure provisioning and repeatable environment setup
-  - Source: https://developer.hashicorp.com/terraform
 - `Nginx`
-  - Use: Reverse proxy for the Discord bot health endpoint in the EC2 deployment setup
+  - Use: Optional reverse proxy for health endpoints
   - Source: https://nginx.org/
-- `NodeSource`
-  - Use: Node.js 22 installation source in the EC2 bootstrap workflow
-  - Source: https://github.com/nodesource/distributions
-- `Canonical Ubuntu Server AMI`
-  - Use: Base EC2 image selected by the Terraform starter for the Discord bot host
-  - Source: https://cloud-images.ubuntu.com/
 - `GitHub Actions`
-  - Use: Continuous integration and deployment runner for app validation, Terraform validation, and release deployment to EC2
+  - Use: CI/CD runner for Go validation, Docker Compose smoke tests, and EC2 deploy
   - Source: https://github.com/features/actions
 - `actions/checkout`
   - Use: Official GitHub Action used to fetch the repository in CI
   - Source: https://github.com/actions/checkout
-- `actions/setup-node`
-  - Use: Official GitHub Action used to provision Node.js 22 in CI
-  - Source: https://github.com/actions/setup-node
-- `hashicorp/setup-terraform`
-  - Use: Official HashiCorp GitHub Action used to install Terraform in CI
-  - Source: https://github.com/hashicorp/setup-terraform
+- `actions/setup-go`
+  - Use: Official GitHub Action used to provision Go in CI
+  - Source: https://github.com/actions/setup-go
 - `actions/upload-artifact`
-  - Use: Official GitHub Action used to store the built release bundle between CI and deploy steps
+  - Use: Official GitHub Action used to store the built Docker image and deploy files between CI and deploy jobs
   - Source: https://github.com/actions/upload-artifact
 - `actions/download-artifact`
-  - Use: Official GitHub Action used to retrieve the built release bundle in the deploy step
+  - Use: Official GitHub Action used to retrieve Docker image and deploy files in the deploy job
   - Source: https://github.com/actions/download-artifact
 - `Shields.io`
-  - Use: README badge strip for version and stack tags in the GitHub project overview
+  - Use: README badge strip for version and stack tags
   - Source: https://shields.io/
 - `Mintlify`
-  - Use: Docs-site platform for the repo's structured documentation, navigation, and future hosted docs experience
+  - Use: Documentation site framework and navigation format
   - Source: https://www.mintlify.com/
-- `Mintlify official docs and docs workflow`
-  - Use: Basis for the repo-local `mintlify` skill and the project’s Mintlify docs-site workflow conventions
-  - Source: https://mintlify.com/docs
-
-## Workflow and Planning References
-
-- `User-provided external knowledge-capture workflow outline`
-  - Use: Basis for the repo's adapted `knowledge/` domain-folder workflow and promotion/demotion rules
-  - Source: Original online source link was not provided in the request
-- `claude-skills / discord-bot`
-  - Use: Local Codex skill used to guide Discord bot scaffolding workflow
-  - Source: https://github.com/inbharatai/claude-skills/tree/main/skills/discord-bot
-- `VoltAgent / awesome-agent-skills`
-  - Use: Discovery index used to evaluate stack-specific skills for this repo's workflow
-  - Source: https://github.com/VoltAgent/awesome-agent-skills
-- `OpenAI Skills / security-best-practices`
-  - Use: Repo-local skill for security reviews and secure-by-default changes in the TypeScript bot, integrations, and data-handling paths
-  - Source: https://github.com/openai/skills/tree/main/skills/.curated/security-best-practices
-- `OpenAI Skills / gh-fix-ci`
-  - Use: Repo-local skill for diagnosing and fixing failing GitHub Actions checks
-  - Source: https://github.com/openai/skills/tree/main/skills/.curated/gh-fix-ci
-- `OpenAI Skills / gh-address-comments`
-  - Use: Repo-local skill for resolving GitHub PR review comments with `gh`
-  - Source: https://github.com/openai/skills/tree/main/skills/.curated/gh-address-comments
-- `Supabase Agent Skills / supabase-postgres-best-practices`
-  - Use: Repo-local skill for Postgres query, schema, performance, and RLS guidance
-  - Source: https://github.com/supabase/agent-skills/tree/main/skills/supabase-postgres-best-practices
-- `HashiCorp Agent Skills / terraform-style-guide`
-  - Use: Repo-local skill for Terraform authoring conventions and review guidance
-  - Source: https://github.com/hashicorp/agent-skills/tree/main/terraform/code-generation/skills/terraform-style-guide
-- `Callstack Agent Skills / github`
-  - Use: Repo-local skill for `gh`-based GitHub workflow patterns, pull requests, and merge flow
-  - Source: https://github.com/callstackincubator/agent-skills/tree/main/skills/github
-- `Lum1104 / Understand-Anything`
-  - Use: Codebase knowledge graph, dashboard exploration, onboarding, and diff-impact analysis for ongoing project visualization
-  - Source: https://github.com/Lum1104/Understand-Anything
+- `YouTube Data API`
+  - Use: Possible future media plugin search provider; any actual plugin must document API and license/terms requirements before implementation
+  - Source: https://developers.google.com/youtube

@@ -8,75 +8,54 @@
   <a href="https://gigi-f9937525.mintlify.app/">
     <img alt="Docs" src="https://img.shields.io/badge/docs-live-0f766e?style=for-the-badge&logo=readthedocs&logoColor=white" />
   </a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.1.0-0f766e?style=for-the-badge" />
-  <img alt="Node.js" src="https://img.shields.io/badge/node-22.12%2B-2563eb?style=for-the-badge&logo=node.js&logoColor=white" />
-  <img alt="TypeScript" src="https://img.shields.io/badge/typescript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
-  <img alt="discord.js" src="https://img.shields.io/badge/discord.js-14.19-5865F2?style=for-the-badge&logo=discord&logoColor=white" />
-  <img alt="Supabase" src="https://img.shields.io/badge/supabase-2.45-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" />
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-0f766e?style=for-the-badge" />
+  <img alt="Go" src="https://img.shields.io/badge/go-1.26.3-00ADD8?style=for-the-badge&logo=go&logoColor=white" />
+  <img alt="Docker" src="https://img.shields.io/badge/docker-compose-2496ED?style=for-the-badge&logo=docker&logoColor=white" />
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/postgresql-pgvector-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" />
 </p>
 
 <p align="center">
-  Gigi is a personalized Discord bot for CS/IT Archive.
+  Gigi is being rebuilt as a Go-based Discord assistant foundation for CS/IT Archive.
 </p>
 
-<p align="center">
-  <a href="https://gigi-f9937525.mintlify.app/"><strong>Read the official docs</strong></a>
-</p>
+## Current Foundation
 
-Gigi gives CS/IT Archive members one consistent bot experience across DMs and server workflows.
+This branch intentionally removes the old Node/Supabase runtime. The current Go foundation only exposes health and readiness endpoints while the Discord, plugin, retrieval, and LLM layers are rebuilt.
 
 ```mermaid
 flowchart LR
-    User["Discord User"] --> Surface["DM / Mentions / Slash / Buttons"]
-    Surface --> Gigi["GigiDC"]
-    Gigi --> Router["Intent + Permission Router"]
-    Router --> Memory["History, Tasks, User Memory"]
-    Router --> Admin["Guild Admin Actions"]
-    Router --> Secrets["Sensitive Data Vault"]
-    classDef person fill:#fff7ed,stroke:#f97316,color:#7c2d12;
-    classDef surface fill:#eff6ff,stroke:#2563eb,color:#1e3a8a;
+    Discord["Discord Gateway (future)"] --> App["Go Runtime"]
+    App --> Plugins["Plugin Skill Registry"]
+    App --> Jobs["Durable Jobs"]
+    App --> DB["PostgreSQL + pgvector"]
+    App --> Health["/healthz + /readyz"]
+    classDef future fill:#eff6ff,stroke:#2563eb,color:#1e3a8a;
     classDef core fill:#ecfeff,stroke:#0891b2,color:#164e63;
     classDef state fill:#f0fdf4,stroke:#16a34a,color:#14532d;
-    classDef secure fill:#fdf2f8,stroke:#db2777,color:#831843;
-    class User person;
-    class Surface surface;
-    class Gigi,Router core;
-    class Memory,Admin state;
-    class Secrets secure;
+    class Discord,Plugins future;
+    class App,Health core;
+    class Jobs,DB state;
 ```
 
-## What GigiDC Offers
+## Local Run
 
-- Personalized DM-first interaction with mention-based channel chat
-- Shared memory across supported workflows
-- Permission-aware guild actions
-- Sensitive-data disclosure in DM only
+```bash
+go test ./...
+go vet ./...
+go build ./cmd/gigi
+docker compose up --build
+```
 
-```mermaid
-flowchart LR
-    Ask["DM request"] --> Analyze["Analyze intent"]
-    Analyze --> Sensitive{"Sensitive data?"}
-    Sensitive -- Yes --> Auth["Check owner + capability"]
-    Auth --> Retrieve["Fetch encrypted record"]
-    Retrieve --> Reply["Return in DM only"]
-    Sensitive -- No --> Execute["Route to retrieval or bounded tools"]
-    Execute --> Reply
-    classDef request fill:#fff7ed,stroke:#f97316,color:#7c2d12;
-    classDef decision fill:#fef3c7,stroke:#d97706,color:#78350f;
-    classDef secure fill:#fdf2f8,stroke:#db2777,color:#831843;
-    classDef action fill:#eff6ff,stroke:#2563eb,color:#1e3a8a;
-    classDef reply fill:#f0fdf4,stroke:#16a34a,color:#14532d;
-    class Ask request;
-    class Sensitive decision;
-    class Auth,Retrieve secure;
-    class Analyze,Execute action;
-    class Reply reply;
+Health checks:
+
+```bash
+curl http://127.0.0.1:8080/healthz
+curl http://127.0.0.1:8080/readyz
 ```
 
 ## Docs
 
 - [Official docs](https://gigi-f9937525.mintlify.app/)
-- [User guide](https://gigi-f9937525.mintlify.app/user-guide)
-- [Using Gigi in Discord](https://gigi-f9937525.mintlify.app/discord-usage)
-- [Permissions](https://gigi-f9937525.mintlify.app/permissions)
 - [Architecture](https://gigi-f9937525.mintlify.app/architecture-v1)
+- [Setup](https://gigi-f9937525.mintlify.app/setup)
+- [CI/CD](https://gigi-f9937525.mintlify.app/ci-cd)

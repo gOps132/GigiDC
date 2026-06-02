@@ -1,164 +1,29 @@
 ---
 title: Using Gigi In Discord
-description: Real examples of how to talk to Gigi in DMs and use slash commands in the server.
+description: Discord status for the Go foundation rebuild.
 ---
 
 # Using Gigi In Discord
 
-This page covers the current supported ways to interact with Gigi.
+Discord usage is paused during the Go foundation rebuild.
 
-## Channel Mentions
+The current codebase intentionally does not register slash commands, connect to the Discord gateway, process DMs, or run plugin commands yet.
 
-Mention Gigi in a server channel when you want a public answer scoped to that channel.
+## Planned Command Direction
 
-Examples:
+Future slices should support:
 
-- `@GigiDC hello`
-- `@GigiDC what were we talking about earlier?`
-- `@GigiDC summarize this conversation`
+- native Discord slash commands for structured admin flows
+- message-triggered commands such as `!play something` when a music plugin is installed
+- plugin manifests that declare triggers, surfaces, permissions, and attribution
+- durable jobs for work that outlives one Discord interaction
+- fail-closed permissions for private, admin, and sensitive actions
 
-Current mention behavior:
+## Current Verification
 
-- Gigi uses the current channel as the default history scope
-- Gigi replies publicly in-channel
-- Gigi does not use DM-only sensitive-data flows in public channels
-- Gigi redirects tasks, relays, permissions, confirmations, and admin actions back to DM or slash commands
+Use the HTTP probes instead:
 
-## DM Examples
-
-### Normal conversation
-
-Examples:
-
-- `hi`
-- `what did Erick want again?`
-- `how many times did I say "ship it"?`
-
-Current DM retrieval behavior:
-
-- For members of Gigi's configured server, DM retrieval defaults to the configured primary server.
-- If you want only the private DM thread, say so explicitly.
-- If you ask across both contexts, Gigi can ask you to pick the scope.
-
-Examples:
-
-- `what did Erick want again?`
-- `what did we talk about in this DM yesterday?`
-- `what did we say in this DM versus the server yesterday?`
-
-### Tasks
-
-Examples:
-
-- `create a task for me to review the launch notes due 2026-04-02T09:00:00Z`
-- `show me my open tasks`
-- `mark task <task-id> done`
-
-### DM relays
-
-Examples:
-
-- `send a message to @user saying I need the final draft tonight`
-- `send me a dm saying remind me to review the draft`
-
-Current relay behavior:
-
-- Gigi resolves the target conservatively.
-- The requester must have `agent_action_dispatch`.
-- The recipient must have `agent_action_receive`.
-- Cross-user relays may require confirmation before Gigi sends them.
-- If the recipient text is ambiguous, Gigi can show a recipient picker before it creates the real confirmation step.
-- If Gigi cannot create a real pending relay action, it fails closed instead of pretending a confirmation exists.
-
-### Sensitive data
-
-Examples:
-
-- `show my sensitive data`
-- `what sensitive records do I have?`
-
-Sensitive data is only disclosed in DM and only to the owning authorized user.
-
-## Slash Commands
-
-### `/task`
-
-Use `/task` for structured shared task management.
-
-- `/task create`
-- `/task list`
-- `/task complete`
-
-### `/relay`
-
-Use `/relay dm` to send a direct message through Gigi from within a server.
-
-### `/permission`
-
-Use `/permission` to manage direct user capability grants.
-
-- `/permission list`
-- `/permission grant`
-- `/permission revoke`
-
-### `/usage`
-
-Use `/usage` to inspect recent token usage and estimated USD cost.
-
-- `/usage summary`
-- `/usage user`
-
-You can also ask for usage in DM when you have `usage_admin`.
-
-Examples:
-
-- `show me the usage summary for the last 7 days`
-- `show me usage for @user`
-- `how much usage did i trigger this week?`
-
-### `/ingestion`
-
-Use `/ingestion` to manage message-history ingestion for server channels.
-
-- `/ingestion status`
-- `/ingestion enable`
-- `/ingestion disable`
-
-### `/assignment`
-
-Use `/assignment` for assignment workflows.
-
-- `/assignment create`
-- `/assignment list`
-- `/assignment publish`
-
-## How Gigi Decides
-
-At a high level, Gigi follows this shape:
-
-1. Read the message or command.
-2. Determine whether it is a normal question, a tool/action request, or a sensitive-data request.
-3. Check identity, guild membership, and capability requirements.
-4. Validate the target user, task, or channel conservatively.
-5. Confirm if the action requires confirmation.
-6. Execute and record the result.
-
-## Good Usage Patterns
-
-- Mention Gigi in-channel for public channel-specific questions.
-- Use DM for private conversation that should still understand the primary server.
-- Say `in this DM` when you want the private DM thread instead of the primary server context.
-- Use explicit mentions for people.
-- Use task IDs when completing tasks.
-- Use full ISO-8601 timestamps for due dates.
-- Use DM for personal questions and sensitive information.
-- Use slash commands when you want a structured server-side form.
-
-## Failure Cases You Should Expect
-
-- Permission-denied replies when you lack the required capability
-- A refusal when you explicitly ask for primary-server history in DM but your account is not recognized as a member of Gigi's configured server
-- Refusals when a user or task cannot be resolved safely
-- DM-only enforcement for sensitive-data retrieval
-- Public mention replies that refuse to run private or administrative actions in-channel
-- No action taken when a pending confirmation does not exist or has expired
+```bash
+curl http://127.0.0.1:8080/healthz
+curl http://127.0.0.1:8080/readyz
+```

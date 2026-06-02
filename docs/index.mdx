@@ -1,65 +1,30 @@
 ---
 title: GigiDC
-description: Gigi is a personalized Discord bot for CS/IT Archive.
+description: Go foundation for the rebuilt Gigi Discord assistant.
 ---
 
 # GigiDC
 
-<div style={{ display: "flex", justifyContent: "center", marginBottom: "1.5rem" }}>
-  <img src="/images/gigidc-logo.png" alt="GigiDC logo" width="112" />
-</div>
+GigiDC is being rebuilt as a Go service with Docker Compose, local PostgreSQL, pgvector, durable jobs, and a plugin-aware skill runtime.
 
-Gigi is a personalized Discord bot for CS/IT Archive.
+<Note>
+The old Node/Supabase runtime has been removed. The current foundation exposes health and readiness endpoints first; Discord, LLM, retrieval, and plugin behavior will land in later slices.
+</Note>
 
-<Columns cols={2}>
-  <Card title="User Guide" href="/user-guide">
-    Learn how members should talk to Gigi in DM and in the server.
-  </Card>
-  <Card title="Discord Usage" href="/discord-usage">
-    See real examples for tasks, relays, slash commands, and sensitive-data flows.
-  </Card>
-  <Card title="Get started" href="/setup">
-    Set up the local bot, environment variables, and Discord app wiring.
-  </Card>
-  <Card title="Architecture" href="/architecture-v1">
-    Understand the DM-first and mention-aware runtime, permissions, memory, and data boundaries.
-  </Card>
-  <Card title="Deploy" href="/deploy-ec2">
-    Ship GigiDC to EC2 with the current release and service workflow.
-  </Card>
-  <Card title="Diagrams" href="/diagrams">
-    Browse visual references for the main runtime and data flows.
-  </Card>
-</Columns>
-
-## Core Capabilities
-
-- DM-first interaction plus mention-based channel conversation for questions and follow-ups
-- Permission-aware guild operations across DM and slash surfaces
-- Shared task and action memory for continuity
-- DM-only sensitive-data disclosure for the authorized user
-
-## System Snapshot
+## Foundation Shape
 
 ```mermaid
 flowchart LR
-    User["Discord User"] --> Surface["DM / Mentions / Slash / Buttons"]
-    Surface --> Gigi["GigiDC"]
-    Gigi --> Router["Intent + Permission Router"]
-    Router --> Memory["History, Tasks, User Memory"]
-    Router --> Admin["Guild Admin Actions"]
-    Router --> Secrets["Sensitive Data Vault"]
+  Runtime["Go Runtime"] --> Health["Health + Readiness"]
+  Runtime --> Plugins["Plugin Skill Registry"]
+  Runtime --> Jobs["Durable Jobs"]
+  Runtime --> Storage["PostgreSQL + pgvector"]
+  Runtime --> Discord["Discord Adapter (future)"]
 ```
 
-## Explore The Docs
+## Start Here
 
-- [User Guide](./user-guide)
-- [Using Gigi In Discord](./discord-usage)
-- [Permissions](./permissions)
-- [Setup](./setup)
-- [Knowledge Workflow](./knowledge-workflow)
-- [Human-Agent Workflow](./human-agent-workflow)
 - [Architecture](./architecture-v1)
-- [Deployment](./deploy-ec2)
+- [Setup](./setup)
 - [CI/CD](./ci-cd)
-- [Diagrams](./diagrams/index)
+- [EC2 Deployment](./deploy-ec2)
