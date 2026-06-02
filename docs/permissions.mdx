@@ -5,7 +5,7 @@ description: Permission model status for the Go foundation rebuild.
 
 # Permissions
 
-The current foundation does not execute Discord actions yet, so no runtime permission checks are live beyond configuration and database readiness.
+The current foundation only answers safe Discord liveness messages: `/ping`, DM `ping`, and guild mention `@Gigi ping`. It does not execute privileged Discord actions yet, so no capability checks are live beyond configuration and database readiness.
 
 The next Discord slices should keep the earlier authority rule: surface is presentation, not authority. DM, slash commands, message commands, buttons, and plugin triggers must resolve the same guild identity and capability model before doing work.
 

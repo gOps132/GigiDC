@@ -5,9 +5,18 @@ description: Discord status for the Go foundation rebuild.
 
 # Using Gigi In Discord
 
-Discord usage is paused during the Go foundation rebuild.
+Discord usage is active in a narrow foundation slice.
 
-The current codebase has a disabled-by-default Discord gateway adapter, a minimal `/ping` slash-command handler, and opt-in command sync. It intentionally does not process DMs, handle guild mentions, or run plugin commands yet.
+The current codebase has a disabled-by-default Discord gateway adapter, a minimal `/ping` slash-command handler, opt-in command sync, DM routing, and guild-mention routing. It intentionally does not run LLM chat, memory retrieval, admin actions, or plugin commands yet.
+
+## Current Discord Behavior
+
+- `/ping` replies `pong`.
+- DM `ping` replies `pong`.
+- Guild message `<@Gigi> ping` replies `pong`.
+- Other DMs or guild mentions reply with a placeholder so users know Gigi is online.
+- Ordinary guild messages without a Gigi mention are ignored.
+- Bot-authored messages are ignored.
 
 ## Planned Command Direction
 
@@ -21,7 +30,7 @@ Future slices should support:
 
 ## Current Verification
 
-Use the HTTP probes instead:
+Use Discord plus HTTP probes:
 
 ```bash
 curl http://127.0.0.1:8080/healthz

@@ -40,7 +40,7 @@ OPENAI_API_KEY=
 
 Do not paste `docker compose config` output into issues, PRs, or chat after real secrets are set; Compose expands environment values.
 
-Only enable Discord after `/healthz` and `/readyz` pass.
+Only enable Discord after `/healthz` and `/readyz` pass. With Discord enabled, the current safe smoke test is `/ping`, DM `ping`, or `@Gigi ping`.
 
 ## Health Checks
 
@@ -58,4 +58,4 @@ Expected response:
 
 ## Current Limits
 
-This deploy proves container, database, and health/readiness wiring only. It does not provide DM chat, mention chat, permission enforcement, audit logs, LLM calls, or plugin execution yet.
+This deploy proves container, database, health/readiness wiring, Discord gateway login, slash command sync, and basic DM/mention routing. It does not provide rich DM chat, rich mention chat, permission enforcement, durable audit logs, LLM calls, or plugin execution yet.

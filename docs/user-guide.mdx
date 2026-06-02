@@ -7,25 +7,28 @@ description: Current user-facing status for Gigi.
 
 Gigi is in a foundation rebuild.
 
-The current runtime does not log in to Discord yet. The only live interface is the health/readiness HTTP surface used by local development, CI, and deploy checks.
+The current runtime can log in to Discord when enabled, sync `/ping`, and answer simple DM or guild-mention `ping` messages. LLM chat, memory, plugin commands, and admin actions are not live yet.
 
 ## Current Live Checks
 
 - `GET /healthz`: process is alive and reports build metadata.
 - `GET /readyz`: process is configured and can reach PostgreSQL.
+- `/ping`: replies `pong` in Discord when command sync is enabled.
+- DM `ping`: replies `pong`.
+- Guild mention `@Gigi ping`: replies `pong`.
 
 ## Planned Discord Behavior
 
 Future Discord slices are expected to restore and expand:
 
-- DM conversation
-- channel mentions
+- rich DM conversation
+- rich channel mentions
 - structured commands
 - plugin-provided commands such as music controls
 - admin-installed plugin capabilities
 - permission-aware task, relay, memory, and retrieval features
 
-These are not current shipped behavior in this foundation slice.
+These richer behaviors are not current shipped behavior in this foundation slice.
 
 ## Next Pages
 
