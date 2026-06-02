@@ -20,7 +20,7 @@ description: External resources, platforms, and tooling used by GigiDC.
   - Use: Local and production container build/runtime workflow
   - Source: https://www.docker.com/
 - `Docker Compose`
-  - Use: Local and EC2 app/Postgres orchestration
+  - Use: Local app/Postgres orchestration and deployable Compose shape
   - Source: https://docs.docker.com/compose/
 - `Discord API`
   - Use: Planned Discord gateway, slash commands, interactions, messages, and voice/plugin surfaces
@@ -31,14 +31,11 @@ description: External resources, platforms, and tooling used by GigiDC.
 - `OpenAI API`
   - Use: Planned LLM response, tool-planning, and embedding provider behind an adapter
   - Source: https://platform.openai.com/docs/
-- `AWS`
-  - Use: EC2 hosting target
-  - Source: https://aws.amazon.com/
-- `Nginx`
-  - Use: Optional reverse proxy for health endpoints
-  - Source: https://nginx.org/
+- `Coolify`
+  - Use: Planned simple Docker deployment target for the soft-deploy foundation
+  - Source: https://coolify.io/docs/
 - `GitHub Actions`
-  - Use: CI/CD runner for Go validation, Docker Compose smoke tests, and EC2 deploy
+  - Use: CI runner for Go validation and Docker Compose smoke tests
   - Source: https://github.com/features/actions
 - `actions/checkout`
   - Use: Official GitHub Action used to fetch the repository in CI
@@ -46,12 +43,6 @@ description: External resources, platforms, and tooling used by GigiDC.
 - `actions/setup-go`
   - Use: Official GitHub Action used to provision Go in CI
   - Source: https://github.com/actions/setup-go
-- `actions/upload-artifact`
-  - Use: Official GitHub Action used to store the built Docker image and deploy files between CI and deploy jobs
-  - Source: https://github.com/actions/upload-artifact
-- `actions/download-artifact`
-  - Use: Official GitHub Action used to retrieve Docker image and deploy files in the deploy job
-  - Source: https://github.com/actions/download-artifact
 - `Shields.io`
   - Use: README badge strip for version and stack tags
   - Source: https://shields.io/
