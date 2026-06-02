@@ -10,10 +10,14 @@ COPY internal ./internal
 ARG VERSION=dev
 ARG COMMIT=unknown
 ARG BUILD_TIME=unknown
+ARG TARGETOS
+ARG TARGETARCH
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags "-s -w -X github.com/gOps132/GigiDC/internal/buildinfo.Version=${VERSION} -X github.com/gOps132/GigiDC/internal/buildinfo.Commit=${COMMIT} -X github.com/gOps132/GigiDC/internal/buildinfo.BuildTime=${BUILD_TIME}" \
-    -o /out/gigi ./cmd/gigi
+RUN target_os="${TARGETOS:-$(go env GOOS)}"; \
+    target_arch="${TARGETARCH:-$(go env GOARCH)}"; \
+    CGO_ENABLED=0 GOOS="${target_os}" GOARCH="${target_arch}" go build \
+      -ldflags "-s -w -X github.com/gOps132/GigiDC/internal/buildinfo.Version=${VERSION} -X github.com/gOps132/GigiDC/internal/buildinfo.Commit=${COMMIT} -X github.com/gOps132/GigiDC/internal/buildinfo.BuildTime=${BUILD_TIME}" \
+      -o /out/gigi ./cmd/gigi
 
 FROM alpine:3.22
 
