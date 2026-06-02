@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/gOps132/GigiDC/internal/capability"
 )
 
 func TestCommandRouterApplicationCommands(t *testing.T) {
@@ -158,6 +159,111 @@ func TestCommandRouterPassesInteractionContext(t *testing.T) {
 	}
 }
 
+func TestCommandRouterDeniesMissingCapability(t *testing.T) {
+	calls := 0
+	router, err := NewCommandRouter(Command{
+		Name:               "admin",
+		Description:        "admin command",
+		RequiredCapability: "job.admin",
+		Handle: func(context.Context, Interaction) (CommandResponse, error) {
+			calls++
+			return CommandResponse{Content: "unexpected"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	router.SetAuthorizer(fakeCommandAuthorizer{decision: capability.Decision{
+		Allowed: false,
+		Reason:  capability.ReasonMissingCapability,
+	}})
+	responder := &fakeResponder{}
+
+	err = router.HandleInteraction(context.Background(), responder, applicationCommand("admin"))
+	if err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if calls != 0 {
+		t.Fatalf("handler calls = %d, want 0", calls)
+	}
+	if responder.content() != "Permission denied." {
+		t.Fatalf("response = %q, want permission denied", responder.content())
+	}
+}
+
+func TestCommandRouterAllowsCapability(t *testing.T) {
+	calls := 0
+	var gotRequired capability.Capability
+	router, err := NewCommandRouter(Command{
+		Name:               "admin",
+		Description:        "admin command",
+		RequiredCapability: "job.admin",
+		Handle: func(context.Context, Interaction) (CommandResponse, error) {
+			calls++
+			return CommandResponse{Content: "allowed"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	router.SetAuthorizer(fakeCommandAuthorizer{
+		decision: capability.Decision{Allowed: true, Reason: capability.ReasonUserGrant},
+		capability: func(required capability.Capability) {
+			gotRequired = required
+		},
+	})
+	responder := &fakeResponder{}
+
+	err = router.HandleInteraction(context.Background(), responder, applicationCommand("admin"))
+	if err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("handler calls = %d, want 1", calls)
+	}
+	if gotRequired != "job.admin" {
+		t.Fatalf("required capability = %q, want job.admin", gotRequired)
+	}
+	if responder.content() != "allowed" {
+		t.Fatalf("response = %q, want allowed", responder.content())
+	}
+}
+
+func TestCommandRouterPassesRolesAndAdministratorFlag(t *testing.T) {
+	var got Interaction
+	router, err := NewCommandRouter(Command{
+		Name:        "inspect",
+		Description: "inspect context",
+		Handle: func(ctx context.Context, interaction Interaction) (CommandResponse, error) {
+			got = interaction
+			return CommandResponse{Content: "ok"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+
+	err = router.HandleInteraction(context.Background(), &fakeResponder{}, &discordgo.InteractionCreate{
+		Interaction: &discordgo.Interaction{
+			Type:      discordgo.InteractionApplicationCommand,
+			GuildID:   "guild-id",
+			ChannelID: "channel-id",
+			Member: &discordgo.Member{
+				User:        &discordgo.User{ID: "user-id"},
+				Roles:       []string{"role-1", "role-2"},
+				Permissions: discordgo.PermissionAdministrator,
+			},
+			Data: discordgo.ApplicationCommandInteractionData{Name: "inspect"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if len(got.RoleIDs) != 2 || !got.HasAdministrator {
+		t.Fatalf("interaction context = %+v, want roles and admin flag", got)
+	}
+}
+
 func okHandler(context.Context, Interaction) (CommandResponse, error) {
 	return CommandResponse{Content: "ok"}, nil
 }
@@ -185,4 +291,17 @@ func (r *fakeResponder) content() string {
 		return ""
 	}
 	return r.response.Data.Content
+}
+
+type fakeCommandAuthorizer struct {
+	decision   capability.Decision
+	err        error
+	capability func(capability.Capability)
+}
+
+func (a fakeCommandAuthorizer) Check(ctx context.Context, interaction Interaction, required capability.Capability) (capability.Decision, error) {
+	if a.capability != nil {
+		a.capability(required)
+	}
+	return a.decision, a.err
 }
