@@ -43,7 +43,7 @@ flowchart LR
 go test ./...
 go vet ./...
 go build ./cmd/gigi
-docker compose up --build
+docker compose -f compose.yaml up --build
 ```
 
 Health checks:
@@ -55,14 +55,14 @@ curl http://127.0.0.1:8080/readyz
 
 ## Coolify Rough Deploy
 
-Use `docker-compose.prod.yml`.
+Use `docker-compose.yml`.
 
 Required Coolify settings:
 
 ```txt
 Build Pack: Docker Compose
 Base Directory: /
-Docker Compose Location: /docker-compose.prod.yml
+Docker Compose Location: /docker-compose.yml
 Service port: 8080
 ```
 
