@@ -27,7 +27,7 @@
         "group": "Operations",
         "pages": [
           "setup",
-          "deploy-ec2",
+          "deploy-coolify",
           "ci-cd"
         ]
       },

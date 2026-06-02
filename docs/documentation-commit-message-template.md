@@ -11,7 +11,7 @@ docs: <clear summary>
 Examples:
 
 ```text
-docs: document EC2 deploy workflow
+docs: document Coolify deploy workflow
 docs: clarify slash command permission model
 docs: add architecture notes for V1 bot flow
 ```

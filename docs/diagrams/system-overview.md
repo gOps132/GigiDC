@@ -17,7 +17,7 @@ flowchart LR
   Seams["Typed Future Seams<br/>discord plugins jobs storage llm"]
   Compose["Docker Compose"]
   CI["GitHub Actions<br/>Go + Compose smoke"]
-  EC2["EC2 Compose Deploy"]
+  Deploy["Coolify / Docker Deploy"]
 
   Env --> App
   App --> Web
@@ -27,7 +27,7 @@ flowchart LR
   Compose --> App
   Compose --> DB
   CI --> Compose
-  EC2 --> Compose
+  Deploy --> Compose
 ```
 
 ## Reading Guide
