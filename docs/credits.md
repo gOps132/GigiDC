@@ -34,6 +34,9 @@ description: External resources, platforms, and tooling used by GigiDC.
 - `Coolify`
   - Use: Planned simple Docker deployment target for the soft-deploy foundation
   - Source: https://coolify.io/docs/
+- `Space.h`
+  - Use: Local sibling project used as reference for Coolify Docker Compose environment-variable ergonomics and pull request template structure
+  - Source: local sibling repository reference
 - `GitHub Actions`
   - Use: CI runner for Go validation and Docker Compose smoke tests
   - Source: https://github.com/features/actions

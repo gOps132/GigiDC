@@ -11,8 +11,10 @@ Use Coolify as the deploy target for the unfinished Go foundation.
 
 - Repository: `github.com/gOps132/GigiDC`
 - Branch: `main` for normal deploys
-- Build source: root `Dockerfile`
-- Runtime shape: Docker Compose app + PostgreSQL/pgvector
+- Build pack: Docker Compose
+- Base directory: `/`
+- Docker Compose location: `/docker-compose.prod.yml`
+- Runtime shape: app + PostgreSQL/pgvector
 - Service port: `8080`
 
 ## Required Environment
@@ -20,14 +22,11 @@ Use Coolify as the deploy target for the unfinished Go foundation.
 Set these values in Coolify, not in git. You can copy the same block from [.env.coolify.example](/Users/giancedrick/dev/projects/gigi/.env.coolify.example).
 
 ```env
-GIGI_ENV=production
-GIGI_HTTP_ADDR=:8080
-GIGI_DATABASE_URL=postgres://gigi:<same-as-postgres-password>@db:5432/gigi?sslmode=disable
-
 POSTGRES_DB=gigi
 POSTGRES_USER=gigi
 POSTGRES_PASSWORD=<secure-password>
 
+GIGI_ENV=production
 GIGI_DISCORD_ENABLED=false
 GIGI_DISCORD_SYNC_COMMANDS=false
 GIGI_DISCORD_GUILD_ID=
@@ -36,6 +35,8 @@ DISCORD_CLIENT_ID=
 
 OPENAI_API_KEY=
 ```
+
+`docker-compose.prod.yml` marks `POSTGRES_PASSWORD` as required with `${POSTGRES_PASSWORD:?}` so Coolify can surface it in environment setup.
 
 Do not paste `docker compose config` output into issues, PRs, or chat after real secrets are set; Compose expands environment values.
 

@@ -53,6 +53,32 @@ curl http://127.0.0.1:8080/healthz
 curl http://127.0.0.1:8080/readyz
 ```
 
+## Coolify Rough Deploy
+
+Use `docker-compose.prod.yml`.
+
+Required Coolify settings:
+
+```txt
+Build Pack: Docker Compose
+Base Directory: /
+Docker Compose Location: /docker-compose.prod.yml
+Service port: 8080
+```
+
+Required environment variable:
+
+```txt
+POSTGRES_PASSWORD=<secure database password>
+```
+
+Keep Discord off for the first smoke deploy:
+
+```txt
+GIGI_DISCORD_ENABLED=false
+GIGI_DISCORD_SYNC_COMMANDS=false
+```
+
 ## Docs
 
 - [Official docs](https://gigi-f9937525.mintlify.app/)
