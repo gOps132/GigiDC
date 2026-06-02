@@ -13,6 +13,40 @@ create table if not exists plugins (
   created_at timestamptz not null default now()
 );
 
+create table if not exists guilds (
+  id text primary key,
+  name text,
+  owner_user_id text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists role_capability_grants (
+  id text primary key,
+  guild_id text not null references guilds(id) on delete cascade,
+  role_id text not null,
+  capability text not null,
+  created_by_user_id text,
+  created_at timestamptz not null default now(),
+  unique (guild_id, role_id, capability)
+);
+
+create index if not exists role_capability_grants_lookup_idx
+  on role_capability_grants (guild_id, role_id, capability);
+
+create table if not exists user_capability_grants (
+  id text primary key,
+  guild_id text not null references guilds(id) on delete cascade,
+  user_id text not null,
+  capability text not null,
+  created_by_user_id text,
+  created_at timestamptz not null default now(),
+  unique (guild_id, user_id, capability)
+);
+
+create index if not exists user_capability_grants_lookup_idx
+  on user_capability_grants (guild_id, user_id, capability);
+
 create table if not exists plugin_versions (
   id text primary key,
   plugin_id text not null references plugins(id) on delete cascade,
@@ -75,3 +109,24 @@ create table if not exists outbox_events (
 create index if not exists outbox_events_claim_idx
   on outbox_events (status, run_after, created_at)
   where status = 'queued';
+
+create table if not exists audit_logs (
+  id text primary key,
+  kind text not null,
+  guild_id text,
+  actor_user_id text not null,
+  target_type text,
+  target_id text,
+  status text not null,
+  reason text,
+  metadata jsonb not null default '{}'::jsonb,
+  request_id text,
+  created_at timestamptz not null default now(),
+  constraint audit_logs_status_check check (status in ('allowed', 'denied', 'failed', 'succeeded'))
+);
+
+create index if not exists audit_logs_guild_created_idx
+  on audit_logs (guild_id, created_at desc);
+
+create index if not exists audit_logs_actor_created_idx
+  on audit_logs (actor_user_id, created_at desc);

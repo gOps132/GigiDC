@@ -21,7 +21,7 @@ description: Planned evolution of the Go foundation rebuild.
 - DM handling
 - permission model
 
-Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, and an in-process audit seam are started. Rich conversation, permission model, durable audit storage, and action execution remain.
+Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, capability evaluator, identity resolver contract, capability grant schema, and durable audit-log seam are started. Rich conversation, admin grant commands, full permission enforcement on privileged actions, and action execution remain.
 
 ## V2 Memory And Actions
 

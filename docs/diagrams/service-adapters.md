@@ -5,7 +5,7 @@ description: Ports-and-adapters view of the Go foundation seams.
 
 # Service And Adapter Boundaries
 
-This diagram captures the current foundation seams. Most packages are contracts first, so later Discord, plugin, job, and LLM work can attach without rewriting the process shell.
+This diagram captures the current foundation seams. Discord liveness routing is live; capability, identity, audit, plugin, job, and LLM packages provide contracts or foundations for later privileged behavior.
 
 ```mermaid
 flowchart LR
@@ -13,7 +13,10 @@ flowchart LR
   Web["internal/web"]
   Config["internal/config"]
   Storage["internal/storage"]
-  Discord["internal/discord<br/>future gateway contract"]
+  Discord["internal/discord<br/>gateway + liveness routing"]
+  Capability["internal/capability<br/>role/user grants"]
+  Identity["internal/identity<br/>sync resolver contract"]
+  Audit["internal/audit<br/>event + store seam"]
   Plugins["internal/plugins<br/>manifest + registry contract"]
   Jobs["internal/jobs<br/>queue contract"]
   LLM["internal/llm<br/>text client contract"]
@@ -25,6 +28,9 @@ flowchart LR
   Web --> Storage
   Storage --> DB
   App --> Discord
+  Discord --> Identity
+  Discord --> Capability
+  Discord --> Audit
   App --> Plugins
   App --> Jobs
   App --> LLM
@@ -37,6 +43,10 @@ flowchart LR
 - `internal/app` owns process lifecycle and graceful shutdown.
 - `internal/web` owns HTTP health/readiness only.
 - `internal/storage` currently checks DB reachability without taking a SQL dependency yet.
+- `internal/capability` evaluates user and role grants by Discord IDs, with explicit admin override.
+- `internal/identity` defines fail-closed identity resolution for future privileged actions.
+- `internal/audit` validates audit events and provides a durable audit-log store seam.
 - `internal/plugins` defines plugin manifest shape: capabilities, triggers, surfaces, permissions, config schema, and attribution.
 - `internal/jobs` defines durable work records before workers exist.
-- `internal/discord` and `internal/llm` are narrow contracts only; no provider login or API call happens in this slice.
+- `internal/discord` has live `/ping`, DM `ping`, and mention `ping`; rich chat and privileged actions are still future work.
+- `internal/llm` is a narrow contract only; no provider API call happens in this slice.

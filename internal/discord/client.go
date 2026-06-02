@@ -191,9 +191,11 @@ func botToken(token string) string {
 }
 
 type Interaction struct {
-	GuildID   string
-	ChannelID string
-	UserID    string
-	Name      string
-	Text      string
+	GuildID          string
+	ChannelID        string
+	UserID           string
+	RoleIDs          []string
+	HasAdministrator bool
+	Name             string
+	Text             string
 }

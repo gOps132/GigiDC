@@ -58,4 +58,4 @@ Expected response:
 
 ## Current Limits
 
-This deploy proves container, database, health/readiness wiring, Discord gateway login, slash command sync, and basic DM/mention routing. It does not provide rich DM chat, rich mention chat, permission enforcement, durable audit logs, LLM calls, or plugin execution yet.
+This deploy proves container, database, health/readiness wiring, Discord gateway login, slash command sync, and basic DM/mention routing. Capability and audit foundations exist for future privileged actions. It does not provide rich DM chat, rich mention chat, admin grant commands, LLM calls, or plugin execution yet.

@@ -7,12 +7,14 @@ import (
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/gOps132/GigiDC/internal/capability"
 )
 
 type Command struct {
-	Name        string
-	Description string
-	Handle      CommandHandler
+	Name               string
+	Description        string
+	RequiredCapability capability.Capability
+	Handle             CommandHandler
 }
 
 type CommandHandler func(context.Context, Interaction) (CommandResponse, error)
@@ -22,11 +24,16 @@ type CommandResponse struct {
 }
 
 type CommandRouter struct {
-	commands map[string]Command
+	commands   map[string]Command
+	authorizer CommandAuthorizer
 }
 
 type interactionResponder interface {
 	InteractionRespond(*discordgo.Interaction, *discordgo.InteractionResponse, ...discordgo.RequestOption) error
+}
+
+type CommandAuthorizer interface {
+	Check(ctx context.Context, interaction Interaction, required capability.Capability) (capability.Decision, error)
 }
 
 func NewCommandRouter(commands ...Command) (*CommandRouter, error) {
@@ -50,6 +57,10 @@ func NewCommandRouter(commands ...Command) (*CommandRouter, error) {
 		router.commands[name] = command
 	}
 	return router, nil
+}
+
+func (r *CommandRouter) SetAuthorizer(authorizer CommandAuthorizer) {
+	r.authorizer = authorizer
 }
 
 func CoreCommands() []Command {
@@ -96,12 +107,36 @@ func (r *CommandRouter) HandleInteraction(ctx context.Context, responder interac
 		return respond(responder, event.Interaction, "Command not supported yet.")
 	}
 
+	interaction := Interaction{
+		GuildID:          event.GuildID,
+		ChannelID:        event.ChannelID,
+		UserID:           interactionUserID(event.Interaction),
+		RoleIDs:          interactionRoleIDs(event.Interaction),
+		HasAdministrator: interactionHasAdministrator(event.Interaction),
+		Name:             data.Name,
+		Text:             "",
+	}
+	if command.RequiredCapability != "" {
+		if r.authorizer == nil {
+			return respond(responder, event.Interaction, "Permission denied.")
+		}
+		decision, err := r.authorizer.Check(ctx, interaction, command.RequiredCapability)
+		if err != nil {
+			return respond(responder, event.Interaction, "Permission check failed.")
+		}
+		if !decision.Allowed {
+			return respond(responder, event.Interaction, "Permission denied.")
+		}
+	}
+
 	response, err := command.Handle(ctx, Interaction{
-		GuildID:   event.GuildID,
-		ChannelID: event.ChannelID,
-		UserID:    interactionUserID(event.Interaction),
-		Name:      data.Name,
-		Text:      "",
+		GuildID:          interaction.GuildID,
+		ChannelID:        interaction.ChannelID,
+		UserID:           interaction.UserID,
+		RoleIDs:          interaction.RoleIDs,
+		HasAdministrator: interaction.HasAdministrator,
+		Name:             interaction.Name,
+		Text:             interaction.Text,
 	})
 	if err != nil {
 		return respond(responder, event.Interaction, "Command failed.")
@@ -129,4 +164,18 @@ func interactionUserID(interaction *discordgo.Interaction) string {
 		return interaction.User.ID
 	}
 	return ""
+}
+
+func interactionRoleIDs(interaction *discordgo.Interaction) []string {
+	if interaction.Member == nil {
+		return nil
+	}
+	return append([]string(nil), interaction.Member.Roles...)
+}
+
+func interactionHasAdministrator(interaction *discordgo.Interaction) bool {
+	if interaction.Member == nil {
+		return false
+	}
+	return interaction.Member.Permissions&discordgo.PermissionAdministrator != 0
 }

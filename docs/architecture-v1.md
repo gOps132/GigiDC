@@ -17,6 +17,8 @@ Gigi is in a foundation rebuild. The old Node/Supabase runtime is gone. The curr
 
 Discord login is disabled by default through `GIGI_DISCORD_ENABLED=false`. When enabled, the gateway can publish `/ping`, answer `/ping`, route DMs, route guild mentions, ignore ordinary unmentioned guild messages, and ignore bot-authored messages. Plugin execution, retrieval, and LLM calls are intentionally not active yet.
 
+Capability and identity foundations now exist as internal gates for future privileged actions. Role and user capability grants are keyed by Discord IDs, not role names, and admin override is modeled separately from role grants.
+
 ## Target Shape
 
 ```text
@@ -37,6 +39,9 @@ Discord Gateway
 - `internal/config`: environment parsing.
 - `internal/web`: health and readiness HTTP handlers.
 - `internal/storage`: database reachability and future migration/storage seams.
+- `internal/capability`: role/user capability evaluation with guild owner and Discord administrator override.
+- `internal/identity`: synchronous identity resolution contract for future privileged actions.
+- `internal/audit`: audit event validation and durable audit-log store seam.
 - `internal/plugins`: approved plugin manifest and registry contracts.
 - `internal/jobs`: durable job contracts.
 - `internal/discord`: Discord gateway adapter, slash command router, DM/guild-mention router, and audit seam.
@@ -44,7 +49,7 @@ Discord Gateway
 
 ## Data Boundary
 
-Local PostgreSQL is the new source of truth. The first migration creates foundation tables for runtime metadata, plugin installs, jobs, and outbox events. Supabase is not part of the live runtime and no backfill is planned.
+Local PostgreSQL is the new source of truth. The first migration creates foundation tables for runtime metadata, plugin installs, role/user capability grants, jobs, outbox events, and audit logs. Supabase is not part of the live runtime and no backfill is planned.
 
 ## Plugin Direction
 
@@ -55,7 +60,8 @@ Gigi will discover approved plugins from manifests. A guild admin can enable an 
 - No Discord gateway connection unless `GIGI_DISCORD_ENABLED=true`.
 - No slash command publishing unless `GIGI_DISCORD_SYNC_COMMANDS=true`.
 - DM and guild-mention routing only has `ping` plus placeholder replies.
-- Audit is an in-process seam only; no durable audit table is written yet.
+- Capability and audit tables exist, but no user-facing admin grant commands are live yet.
+- Durable audit store seam exists, but current Discord liveness replies do not depend on it yet.
 - No music or `!play` implementation yet.
 - No LLM calls yet.
 - No retrieval or memory behavior yet.
