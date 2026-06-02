@@ -3,36 +3,46 @@ services:
     build:
       context: .
       args:
-        VERSION: dev
-        COMMIT: local
-        BUILD_TIME: local
+        VERSION: ${GIGI_VERSION:-dev}
+        COMMIT: ${GIGI_COMMIT:-local}
+        BUILD_TIME: ${GIGI_BUILD_TIME:-local}
     environment:
-      GIGI_ENV: development
-      GIGI_HTTP_ADDR: ":8080"
-      GIGI_DATABASE_URL: postgres://gigi:gigi@db:5432/gigi?sslmode=disable
-      DISCORD_TOKEN: ""
-      DISCORD_CLIENT_ID: ""
-      OPENAI_API_KEY: ""
+      GIGI_ENV: ${GIGI_ENV:-development}
+      GIGI_HTTP_ADDR: ${GIGI_HTTP_ADDR:-:8080}
+      GIGI_DATABASE_URL: ${GIGI_DATABASE_URL:-postgres://gigi:gigi@db:5432/gigi?sslmode=disable}
+      GIGI_DISCORD_ENABLED: ${GIGI_DISCORD_ENABLED:-false}
+      GIGI_DISCORD_SYNC_COMMANDS: ${GIGI_DISCORD_SYNC_COMMANDS:-false}
+      GIGI_DISCORD_GUILD_ID: ${GIGI_DISCORD_GUILD_ID:-}
+      DISCORD_TOKEN: ${DISCORD_TOKEN:-}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     ports:
       - "127.0.0.1:8080:8080"
+    expose:
+      - "8080"
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/readyz >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     restart: unless-stopped
 
   db:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_DB: gigi
-      POSTGRES_USER: gigi
-      POSTGRES_PASSWORD: gigi
+      POSTGRES_DB: ${POSTGRES_DB:-gigi}
+      POSTGRES_USER: ${POSTGRES_USER:-gigi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gigi}
     ports:
       - "127.0.0.1:${GIGI_DB_PORT:-55432}:5432"
     volumes:
       - gigi-db:/var/lib/postgresql/data
       - ./db/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gigi -d gigi"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-gigi} -d $${POSTGRES_DB:-gigi}"]
       interval: 5s
       timeout: 3s
       retries: 12

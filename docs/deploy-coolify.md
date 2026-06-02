@@ -13,22 +13,31 @@ Use Coolify as the deploy target for the unfinished Go foundation.
 - Branch: `main` for normal deploys
 - Build source: root `Dockerfile`
 - Runtime shape: Docker Compose app + PostgreSQL/pgvector
+- Service port: `8080`
 
 ## Required Environment
 
-Set these values in Coolify, not in git:
+Set these values in Coolify, not in git. You can copy the same block from [.env.coolify.example](/Users/giancedrick/dev/projects/gigi/.env.coolify.example).
 
-- `GIGI_ENV=production`
-- `GIGI_HTTP_ADDR=:8080`
-- `GIGI_DATABASE_URL=postgres://gigi:<password>@db:5432/gigi?sslmode=disable`
-- `POSTGRES_DB=gigi`
-- `POSTGRES_USER=gigi`
-- `POSTGRES_PASSWORD=<secure-password>`
+```env
+GIGI_ENV=production
+GIGI_HTTP_ADDR=:8080
+GIGI_DATABASE_URL=postgres://gigi:<same-as-postgres-password>@db:5432/gigi?sslmode=disable
 
-Keep these disabled for the first soft deploy:
+POSTGRES_DB=gigi
+POSTGRES_USER=gigi
+POSTGRES_PASSWORD=<secure-password>
 
-- `GIGI_DISCORD_ENABLED=false`
-- `GIGI_DISCORD_SYNC_COMMANDS=false`
+GIGI_DISCORD_ENABLED=false
+GIGI_DISCORD_SYNC_COMMANDS=false
+GIGI_DISCORD_GUILD_ID=
+DISCORD_TOKEN=
+DISCORD_CLIENT_ID=
+
+OPENAI_API_KEY=
+```
+
+Do not paste `docker compose config` output into issues, PRs, or chat after real secrets are set; Compose expands environment values.
 
 Only enable Discord after `/healthz` and `/readyz` pass.
 
