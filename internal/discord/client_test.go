@@ -161,6 +161,24 @@ func TestNewGatewayRegistersCommandRouter(t *testing.T) {
 	}
 }
 
+func TestNewGatewayRegistersMessageRouter(t *testing.T) {
+	router, err := NewMessageRouter("bot-id", CoreMessageHandler(), nil)
+	if err != nil {
+		t.Fatalf("NewMessageRouter returned error: %v", err)
+	}
+	session := &fakeSession{}
+
+	_, err = newGatewayWithFactory(Options{Token: "token", MessageRouter: router}, func(token string, intents discordgo.Intent) (gatewaySession, error) {
+		return session, nil
+	})
+	if err != nil {
+		t.Fatalf("newGatewayWithFactory returned error: %v", err)
+	}
+	if len(session.handlers) != 1 {
+		t.Fatalf("handlers = %d, want 1", len(session.handlers))
+	}
+}
+
 func TestGatewayStartReturnsOpenError(t *testing.T) {
 	gateway := &Gateway{session: &fakeSession{openErr: errors.New("boom")}}
 

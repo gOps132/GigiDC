@@ -15,7 +15,7 @@ Gigi is in a foundation rebuild. The old Node/Supabase runtime is gone. The curr
 - config loading through `internal/config`
 - database reachability through `internal/storage`
 
-Discord login is at the gateway-adapter stage and is disabled by default through `GIGI_DISCORD_ENABLED=false`. A minimal slash router can answer `/ping`, and opt-in command sync can publish it. Plugin execution, retrieval, and LLM calls are intentionally not active yet.
+Discord login is disabled by default through `GIGI_DISCORD_ENABLED=false`. When enabled, the gateway can publish `/ping`, answer `/ping`, route DMs, route guild mentions, ignore ordinary unmentioned guild messages, and ignore bot-authored messages. Plugin execution, retrieval, and LLM calls are intentionally not active yet.
 
 ## Target Shape
 
@@ -39,7 +39,7 @@ Discord Gateway
 - `internal/storage`: database reachability and future migration/storage seams.
 - `internal/plugins`: approved plugin manifest and registry contracts.
 - `internal/jobs`: durable job contracts.
-- `internal/discord`: Discord gateway adapter and interaction contracts for later slices.
+- `internal/discord`: Discord gateway adapter, slash command router, DM/guild-mention router, and audit seam.
 - `internal/llm`: LLM client contracts for later slices.
 
 ## Data Boundary
@@ -54,6 +54,8 @@ Gigi will discover approved plugins from manifests. A guild admin can enable an 
 
 - No Discord gateway connection unless `GIGI_DISCORD_ENABLED=true`.
 - No slash command publishing unless `GIGI_DISCORD_SYNC_COMMANDS=true`.
+- DM and guild-mention routing only has `ping` plus placeholder replies.
+- Audit is an in-process seam only; no durable audit table is written yet.
 - No music or `!play` implementation yet.
 - No LLM calls yet.
 - No retrieval or memory behavior yet.

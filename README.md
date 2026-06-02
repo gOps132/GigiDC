@@ -20,11 +20,11 @@
 
 ## Current Foundation
 
-This branch intentionally removes the old Node/Supabase runtime. The current Go foundation only exposes health and readiness endpoints while the Discord, plugin, retrieval, and LLM layers are rebuilt.
+This branch intentionally removes the old Node/Supabase runtime. The current Go foundation exposes health/readiness endpoints plus a minimal Discord surface: `/ping`, DM `ping`, and guild mention `ping` answer `pong`; other DM/mention text receives a placeholder while LLM, retrieval, and plugin layers are rebuilt.
 
 ```mermaid
 flowchart LR
-    Discord["Discord Gateway (future)"] --> App["Go Runtime"]
+    Discord["Discord Gateway"] --> App["Go Runtime"]
     App --> Plugins["Plugin Skill Registry"]
     App --> Jobs["Durable Jobs"]
     App --> DB["PostgreSQL + pgvector"]
@@ -32,8 +32,8 @@ flowchart LR
     classDef future fill:#eff6ff,stroke:#2563eb,color:#1e3a8a;
     classDef core fill:#ecfeff,stroke:#0891b2,color:#164e63;
     classDef state fill:#f0fdf4,stroke:#16a34a,color:#14532d;
-    class Discord,Plugins future;
-    class App,Health core;
+    class Plugins future;
+    class Discord,App,Health core;
     class Jobs,DB state;
 ```
 
@@ -78,6 +78,8 @@ Keep Discord off for the first smoke deploy:
 GIGI_DISCORD_ENABLED=false
 GIGI_DISCORD_SYNC_COMMANDS=false
 ```
+
+After health checks pass, enable Discord with `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, and `GIGI_DISCORD_GUILD_ID` to test `/ping`, DMs, and guild mentions.
 
 ## Docs
 
