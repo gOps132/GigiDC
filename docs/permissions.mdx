@@ -5,7 +5,15 @@ description: Permission model status for the Go foundation rebuild.
 
 # Permissions
 
-The current foundation only answers safe Discord liveness messages: `/ping`, DM `ping`, and guild mention `@Gigi ping`. It does not execute privileged Discord actions yet, so no capability checks are live beyond configuration and database readiness.
+The current foundation only answers safe Discord liveness messages: `/ping`, DM `ping`, and guild mention `@Gigi ping`. It does not execute privileged Discord actions yet.
+
+Capability foundation is now present for future privileged actions:
+
+- guild owner and Discord `ADMINISTRATOR` can receive admin override
+- role grants use Discord role IDs, not role names
+- direct user grants are allowed for explicit exceptions
+- missing identity, ambiguous identity, and missing capability fail closed
+- audit events are validated so secret-looking metadata is rejected
 
 The next Discord slices should keep the earlier authority rule: surface is presentation, not authority. DM, slash commands, message commands, buttons, and plugin triggers must resolve the same guild identity and capability model before doing work.
 
@@ -19,12 +27,17 @@ The next Discord slices should keep the earlier authority rule: surface is prese
 | `memory.read.guild` | Read permitted guild memory scope |
 | `relay.dispatch` | Ask Gigi to send a mediated message |
 | `relay.receive` | Receive mediated messages from Gigi |
+| `llm.provider.write` | Set, rotate, or delete guild-scoped provider credentials |
+| `llm.provider.test` | Test a guild-scoped provider credential without viewing it |
+| `llm.provider.select` | Choose active guild provider/model |
 
 ## Rules To Preserve
 
 - Do not grant extra authority because the request came from DM.
 - Do not grant extra authority because a plugin created the command.
 - Resolve guild, member, channel, role, and target user conservatively.
+- Map capabilities by Discord role ID or user ID, never mutable role names.
 - Keep plugin permissions auditable by guild and plugin version.
 - Keep sensitive actions private or confirmation-gated.
 - Fail closed when identity or target resolution is ambiguous.
+- Never expose raw provider credentials; provider keys are write-only.
