@@ -33,7 +33,7 @@ go build ./cmd/gigi
 ## Run With Docker Compose
 
 ```bash
-docker compose up --build
+docker compose -f compose.yaml up --build
 ```
 
 Then verify:

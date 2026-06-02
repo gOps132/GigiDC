@@ -38,5 +38,5 @@ This repo does not ship a host-specific release uploader, service unit, or rever
 ```bash
 curl http://127.0.0.1:8080/healthz
 curl http://127.0.0.1:8080/readyz
-docker compose ps
+docker compose -f compose.yaml ps
 ```

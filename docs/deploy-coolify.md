@@ -13,7 +13,7 @@ Use Coolify as the deploy target for the unfinished Go foundation.
 - Branch: `main` for normal deploys
 - Build pack: Docker Compose
 - Base directory: `/`
-- Docker Compose location: `/docker-compose.prod.yml`
+- Docker Compose location: `/docker-compose.yml`
 - Runtime shape: app + PostgreSQL/pgvector
 - Service port: `8080`
 
@@ -36,7 +36,7 @@ DISCORD_CLIENT_ID=
 OPENAI_API_KEY=
 ```
 
-`docker-compose.prod.yml` marks `POSTGRES_PASSWORD` as required with `${POSTGRES_PASSWORD:?}` so Coolify can surface it in environment setup.
+`docker-compose.yml` marks `POSTGRES_PASSWORD` as required with `${POSTGRES_PASSWORD:?}` so Coolify can surface it in environment setup.
 
 Do not paste `docker compose config` output into issues, PRs, or chat after real secrets are set; Compose expands environment values.
 

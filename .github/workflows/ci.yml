@@ -95,7 +95,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Build and start Compose stack
-        run: docker compose up --build -d
+        run: docker compose -f compose.yaml up --build -d
 
       - name: Verify health endpoints
         run: |
@@ -106,10 +106,10 @@ jobs:
             fi
             sleep 2
           done
-          docker compose ps
-          docker compose logs --tail=100
+          docker compose -f compose.yaml ps
+          docker compose -f compose.yaml logs --tail=100
           exit 1
 
       - name: Stop Compose stack
         if: always()
-        run: docker compose down --volumes
+        run: docker compose -f compose.yaml down --volumes
