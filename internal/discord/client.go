@@ -199,6 +199,7 @@ type Interaction struct {
 	Name             string
 	Text             string
 	Options          []InteractionOption
+	RoleService      GuildRoleService
 }
 
 type InteractionOption struct {

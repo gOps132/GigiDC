@@ -41,7 +41,9 @@ OPENAI_API_KEY=
 
 Do not paste `docker compose config` output into issues, PRs, or chat after real secrets are set; Compose expands environment values.
 
-Only enable Discord after `/healthz` and `/readyz` pass. With Discord enabled, the current safe smoke test is `/ping`, DM `ping`, `@Gigi ping`, or `/permissions grant-role` against a test role in a private admin channel.
+Only enable Discord after `/healthz` and `/readyz` pass. With Discord enabled, the current safe smoke test is `/ping`, DM `ping`, `@Gigi ping`, or `/permissions role grant` against a test role in a private admin channel.
+
+Role create, assign, and unassign require the bot to have Discord `Manage Roles` and a high enough role position.
 
 ## Health Checks
 

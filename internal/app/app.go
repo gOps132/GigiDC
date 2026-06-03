@@ -68,7 +68,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		grantManager := capability.NewSQLGrantManager(db, func() string { return storage.NewID("capgrant") })
 		auditStore := audit.NewStore(db, func() string { return storage.NewID("audit") })
 		commands := discord.CoreCommands()
-		commands = append(commands, discord.PermissionCommands(grantManager, auditStore)...)
+		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 
 		router, err := discord.NewCommandRouter(commands...)
 		if err != nil {

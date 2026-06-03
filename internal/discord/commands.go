@@ -119,6 +119,7 @@ func (r *CommandRouter) HandleInteraction(ctx context.Context, responder interac
 		Name:             data.Name,
 		Text:             "",
 		Options:          interactionOptions(data.Options),
+		RoleService:      interactionRoleService(responder),
 	}
 	if command.RequiredCapability != "" {
 		if r.authorizer == nil {
@@ -142,6 +143,7 @@ func (r *CommandRouter) HandleInteraction(ctx context.Context, responder interac
 		Name:             interaction.Name,
 		Text:             interaction.Text,
 		Options:          interaction.Options,
+		RoleService:      interaction.RoleService,
 	})
 	if err != nil {
 		return respond(responder, event.Interaction, CommandResponse{Content: "Command failed.", Ephemeral: command.RequiredCapability != ""})
@@ -185,6 +187,14 @@ func interactionHasAdministrator(interaction *discordgo.Interaction) bool {
 		return false
 	}
 	return interaction.Member.Permissions&discordgo.PermissionAdministrator != 0
+}
+
+func interactionRoleService(responder interactionResponder) GuildRoleService {
+	service, ok := responder.(GuildRoleService)
+	if !ok {
+		return nil
+	}
+	return service
 }
 
 func interactionOptions(options []*discordgo.ApplicationCommandInteractionDataOption) []InteractionOption {
