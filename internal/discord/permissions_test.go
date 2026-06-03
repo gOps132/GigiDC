@@ -103,8 +103,8 @@ func TestPermissionCommandAssignsAndUnassignsRole(t *testing.T) {
 	if roles.addedRoleID != "role-id" || roles.addedUserID != "user-id" {
 		t.Fatalf("added role/user = %q/%q, want role-id/user-id", roles.addedRoleID, roles.addedUserID)
 	}
-	if !strings.Contains(assignResponse.Content, "Assigned role") || !assignResponse.Ephemeral {
-		t.Fatalf("assign response = %+v, want ephemeral success", assignResponse)
+	if !strings.Contains(assignResponse.Content, "<@&role-id>") || !strings.Contains(assignResponse.Content, "<@user-id>") || !assignResponse.Ephemeral {
+		t.Fatalf("assign response = %+v, want role/user mentions", assignResponse)
 	}
 
 	unassignResponse, err := handler(context.Background(), roleInteraction("unassign", "role-id", "user-id"))
@@ -114,8 +114,8 @@ func TestPermissionCommandAssignsAndUnassignsRole(t *testing.T) {
 	if roles.removedRoleID != "role-id" || roles.removedUserID != "user-id" {
 		t.Fatalf("removed role/user = %q/%q, want role-id/user-id", roles.removedRoleID, roles.removedUserID)
 	}
-	if !strings.Contains(unassignResponse.Content, "Unassigned role") || !unassignResponse.Ephemeral {
-		t.Fatalf("unassign response = %+v, want ephemeral success", unassignResponse)
+	if !strings.Contains(unassignResponse.Content, "<@&role-id>") || !strings.Contains(unassignResponse.Content, "<@user-id>") || !unassignResponse.Ephemeral {
+		t.Fatalf("unassign response = %+v, want role/user mentions", unassignResponse)
 	}
 }
 
@@ -143,8 +143,8 @@ func TestPermissionCommandGrantsAndRevokesRolePreset(t *testing.T) {
 	if manager.method != "GrantRoleCapabilities" || len(manager.capabilities) != 2 {
 		t.Fatalf("manager call = %+v, want relay preset grant", manager)
 	}
-	if !strings.Contains(grantResponse.Content, "Granted preset") || !grantResponse.Ephemeral {
-		t.Fatalf("grant response = %+v, want ephemeral success", grantResponse)
+	if !strings.Contains(grantResponse.Content, "Granted preset") || !strings.Contains(grantResponse.Content, "<@&role-id>") || !grantResponse.Ephemeral {
+		t.Fatalf("grant response = %+v, want ephemeral success with role mention", grantResponse)
 	}
 
 	revokeResponse, err := handler(context.Background(), rolePresetInteraction("revoke-preset", "role-id", "relay-user"))
@@ -154,8 +154,8 @@ func TestPermissionCommandGrantsAndRevokesRolePreset(t *testing.T) {
 	if manager.method != "RevokeRoleCapabilities" || len(manager.capabilities) != 2 {
 		t.Fatalf("manager call = %+v, want relay preset revoke", manager)
 	}
-	if !strings.Contains(revokeResponse.Content, "Revoked preset") || !revokeResponse.Ephemeral {
-		t.Fatalf("revoke response = %+v, want ephemeral success", revokeResponse)
+	if !strings.Contains(revokeResponse.Content, "Revoked preset") || !strings.Contains(revokeResponse.Content, "<@&role-id>") || !revokeResponse.Ephemeral {
+		t.Fatalf("revoke response = %+v, want ephemeral success with role mention", revokeResponse)
 	}
 }
 
@@ -184,8 +184,8 @@ func TestPermissionCommandDirectUserGrantUsesUserGroup(t *testing.T) {
 	if manager.method != "GrantUser" || manager.targetID != "user-id" || manager.capability != "job.admin" {
 		t.Fatalf("manager call = %+v, want direct user grant", manager)
 	}
-	if !strings.Contains(response.Content, "Granted `job.admin`") || !response.Ephemeral {
-		t.Fatalf("response = %+v, want ephemeral success", response)
+	if !strings.Contains(response.Content, "Granted `job.admin`") || !strings.Contains(response.Content, "<@user-id>") || !response.Ephemeral {
+		t.Fatalf("response = %+v, want ephemeral success with user mention", response)
 	}
 }
 

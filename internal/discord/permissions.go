@@ -190,7 +190,7 @@ func executePermissionRequest(ctx context.Context, manager CapabilityGrantManage
 		if err := manager.GrantRoleCapabilities(ctx, interaction.GuildID, role.ID, request.Capabilities, interaction.UserID); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Created role `%s` and granted preset `%s`.", role.Name, request.Preset), nil
+		return fmt.Sprintf("Created role %s and granted preset `%s`.", roleLabel(role.ID, role.Name), request.Preset), nil
 	case request.Group == "role" && request.Action == "assign":
 		if roles == nil {
 			return "", fmt.Errorf("discord role service is required")
@@ -198,7 +198,7 @@ func executePermissionRequest(ctx context.Context, manager CapabilityGrantManage
 		if err := roles.GuildMemberRoleAdd(interaction.GuildID, request.UserID, request.RoleID); err != nil {
 			return "", fmt.Errorf("discord role operation: %w", err)
 		}
-		return fmt.Sprintf("Assigned role `%s` to user `%s`.", request.RoleID, request.UserID), nil
+		return fmt.Sprintf("Assigned role %s to user %s.", roleLabel(request.RoleID, ""), userLabel(request.UserID)), nil
 	case request.Group == "role" && request.Action == "unassign":
 		if roles == nil {
 			return "", fmt.Errorf("discord role service is required")
@@ -206,40 +206,60 @@ func executePermissionRequest(ctx context.Context, manager CapabilityGrantManage
 		if err := roles.GuildMemberRoleRemove(interaction.GuildID, request.UserID, request.RoleID); err != nil {
 			return "", fmt.Errorf("discord role operation: %w", err)
 		}
-		return fmt.Sprintf("Unassigned role `%s` from user `%s`.", request.RoleID, request.UserID), nil
+		return fmt.Sprintf("Unassigned role %s from user %s.", roleLabel(request.RoleID, ""), userLabel(request.UserID)), nil
 	case request.Group == "role" && request.Action == "grant":
 		if err := manager.GrantRole(ctx, interaction.GuildID, request.RoleID, request.Capability, interaction.UserID); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Granted `%s` for role `%s`.", request.Capability, request.RoleID), nil
+		return fmt.Sprintf("Granted `%s` for role %s.", request.Capability, roleLabel(request.RoleID, "")), nil
 	case request.Group == "role" && request.Action == "revoke":
 		if err := manager.RevokeRole(ctx, interaction.GuildID, request.RoleID, request.Capability); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Revoked `%s` for role `%s`.", request.Capability, request.RoleID), nil
+		return fmt.Sprintf("Revoked `%s` for role %s.", request.Capability, roleLabel(request.RoleID, "")), nil
 	case request.Group == "role" && request.Action == "grant-preset":
 		if err := manager.GrantRoleCapabilities(ctx, interaction.GuildID, request.RoleID, request.Capabilities, interaction.UserID); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Granted preset `%s` for role `%s`.", request.Preset, request.RoleID), nil
+		return fmt.Sprintf("Granted preset `%s` for role %s.", request.Preset, roleLabel(request.RoleID, "")), nil
 	case request.Group == "role" && request.Action == "revoke-preset":
 		if err := manager.RevokeRoleCapabilities(ctx, interaction.GuildID, request.RoleID, request.Capabilities); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Revoked preset `%s` for role `%s`.", request.Preset, request.RoleID), nil
+		return fmt.Sprintf("Revoked preset `%s` for role %s.", request.Preset, roleLabel(request.RoleID, "")), nil
 	case request.Group == "user" && request.Action == "grant":
 		if err := manager.GrantUser(ctx, interaction.GuildID, request.UserID, request.Capability, interaction.UserID); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Granted `%s` for user `%s`.", request.Capability, request.UserID), nil
+		return fmt.Sprintf("Granted `%s` for user %s.", request.Capability, userLabel(request.UserID)), nil
 	case request.Group == "user" && request.Action == "revoke":
 		if err := manager.RevokeUser(ctx, interaction.GuildID, request.UserID, request.Capability); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Revoked `%s` for user `%s`.", request.Capability, request.UserID), nil
+		return fmt.Sprintf("Revoked `%s` for user %s.", request.Capability, userLabel(request.UserID)), nil
 	default:
 		return "", fmt.Errorf("unsupported permissions action")
 	}
+}
+
+func roleLabel(roleID string, fallbackName string) string {
+	roleID = strings.TrimSpace(roleID)
+	if roleID != "" {
+		return fmt.Sprintf("<@&%s>", roleID)
+	}
+	fallbackName = strings.TrimSpace(fallbackName)
+	if fallbackName != "" {
+		return fmt.Sprintf("`%s`", strings.ReplaceAll(fallbackName, "`", "'"))
+	}
+	return "`role`"
+}
+
+func userLabel(userID string) string {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return "`user`"
+	}
+	return fmt.Sprintf("<@%s>", userID)
 }
 
 type permissionRequest struct {
