@@ -34,6 +34,7 @@
       {
         "group": "Reference",
         "pages": [
+          "plugin-catalog",
           "diagrams/index",
           "credits"
         ]

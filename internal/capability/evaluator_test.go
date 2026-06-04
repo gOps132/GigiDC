@@ -66,7 +66,7 @@ func TestEvaluatorAllowsDirectUserGrant(t *testing.T) {
 func TestEvaluatorAllowsRoleGrantByRoleID(t *testing.T) {
 	evaluator := NewEvaluator(&fakeGrantStore{
 		roleGrants: map[string][]Capability{
-			"role-123": {"plugin.run.music"},
+			"role-123": {"plugin.run.example"},
 			"role-999": {"job.admin"},
 		},
 	})
@@ -75,7 +75,7 @@ func TestEvaluatorAllowsRoleGrantByRoleID(t *testing.T) {
 		GuildID: "guild-id",
 		UserID:  "user-id",
 		RoleIDs: []string{"role-123"},
-	}, "plugin.run.music")
+	}, "plugin.run.example")
 	if err != nil {
 		t.Fatalf("Check returned error: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestEvaluatorDeniesMissingCapability(t *testing.T) {
 	evaluator := NewEvaluator(&fakeGrantStore{
 		userGrants: []Capability{"relay.receive"},
 		roleGrants: map[string][]Capability{
-			"role-123": {"plugin.run.music"},
+			"role-123": {"plugin.run.example"},
 		},
 	})
 

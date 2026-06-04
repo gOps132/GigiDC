@@ -25,8 +25,8 @@ The current codebase has a disabled-by-default Discord gateway adapter, a minima
 Future slices should support:
 
 - native Discord slash commands for structured admin flows
-- message-triggered commands such as `!play something` when a music plugin is installed
-- plugin manifests that declare triggers, surfaces, permissions, and attribution
+- message-triggered commands when an approved installed plugin declares a prefix trigger
+- plugin manifests that declare triggers, surfaces, permissions, exact Discord identity, and attribution
 - durable jobs for work that outlives one Discord interaction
 - fail-closed permissions for private, admin, and sensitive actions
 
@@ -42,6 +42,10 @@ For normal access, create a Discord role with a preset, then assign that role to
 Before using `role create`, `role assign`, or `role unassign`, give Gigi's Discord bot role `Manage Roles` in server settings. Put Gigi's bot role above roles it must assign or manage. Channel membership does not matter for this; Discord checks the bot's server role permissions and hierarchy.
 
 Use direct user grants only when one person needs an exception without a Discord role.
+
+## Plugin Status
+
+Approved plugin manifest validation and storage are started, but there is no Discord `/plugins` command yet. Plugin discovery is exact-match only by Discord application ID or bot user ID, or by an explicitly approved HTTPS manifest URL. Gigi does not scrape plugin docs or guess plugin behavior from names.
 
 ## Current Verification
 

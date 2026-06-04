@@ -24,15 +24,15 @@ func TestSQLGrantStoreLoadsUserCapabilities(t *testing.T) {
 }
 
 func TestSQLGrantStoreLoadsRoleCapabilitiesByRoleID(t *testing.T) {
-	db := &fakeQueryDB{rows: &fakeRows{values: []Capability{"plugin.run.music"}}}
+	db := &fakeQueryDB{rows: &fakeRows{values: []Capability{"plugin.run.example"}}}
 	store := newSQLGrantStoreWithRows(db)
 
 	got, err := store.RoleCapabilities(context.Background(), "guild-id", []string{"role-1", "role-2"})
 	if err != nil {
 		t.Fatalf("RoleCapabilities returned error: %v", err)
 	}
-	if len(got) != 1 || got[0] != "plugin.run.music" {
-		t.Fatalf("capabilities = %+v, want plugin.run.music", got)
+	if len(got) != 1 || got[0] != "plugin.run.example" {
+		t.Fatalf("capabilities = %+v, want plugin.run.example", got)
 	}
 	if !strings.Contains(db.query, "role_capability_grants") || !strings.Contains(db.query, "role_id") || strings.Contains(db.query, "role_name") {
 		t.Fatalf("query = %q, want role ID lookup only", db.query)

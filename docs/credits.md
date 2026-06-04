@@ -55,6 +55,3 @@ description: External resources, platforms, and tooling used by GigiDC.
 - `Mintlify`
   - Use: Documentation site framework and navigation format
   - Source: https://www.mintlify.com/
-- `YouTube Data API`
-  - Use: Possible future media plugin search provider; any actual plugin must document API and license/terms requirements before implementation
-  - Source: https://developers.google.com/youtube

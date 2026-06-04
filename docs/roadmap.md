@@ -36,6 +36,8 @@ Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing,
 
 - approved plugin catalog
 - guild enable/configure flow
-- prefix commands such as `!play`
+- plugin-declared prefix commands
 - plugin permissions and audit logs
-- media/music plugin support as first real plugin candidate
+- plugin-specific behavior through approved manifests
+
+Current status: manifest validation, exact Discord application/bot identity lookup, manifest URL metadata, approved-manifest storage, and enabled-guild manifest loading are started. Discord `/plugins` admin commands, guild enable/configure flow, command publishing, prefix routing, and plugin execution remain future slices. Any domain behavior only exists if an approved installed plugin declares and implements it.
