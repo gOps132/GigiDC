@@ -21,6 +21,7 @@ type PluginCatalogManager interface {
 
 type PluginManifestFetcher interface {
 	Fetch(ctx context.Context, manifestURL string) (plugins.Manifest, error)
+	FetchAttachment(ctx context.Context, attachment plugins.AttachmentSource) (plugins.Manifest, error)
 }
 
 func PluginCommands(manager PluginCatalogManager, fetcher PluginManifestFetcher, recorder AuditRecorder) []Command {
@@ -40,6 +41,19 @@ func PluginCommands(manager PluginCatalogManager, fetcher PluginManifestFetcher,
 				Description: "Import and approve a plugin manifest from HTTPS.",
 				Options: []*discordgo.ApplicationCommandOption{
 					stringOption("url", "HTTPS URL for gigi-plugin.json.", nil),
+				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "import-file",
+				Description: "Import and approve an uploaded plugin manifest JSON file.",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionAttachment,
+						Name:        "attachment",
+						Description: "gigi-plugin.json file.",
+						Required:    true,
+					},
 				},
 			},
 			{
@@ -95,10 +109,12 @@ func pluginHandler(manager PluginCatalogManager, fetcher PluginManifestFetcher, 
 }
 
 type pluginRequest struct {
-	Action  string
-	URL     string
-	Plugin  string
-	Version string
+	Action       string
+	URL          string
+	AttachmentID string
+	Attachment   InteractionAttachment
+	Plugin       string
+	Version      string
 }
 
 func parsePluginRequest(interaction Interaction) (pluginRequest, error) {
@@ -118,6 +134,17 @@ func parsePluginRequest(interaction Interaction) (pluginRequest, error) {
 		if request.URL == "" {
 			return request, fmt.Errorf("Manifest URL is required.")
 		}
+		return request, nil
+	case "import-file":
+		request.AttachmentID = strings.TrimSpace(optionByName(action.Options, "attachment"))
+		if request.AttachmentID == "" {
+			return request, fmt.Errorf("Manifest attachment is required.")
+		}
+		attachment, ok := interaction.Attachments[request.AttachmentID]
+		if !ok {
+			return request, fmt.Errorf("Manifest attachment could not be resolved.")
+		}
+		request.Attachment = attachment
 		return request, nil
 	case "enable":
 		request.Plugin = strings.TrimSpace(optionByName(action.Options, "plugin"))
@@ -165,6 +192,26 @@ func executePluginRequest(ctx context.Context, manager PluginCatalogManager, fet
 		request.Plugin = manifest.ID
 		request.Version = manifest.Version
 		return fmt.Sprintf("Imported plugin `%s` (`%s@%s`).", safeInline(manifest.Name), safeInline(manifest.ID), safeInline(manifest.Version)), nil
+	case "import-file":
+		if fetcher == nil {
+			return "", fmt.Errorf("plugin manifest fetcher is required")
+		}
+		manifest, err := fetcher.FetchAttachment(ctx, plugins.AttachmentSource{
+			ID:          request.Attachment.ID,
+			URL:         request.Attachment.URL,
+			Filename:    request.Attachment.Filename,
+			ContentType: request.Attachment.ContentType,
+			Size:        request.Attachment.Size,
+		})
+		if err != nil {
+			return "", err
+		}
+		if err := manager.UpsertApprovedManifest(ctx, manifest, interaction.UserID); err != nil {
+			return "", err
+		}
+		request.Plugin = manifest.ID
+		request.Version = manifest.Version
+		return fmt.Sprintf("Imported plugin `%s` (`%s@%s`) from uploaded file.", safeInline(manifest.Name), safeInline(manifest.ID), safeInline(manifest.Version)), nil
 	case "enable":
 		if err := manager.EnableForGuild(ctx, interaction.GuildID, request.Plugin, request.Version, interaction.UserID); err != nil {
 			return "", err
@@ -210,6 +257,10 @@ func cleanPluginError(err error) string {
 		return "Manifest URL must not include user info, query, or fragment data."
 	case strings.Contains(message, "byte limit"):
 		return "Manifest is too large."
+	case strings.Contains(message, "JSON file"):
+		return "Manifest attachment must be a JSON file."
+	case strings.Contains(message, "attachment"):
+		return "Manifest attachment could not be imported."
 	case strings.Contains(message, "not found"):
 		return "Plugin or version was not found."
 	default:
@@ -247,7 +298,7 @@ func recordPluginAction(ctx context.Context, recorder AuditRecorder, interaction
 
 func shouldAuditPluginAction(action string) bool {
 	switch action {
-	case "import-manifest", "enable", "disable":
+	case "import-manifest", "import-file", "enable", "disable":
 		return true
 	default:
 		return false

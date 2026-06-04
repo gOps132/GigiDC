@@ -11,10 +11,11 @@ Plugin catalog work has started. This slice validates, imports, stores, lists, e
 
 - plugin manifests can be decoded from `gigi-plugin.json`
 - manifests must declare exact Discord application ID or bot user ID
-- manifests can come from the known catalog or from an explicitly provided HTTPS manifest URL
+- manifests can come from the known catalog, an explicitly provided HTTPS manifest URL, or a Discord attachment upload
 - approved manifests can be stored in PostgreSQL
 - `/plugins list` shows approved manifests
 - `/plugins import-manifest` imports and approves a URL-sourced manifest
+- `/plugins import-file` imports and approves an uploaded JSON manifest
 - `/plugins enable` enables an approved plugin version for the current guild
 - `/plugins disable` disables a plugin for the current guild
 - `/plugins enabled` shows enabled guild plugins
@@ -37,7 +38,7 @@ Each manifest must include:
 - audit events
 - attribution resources
 
-Manifest URL imports must use HTTPS and cannot include user info, query strings, or fragments. The current code validates supplied manifest JSON; it does not browse or scrape plugin documentation.
+Manifest URL imports must use HTTPS and cannot include user info, query strings, or fragments. Attachment imports must use a `.json` file and are stored as `uploaded_file` source without storing the Discord CDN URL. The current code validates supplied manifest JSON; it does not browse or scrape plugin documentation.
 
 ```json
 {

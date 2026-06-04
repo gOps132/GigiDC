@@ -119,6 +119,7 @@ func (r *CommandRouter) HandleInteraction(ctx context.Context, responder interac
 		Name:             data.Name,
 		Text:             "",
 		Options:          interactionOptions(data.Options),
+		Attachments:      interactionAttachments(data.Resolved),
 		RoleService:      interactionRoleService(responder),
 	}
 	if command.RequiredCapability != "" {
@@ -143,6 +144,7 @@ func (r *CommandRouter) HandleInteraction(ctx context.Context, responder interac
 		Name:             interaction.Name,
 		Text:             interaction.Text,
 		Options:          interaction.Options,
+		Attachments:      interaction.Attachments,
 		RoleService:      interaction.RoleService,
 	})
 	if err != nil {
@@ -211,6 +213,26 @@ func interactionOptions(options []*discordgo.ApplicationCommandInteractionDataOp
 		})
 	}
 	return out
+}
+
+func interactionAttachments(resolved *discordgo.ApplicationCommandInteractionDataResolved) map[string]InteractionAttachment {
+	if resolved == nil || len(resolved.Attachments) == 0 {
+		return nil
+	}
+	attachments := make(map[string]InteractionAttachment, len(resolved.Attachments))
+	for id, attachment := range resolved.Attachments {
+		if attachment == nil {
+			continue
+		}
+		attachments[id] = InteractionAttachment{
+			ID:          attachment.ID,
+			URL:         attachment.URL,
+			Filename:    attachment.Filename,
+			ContentType: attachment.ContentType,
+			Size:        attachment.Size,
+		}
+	}
+	return attachments
 }
 
 func optionValue(option *discordgo.ApplicationCommandInteractionDataOption) string {

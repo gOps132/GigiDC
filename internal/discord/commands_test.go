@@ -236,6 +236,60 @@ func TestCommandRouterPassesNestedOptions(t *testing.T) {
 	}
 }
 
+func TestCommandRouterPassesResolvedAttachments(t *testing.T) {
+	var got Interaction
+	router, err := NewCommandRouter(Command{
+		Name:        "plugins",
+		Description: "plugins command",
+		Handle: func(ctx context.Context, interaction Interaction) (CommandResponse, error) {
+			got = interaction
+			return CommandResponse{Content: "ok"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+
+	err = router.HandleInteraction(context.Background(), &fakeResponder{}, &discordgo.InteractionCreate{
+		Interaction: &discordgo.Interaction{
+			Type:    discordgo.InteractionApplicationCommand,
+			GuildID: "guild-id",
+			Member:  &discordgo.Member{User: &discordgo.User{ID: "user-id"}},
+			Data: discordgo.ApplicationCommandInteractionData{
+				Name: "plugins",
+				Resolved: &discordgo.ApplicationCommandInteractionDataResolved{
+					Attachments: map[string]*discordgo.MessageAttachment{
+						"attachment-id": {
+							ID:          "attachment-id",
+							URL:         "https://cdn.discordapp.com/attachments/gigi-plugin.json?ex=value",
+							Filename:    "gigi-plugin.json",
+							ContentType: "application/json",
+							Size:        123,
+						},
+					},
+				},
+				Options: []*discordgo.ApplicationCommandInteractionDataOption{{
+					Name: "import-file",
+					Type: discordgo.ApplicationCommandOptionSubCommand,
+					Options: []*discordgo.ApplicationCommandInteractionDataOption{
+						{Name: "attachment", Type: discordgo.ApplicationCommandOptionAttachment, Value: "attachment-id"},
+					},
+				}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if got.Options[0].Options[0].Value != "attachment-id" {
+		t.Fatalf("attachment option = %+v, want attachment ID", got.Options[0].Options[0])
+	}
+	attachment := got.Attachments["attachment-id"]
+	if attachment.Filename != "gigi-plugin.json" || attachment.Size != 123 {
+		t.Fatalf("attachment = %+v, want resolved attachment", attachment)
+	}
+}
+
 func TestCommandRouterDeniesMissingCapability(t *testing.T) {
 	calls := 0
 	router, err := NewCommandRouter(Command{

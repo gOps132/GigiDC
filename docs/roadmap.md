@@ -40,4 +40,4 @@ Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing,
 - plugin permissions and audit logs
 - plugin-specific behavior through approved manifests
 
-Current status: manifest validation, exact Discord application/bot identity lookup, manifest URL metadata, approved-manifest storage, enabled-guild manifest loading, and Discord `/plugins` admin commands are started. Command publishing, prefix routing, and plugin execution remain future slices. Any domain behavior only exists if an approved installed plugin declares and implements it.
+Current status: manifest validation, exact Discord application/bot identity lookup, manifest source metadata, approved-manifest storage, enabled-guild manifest loading, and Discord `/plugins` admin commands are started. Command publishing, prefix routing, and plugin execution remain future slices. Any domain behavior only exists if an approved installed plugin declares and implements it.
