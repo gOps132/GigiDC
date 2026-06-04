@@ -1,0 +1,53 @@
+---
+title: Contributing
+description: How developers can contribute safely to GigiDC.
+---
+
+# Contributing
+
+GigiDC is being rebuilt in small, reviewable slices. Contributions should keep shipped behavior, roadmap intent, and documentation in sync.
+
+## Contribution Rules
+
+- Keep pull requests focused and reviewable.
+- Update user-facing docs when commands, Discord behavior, permissions, deployment, or setup changes.
+- Update architecture docs when runtime boundaries, storage, permissions, memory, or plugin behavior changes.
+- Attribute external resources, libraries, APIs, examples, generated assets, and source material in docs or the relevant deliverable.
+- Review code, docs, configs, logs, tests, fixtures, and generated output for secrets or private Discord content before commit.
+- Do not commit agent artifacts, private planning notes, local harnesses, tokens, `.env` files, or raw exported private data.
+
+## Plugin Manifest Contributions
+
+Future plugin work can include contributed `gigi-plugin.json` manifests for known Discord bots, private guild tools, or external plugin-style services.
+
+These manifests are contribution material, not automatic discovery. A manifest can only become useful after maintainer review and guild-admin approval through the plugin install flow.
+
+Each manifest must keep the same format as Gigi's runtime validator:
+
+- `id`, `name`, `version`, `source`, and `source_kind`
+- exact `discord_application_id` or `discord_bot_user_id`
+- optional `manifest_url` when source kind is `manifest_url`
+- `capabilities` with name and description
+- `triggers` with kind and value
+- `surfaces`
+- `permissions`
+- optional `config_schema`
+- `audit_events`
+- `attribution` with name, use, and source
+
+Contribution rules for manifests:
+
+- Use exact Discord application ID or bot user ID; do not rely on bot display names, role names, domains, or fuzzy matches.
+- Declare only behavior verified from public docs, maintainer-owned source, or direct admin-owned configuration.
+- Do not include secrets, provider keys, private URLs, private Discord messages, private guild data, or hidden prompts.
+- Do not scrape private content or submit LLM-guessed behavior as fact.
+- Include attribution for Discord docs, plugin docs, provider docs, and any examples used to build the manifest.
+- Keep one plugin manifest contribution per PR unless multiple manifests share one small schema fix.
+
+Discord application IDs, bot user IDs, and application command behavior are based on Discord's public developer documentation: [Discord Developer Documentation](https://discord.com/developers/docs).
+
+## Current Limits
+
+Gigi can validate and store approved manifests, but plugin execution is not live yet. Contributor manifests are preparation for later plugin catalog and guild enablement work.
+
+Do not document a plugin as usable until the runtime can import, enable, authorize, audit, and execute that plugin behavior.
