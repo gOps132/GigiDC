@@ -1,27 +1,29 @@
 ---
 title: Plugin Catalog
-description: Current plugin manifest catalog model for the Go rebuild.
+description: Current external Discord app manifest catalog model for the Go rebuild.
 ---
 
 # Plugin Catalog
 
-Plugin catalog work has started. This slice validates, imports, stores, lists, enables, and disables approved plugin manifests, but it does not execute plugins, publish plugin commands, scrape docs, or route plugin prefix commands yet.
+In Gigi docs, plugin means an approved external Discord app, bot, or service integration that Gigi can understand through a manifest. It does not mean arbitrary code loaded into Gigi, and Gigi does not run third-party app code.
+
+Plugin catalog work has started. This slice validates, imports, stores, lists, enables, and disables approved external app manifests, but it does not drive external app commands, publish commands declared by manifests, scrape docs, or route external app prefix commands yet.
 
 ## Current Behavior
 
-- plugin manifests can be decoded from `gigi-plugin.json`
+- external app manifests can be decoded from `gigi-plugin.json`
 - manifests must declare exact Discord application ID or bot user ID
 - manifests can come from the known catalog, an explicitly provided HTTPS manifest URL, or a Discord attachment upload
 - approved manifests can be stored in PostgreSQL
 - `/plugins list` shows approved manifests
 - `/plugins import-manifest` imports and approves a URL-sourced manifest
 - `/plugins import-file` imports and approves an uploaded JSON manifest
-- `/plugins enable` enables an approved plugin version for the current guild
-- `/plugins disable` disables a plugin for the current guild
-- `/plugins enabled` shows enabled guild plugins
-- enabled guild plugin installs can be loaded from PostgreSQL
+- `/plugins enable` enables an approved external app version for the current guild
+- `/plugins disable` disables an external app integration for the current guild
+- `/plugins enabled` shows enabled guild external app integrations
+- enabled guild external app installs can be loaded from PostgreSQL
 
-v0 does not guess plugin identity from fuzzy names, bot display names, domains, or docs pages. Fuzzy suggestions may come later, but exact admin approval remains required.
+v0 does not guess external app identity from fuzzy names, bot display names, domains, or docs pages. Fuzzy suggestions may come later, but exact admin approval remains required.
 
 Future manifest contributions should follow the same runtime format and safety rules in the [contributor guide](/contributing).
 
@@ -38,7 +40,7 @@ Each manifest must include:
 - audit events
 - attribution resources
 
-Manifest URL imports must use HTTPS and cannot include user info, query strings, or fragments. Attachment imports must use a `.json` file and are stored as `uploaded_file` source without storing the Discord CDN URL. The current code validates supplied manifest JSON; it does not browse or scrape plugin documentation.
+Manifest URL imports must use HTTPS and cannot include user info, query strings, or fragments. Attachment imports must use a `.json` file and are stored as `uploaded_file` source without storing the Discord CDN URL. The current code validates supplied manifest JSON; it does not browse or scrape external app documentation.
 
 ```json
 {
@@ -52,7 +54,7 @@ Manifest URL imports must use HTTPS and cannot include user info, query strings,
   "capabilities": [
     {
       "name": "example.run",
-      "description": "Run the plugin's declared action."
+      "description": "Run the external app's declared action."
     }
   ],
   "triggers": [
@@ -67,7 +69,7 @@ Manifest URL imports must use HTTPS and cannot include user info, query strings,
   "attribution": [
     {
       "name": "Example Provider",
-      "use": "Provide data for the plugin action.",
+      "use": "Provide data for the external app action.",
       "source": "https://example.com"
     }
   ]
@@ -78,10 +80,10 @@ Manifest URL imports must use HTTPS and cannot include user info, query strings,
 
 - admin-assisted custom manifest creation
 - community registry support
-- plugin command publishing
-- prefix trigger routing
-- LLM tool routing
-- plugin execution
+- external app command publishing
+- prefix trigger routing to external apps
+- LLM tool routing to external app actions
+- external app command execution
 - docs scraping or browser-based discovery
 
-Next slice should expose a permission-gated admin flow to list known plugins and enable an approved manifest for a guild.
+Next slice should expose a permission-gated admin flow to list known external app manifests and enable an approved manifest for a guild.

@@ -44,14 +44,14 @@ If Gigi replies `Could not update Discord role. Check Gigi has Manage Roles and 
 
 `role create` mainly needs `Manage Roles`. `role assign` and `role unassign` also depend on hierarchy: Gigi cannot assign or remove a role equal to or higher than its own highest role.
 
-Future Discord slices should keep the earlier authority rule: surface is presentation, not authority. DM, slash commands, message commands, buttons, and plugin triggers must resolve the same guild identity and capability model before doing work.
+Future Discord slices should keep the earlier authority rule: surface is presentation, not authority. DM, slash commands, message commands, buttons, and external app triggers must resolve the same guild identity and capability model before doing work.
 
 ## Planned Capability Shape
 
 | Capability | What it allows |
 | --- | --- |
-| `plugin.install` | Install or configure guild plugins |
-| `plugin.run.<id>` | Use a plugin-provided command or trigger |
+| `plugin.install` | Install or configure guild external app integrations |
+| `plugin.run.<id>` | Use an approved external app command or trigger |
 | `capability.manage` | Grant or revoke role/user capabilities |
 | `job.admin` | Inspect, retry, or cancel durable jobs |
 | `memory.read.guild` | Read permitted guild memory scope |
@@ -74,11 +74,11 @@ Future Discord slices should keep the earlier authority rule: surface is present
 ## Rules To Preserve
 
 - Do not grant extra authority because the request came from DM.
-- Do not grant extra authority because a plugin created the command.
+- Do not grant extra authority because an external app created the command.
 - Resolve guild, member, channel, role, and target user conservatively.
 - Map capabilities by Discord role ID or user ID, never mutable role names.
 - Prefer Discord role grants; use direct user grants only for rare exceptions.
-- Keep plugin permissions auditable by guild and plugin version.
+- Keep external app permissions auditable by guild and manifest version.
 - Keep sensitive actions private or confirmation-gated.
 - Fail closed when identity or target resolution is ambiguous.
 - Never expose raw provider credentials; provider keys are write-only.

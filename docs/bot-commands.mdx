@@ -358,7 +358,7 @@ Revoked `job.admin` for user @person.
 | Capability | What it allows |
 | --- | --- |
 | `capability.manage` | Grant or revoke role/user capabilities |
-| `plugin.install` | Install or configure guild plugins |
+| `plugin.install` | Install or configure guild external app integrations |
 | `job.admin` | Inspect, retry, or cancel durable jobs |
 | `memory.read.guild` | Read permitted guild memory scope |
 | `relay.dispatch` | Ask Gigi to send a mediated message |
@@ -367,11 +367,11 @@ Revoked `job.admin` for user @person.
 | `llm.provider.test` | Test a guild-scoped provider credential without viewing it |
 | `llm.provider.select` | Choose active guild provider/model |
 
-Dynamic plugin capabilities such as `plugin.run.<id>` are future work and should appear only after plugin install/enable flow exists.
+Dynamic external app capabilities such as `plugin.run.<id>` are future work and should appear only after plugin install/enable flow exists.
 
 ## Plugin Commands
 
-All `/plugins` commands are live admin commands for the plugin catalog. They do not execute plugin behavior yet.
+All `/plugins` commands are live admin commands for the external app manifest catalog. They do not drive external app behavior yet.
 
 Surface: slash command.
 
@@ -387,7 +387,7 @@ Discord bot permissions: normal slash command access.
 
 ### `/plugins list`
 
-Lists approved plugin manifests in the catalog.
+Lists approved external app manifests in the catalog.
 
 Syntax:
 
@@ -409,7 +409,7 @@ Failure cases:
 
 ### `/plugins import-manifest`
 
-Fetches `gigi-plugin.json` from HTTPS, validates it, and stores it as an approved manifest.
+Fetches `gigi-plugin.json` from HTTPS, validates it, and stores it as an approved external app manifest.
 
 Syntax:
 
@@ -436,7 +436,7 @@ Privacy and audit: raw URLs are not written to audit metadata. Manifests must no
 
 ### `/plugins import-file`
 
-Imports an uploaded `gigi-plugin.json` attachment, validates it, and stores it as an approved manifest.
+Imports an uploaded `gigi-plugin.json` attachment, validates it, and stores it as an approved external app manifest.
 
 Syntax:
 
@@ -464,7 +464,7 @@ Privacy and audit: Discord attachment URLs are not stored in audit metadata or m
 
 ### `/plugins enable`
 
-Enables an approved plugin version for the current Discord server. This does not execute plugin commands yet.
+Enables an approved external app version for the current Discord server. This does not execute external app commands yet.
 
 Syntax:
 
@@ -487,7 +487,7 @@ Failure cases:
 
 ### `/plugins disable`
 
-Disables a plugin for the current Discord server.
+Disables an external app integration for the current Discord server.
 
 Syntax:
 
@@ -510,7 +510,7 @@ Failure cases:
 
 ### `/plugins enabled`
 
-Lists plugins enabled for the current Discord server.
+Lists external app integrations enabled for the current Discord server.
 
 Syntax:
 
@@ -537,4 +537,4 @@ Failure cases:
 - tasks
 - relay actions
 - LLM provider management commands
-- plugin-declared prefix commands
+- external app declared prefix commands

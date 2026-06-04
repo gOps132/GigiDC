@@ -15,7 +15,7 @@ Gigi is in a foundation rebuild. The old Node/Supabase runtime is gone. The curr
 - config loading through `internal/config`
 - database reachability through `internal/storage`
 
-Discord login is disabled by default through `GIGI_DISCORD_ENABLED=false`. When enabled, the gateway can publish `/ping`, `/permissions`, and `/plugins`, answer `/ping`, route DMs, route guild mentions, ignore ordinary unmentioned guild messages, and ignore bot-authored messages. Plugin catalog validation, storage, import, enable, and disable controls have started, but plugin execution, retrieval, and LLM calls are intentionally not active yet.
+Discord login is disabled by default through `GIGI_DISCORD_ENABLED=false`. When enabled, the gateway can publish `/ping`, `/permissions`, and `/plugins`, answer `/ping`, route DMs, route guild mentions, ignore ordinary unmentioned guild messages, and ignore bot-authored messages. External app manifest validation, storage, import, enable, and disable controls have started, but external app command execution, retrieval, and LLM calls are intentionally not active yet.
 
 Capability and identity foundations now exist as internal gates for privileged actions. Role and user capability grants are keyed by Discord IDs, not role names, and admin override is modeled separately from role grants.
 
@@ -26,7 +26,7 @@ Discord Gateway
   -> Go runtime
      -> interaction and DM router
      -> capability engine
-     -> plugin skill registry
+     -> external app integration catalog
      -> durable jobs and outbox
      -> PostgreSQL + pgvector
      -> LLM adapters
@@ -42,18 +42,18 @@ Discord Gateway
 - `internal/capability`: role/user capability evaluation plus grant/revoke management with guild owner and Discord administrator override.
 - `internal/identity`: synchronous identity resolution contract for future privileged actions.
 - `internal/audit`: audit event validation and durable audit-log store seam.
-- `internal/plugins`: approved plugin manifest validation, exact Discord identity catalog lookup, and SQL-backed enabled-manifest loading.
+- `internal/plugins`: approved external app manifest validation, exact Discord identity catalog lookup, and SQL-backed enabled-manifest loading.
 - `internal/jobs`: durable job contracts.
 - `internal/discord`: Discord gateway adapter, slash command router, DM/guild-mention router, and audit seam.
 - `internal/llm`: LLM client contracts for later slices.
 
 ## Data Boundary
 
-Local PostgreSQL is the new source of truth. The first migration creates foundation tables for runtime metadata, plugin installs, role/user capability grants, jobs, outbox events, and audit logs. The plugin catalog migration adds exact Discord application/bot identity lookup, manifest source metadata, approval metadata, and enabled-install indexes. The app also runs the idempotent migration files on startup so existing Docker volumes can catch up. Supabase is not part of the live runtime and no backfill is planned.
+Local PostgreSQL is the new source of truth. The first migration creates foundation tables for runtime metadata, external app installs, role/user capability grants, jobs, outbox events, and audit logs. The plugin catalog migration adds exact Discord application/bot identity lookup, manifest source metadata, approval metadata, and enabled-install indexes. The app also runs the idempotent migration files on startup so existing Docker volumes can catch up. Supabase is not part of the live runtime and no backfill is planned.
 
-## Plugin Direction
+## External App Direction
 
-Gigi will discover approved plugins from manifests. During v0, discovery is exact-match only: a known manifest must match a Discord application ID or bot user ID, or an operator/admin must provide an approved HTTPS manifest URL or uploaded JSON manifest. A guild admin can enable an approved plugin, then later slices can route prefix commands, slash commands, buttons, mentions, DMs, or natural-language requests to that plugin after permission and config checks.
+Gigi will understand approved external Discord apps and bots from manifests. During v0, discovery is exact-match only: a known manifest must match a Discord application ID or bot user ID, or an operator/admin must provide an approved HTTPS manifest URL or uploaded JSON manifest. A guild admin can enable an approved integration, then later slices can route prefix commands, slash commands, buttons, mentions, DMs, or natural-language requests to that external app after permission and config checks.
 
 ## Known Limits
 
@@ -61,9 +61,9 @@ Gigi will discover approved plugins from manifests. During v0, discovery is exac
 - No slash command publishing unless `GIGI_DISCORD_SYNC_COMMANDS=true`.
 - DM and guild-mention routing only has `ping` plus placeholder replies.
 - `/permissions` can create/assign Discord roles, grant/revoke role capabilities and presets, and manage direct user exceptions.
-- `/plugins` can list approved manifests, import HTTPS manifests or uploaded JSON manifests, enable approved plugin versions for a guild, disable guild plugins, and list enabled guild plugins.
+- `/plugins` can list approved manifests, import HTTPS manifests or uploaded JSON manifests, enable approved external app versions for a guild, disable guild integrations, and list enabled guild integrations.
 - Durable audit store is used for permission checks and permission changes, but current Discord liveness replies do not depend on it yet.
-- No plugin command execution yet. Prefix, slash, button, or natural-language plugin actions only become possible if an approved installed plugin declares that trigger and implements that behavior.
+- No external app command execution yet. Prefix, slash, button, or natural-language actions only become possible if an approved installed external app manifest declares that trigger and the external app supports that behavior.
 - No LLM calls yet.
 - No retrieval or memory behavior yet.
 - Readiness checks database reachability; startup applies idempotent SQL migration files before Discord command wiring.

@@ -61,4 +61,4 @@ Expected response:
 
 ## Current Limits
 
-This deploy proves container, database, startup migrations, health/readiness wiring, Discord gateway login, slash command sync, basic DM/mention routing, and admin-gated capability grants. It does not provide rich DM chat, rich mention chat, usage/assignment/task commands, LLM calls, or plugin execution yet.
+This deploy proves container, database, startup migrations, health/readiness wiring, Discord gateway login, slash command sync, basic DM/mention routing, and admin-gated capability grants. It does not provide rich DM chat, rich mention chat, usage/assignment/task commands, LLM calls, or external app command execution yet.

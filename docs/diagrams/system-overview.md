@@ -5,7 +5,7 @@ description: High-level view of the Go foundation runtime.
 
 # System Overview
 
-This overview reflects the current Go foundation. Health/readiness, Discord liveness routing, and permission grants run today; LLM, retrieval, and plugin execution remain foundations for later privileged behavior.
+This overview reflects the current Go foundation. Health/readiness, Discord liveness routing, and permission grants run today; LLM, retrieval, and external app command execution remain foundations for later privileged behavior.
 
 ```mermaid
 flowchart LR
@@ -16,7 +16,7 @@ flowchart LR
   DB["Local PostgreSQL + pgvector"]
   Discord["Discord Gateway<br/>/ping + DM/mention ping + /permissions"]
   Security["Capability + Identity + Audit<br/>permission gate"]
-  Seams["Future Seams<br/>plugins jobs retrieval llm"]
+  Seams["Future Seams<br/>external apps jobs retrieval llm"]
   Compose["Docker Compose"]
   CI["GitHub Actions<br/>Go + Compose smoke"]
   Deploy["Coolify / Docker Deploy"]
@@ -40,13 +40,13 @@ flowchart LR
 - `/healthz` reports process/build health.
 - `/readyz` fails closed unless required config exists and PostgreSQL is reachable.
 - Discord liveness behavior is active when Discord is enabled.
-- Capability, identity, and audit gate `/permissions`; plugin, job, retrieval, and LLM packages are foundations for later privileged behavior.
+- Capability, identity, and audit gate `/permissions`; external app, job, retrieval, and LLM packages are foundations for later privileged behavior.
 - Docker Compose is the local and production deployment shape.
 
 ## Keep This Updated When
 
 - command surfaces become live
-- plugin execution becomes live
+- external app command execution becomes live
 - job workers become live
 - storage schema boundaries change
 - deployment topology changes

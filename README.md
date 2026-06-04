@@ -20,12 +20,12 @@
 
 ## Current Foundation
 
-This branch intentionally removes the old Node/Supabase runtime. The current Go foundation exposes health/readiness endpoints plus a minimal Discord surface: `/ping`, DM `ping`, guild mention `ping`, and role-first admin-gated `/permissions` capability grants; other DM/mention text receives a placeholder while LLM, retrieval, and plugin layers are rebuilt.
+This branch intentionally removes the old Node/Supabase runtime. The current Go foundation exposes health/readiness endpoints plus a minimal Discord surface: `/ping`, DM `ping`, guild mention `ping`, and role-first admin-gated `/permissions` capability grants; other DM/mention text receives a placeholder while LLM, retrieval, and external Discord app integration layers are rebuilt.
 
 ```mermaid
 flowchart LR
     Discord["Discord Gateway"] --> App["Go Runtime"]
-    App --> Plugins["Plugin Skill Registry"]
+    App --> Plugins["External App Catalog"]
     App --> Jobs["Durable Jobs"]
     App --> DB["PostgreSQL + pgvector"]
     App --> Health["/healthz + /readyz"]

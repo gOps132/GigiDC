@@ -5,7 +5,7 @@ description: Ports-and-adapters view of the Go foundation seams.
 
 # Service And Adapter Boundaries
 
-This diagram captures the current foundation seams. Discord liveness routing and permission grants are live; capability, identity, audit, plugin, job, and LLM packages provide contracts or foundations for later privileged behavior.
+This diagram captures the current foundation seams. Discord liveness routing and permission grants are live; capability, identity, audit, external app manifest, job, and LLM packages provide contracts or foundations for later privileged behavior.
 
 ```mermaid
 flowchart LR
@@ -17,7 +17,7 @@ flowchart LR
   Capability["internal/capability<br/>role/user grants"]
   Identity["internal/identity<br/>sync resolver contract"]
   Audit["internal/audit<br/>event + store seam"]
-  Plugins["internal/plugins<br/>manifest + registry contract"]
+  Plugins["internal/plugins<br/>external app manifest contract"]
   Jobs["internal/jobs<br/>queue contract"]
   LLM["internal/llm<br/>text client contract"]
   DB["PostgreSQL + pgvector"]
@@ -46,7 +46,7 @@ flowchart LR
 - `internal/capability` evaluates and manages user/role grants by Discord IDs, with explicit admin override.
 - `internal/identity` defines fail-closed identity resolution for future privileged actions.
 - `internal/audit` validates audit events and provides a durable audit-log store seam.
-- `internal/plugins` defines plugin manifest shape: capabilities, triggers, surfaces, permissions, config schema, and attribution.
+- `internal/plugins` defines external app manifest shape: capabilities, triggers, surfaces, permissions, config schema, and attribution.
 - `internal/jobs` defines durable work records before workers exist.
 - `internal/discord` has live `/ping`, DM `ping`, mention `ping`, and `/permissions`; rich chat and broader privileged actions are still future work.
 - `internal/llm` is a narrow contract only; no provider API call happens in this slice.

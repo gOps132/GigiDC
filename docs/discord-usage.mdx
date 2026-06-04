@@ -7,7 +7,7 @@ description: Discord status for the Go foundation rebuild.
 
 Discord usage is active in a narrow foundation slice.
 
-The current codebase has a disabled-by-default Discord gateway adapter, a minimal `/ping` slash-command handler, opt-in command sync, DM routing, guild-mention routing, and admin-gated `/permissions` capability grants. It intentionally does not run LLM chat, memory retrieval, task actions, relay actions, or plugin commands yet.
+The current codebase has a disabled-by-default Discord gateway adapter, a minimal `/ping` slash-command handler, opt-in command sync, DM routing, guild-mention routing, and admin-gated `/permissions` capability grants. It intentionally does not run LLM chat, memory retrieval, task actions, relay actions, or external app commands yet.
 
 For exact command syntax, required capabilities, responses, and failure cases, use [Bot Commands](/bot-commands) as the canonical command guide.
 
@@ -27,8 +27,8 @@ For exact command syntax, required capabilities, responses, and failure cases, u
 Future slices should support:
 
 - native Discord slash commands for structured admin flows
-- message-triggered commands when an approved installed plugin declares a prefix trigger
-- plugin manifests that declare triggers, surfaces, permissions, exact Discord identity, and attribution
+- message-triggered commands when an approved installed external app manifest declares a prefix trigger
+- external app manifests that declare triggers, surfaces, permissions, exact Discord identity, and attribution
 - durable jobs for work that outlives one Discord interaction
 - fail-closed permissions for private, admin, and sensitive actions
 
@@ -47,7 +47,7 @@ Use direct user grants only when one person needs an exception without a Discord
 
 ## Plugin Status
 
-Approved plugin manifest validation, storage, import, enable, and disable controls are started through `/plugins`. Plugin discovery is exact-match only by Discord application ID or bot user ID, or by an explicitly approved HTTPS manifest URL or uploaded JSON manifest. Gigi does not scrape plugin docs, guess plugin behavior from names, or execute plugin commands yet.
+Approved external app manifest validation, storage, import, enable, and disable controls are started through `/plugins`. Discovery is exact-match only by Discord application ID or bot user ID, or by an explicitly approved HTTPS manifest URL or uploaded JSON manifest. Gigi does not scrape external app docs, guess behavior from names, or execute external app commands yet.
 
 ## Current Verification
 
