@@ -7,7 +7,7 @@ description: Current external Discord app manifest catalog model for the Go rebu
 
 In Gigi docs, plugin means an approved external Discord app, bot, or service integration that Gigi can understand through a manifest. It does not mean arbitrary code loaded into Gigi, and Gigi does not run third-party app code.
 
-Plugin catalog work has started. This slice validates, imports, stores, lists, enables, disables, and dry-run matches approved external app manifests, but it does not dispatch external app commands, publish commands declared by manifests, scrape docs, or use LLM routing yet.
+Plugin catalog work has started. This slice validates, imports, stores, lists, enables, disables, dry-run matches, and can dispatch public prefix commands for approved external app manifests that explicitly opt in with `dispatch: "send_message"`. It does not publish commands declared by manifests, scrape docs, or use LLM routing yet.
 
 ## Current Behavior
 
@@ -22,8 +22,11 @@ Plugin catalog work has started. This slice validates, imports, stores, lists, e
 - `/plugins disable` disables an external app integration for the current guild
 - `/plugins enabled` shows enabled guild external app integrations
 - enabled guild external app installs can be loaded from PostgreSQL
-- guild mentions can dry-run match enabled `prefix` triggers on `guild_text`
+- guild mentions can match enabled `prefix` triggers on `guild_text`
 - dry-run checks manifest permissions before returning a planned command; empty `permissions` means public guild action after enablement
+- `dispatch: "send_message"` sends the planned prefix command as Gigi only when the matched action has empty `permissions`
+- manifests without `dispatch: "send_message"` remain dry-run only
+- restricted actions with non-empty `permissions` remain dry-run only even when the manifest asks for `send_message`
 - `/plugins dry-run` can test enabled manifest matching without depending on Discord message-content events
 
 v0 does not guess external app identity from fuzzy names, bot display names, domains, or docs pages. Fuzzy suggestions may come later, but exact admin approval remains required.
@@ -40,6 +43,7 @@ Each manifest must include:
 - triggers
 - supported surfaces
 - optional Gigi capabilities; empty `permissions` means public guild action
+- optional dispatch mode: `dry_run` or `send_message`
 - audit events
 - attribution resources
 
@@ -67,7 +71,8 @@ Manifest URL imports must use HTTPS and cannot include user info, query strings,
     }
   ],
   "surfaces": ["guild_text"],
-  "permissions": ["example.run"],
+  "permissions": [],
+  "dispatch": "send_message",
   "audit_events": ["plugin.example.run"],
   "attribution": [
     {
@@ -84,9 +89,10 @@ Manifest URL imports must use HTTPS and cannot include user info, query strings,
 - admin-assisted custom manifest creation
 - community registry support
 - external app command publishing
-- actual prefix trigger dispatch to external apps
+- restricted external app dispatch
+- native slash, button, DM, or rich external app dispatch
 - LLM tool routing to external app actions
-- external app command execution
+- confirmed per-message dispatch approval
 - docs scraping or browser-based discovery
 
-Next slice should add confirmed dispatch after dry-run matching, permission checks, and audit are proven.
+Current send-message dispatch is intentionally small: public prefix actions only, explicitly enabled by manifest. External apps may ignore bot-authored messages, so Gigi can send `!example ...`, but the external app decides whether to act.

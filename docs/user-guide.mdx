@@ -7,7 +7,7 @@ description: Current user-facing status for Gigi.
 
 Gigi is in a foundation rebuild.
 
-The current runtime can log in to Discord when enabled, sync `/ping`, answer simple DM or guild-mention `ping` messages, let authorized admins manage role/user capability grants through `/permissions`, and dry-run match enabled external app prefix triggers. LLM chat, memory, external app command dispatch, tasks, and relay actions are not live yet.
+The current runtime can log in to Discord when enabled, sync `/ping`, answer simple DM or guild-mention `ping` messages, let authorized admins manage role/user capability grants through `/permissions`, dry-run match enabled external app prefix triggers, and dispatch public `send_message` prefix triggers declared by approved manifests. LLM chat, memory, restricted external app dispatch, tasks, and relay actions are not live yet.
 
 ## Current Live Checks
 
@@ -15,7 +15,7 @@ The current runtime can log in to Discord when enabled, sync `/ping`, answer sim
 - `GET /readyz`: process is configured and can reach PostgreSQL.
 - `/ping`: replies `pong` in Discord when command sync is enabled.
 - `/permissions`: creates/assigns Discord roles and grants or revokes role/user capabilities for authorized admins.
-- Guild mention external app dry-run: replies with matched app and planned command when an enabled manifest trigger matches and any declared permissions pass.
+- Guild mention external app matching: replies with a dry-run plan, or sends the planned command when an enabled public manifest declares `dispatch: "send_message"`.
 - DM `ping`: replies `pong`.
 - Guild mention `@Gigi ping`: replies `pong`.
 
@@ -26,7 +26,7 @@ Future Discord slices are expected to restore and expand:
 - rich DM conversation
 - rich channel mentions
 - more structured commands
-- confirmed external app command dispatch declared by approved installed manifests
+- restricted or confirmed external app command dispatch declared by approved installed manifests
 - admin-installed external app capabilities
 - permission-aware task, relay, memory, and retrieval features
 

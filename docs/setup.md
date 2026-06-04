@@ -18,7 +18,7 @@ cp .env.example .env
 
 The default runtime requires `GIGI_DATABASE_URL` and can use `GIGI_MIGRATIONS_DIR` when migrations are not under `db/migrations`.
 
-Set `GIGI_DISCORD_ENABLED=true` only when `DISCORD_TOKEN` and `DISCORD_CLIENT_ID` are configured. Discord starts with `/ping`, DM/mention liveness routing, `/permissions`, `/plugins`, and external app dry-run matching; rich chat and external app command dispatch land in later slices.
+Set `GIGI_DISCORD_ENABLED=true` only when `DISCORD_TOKEN` and `DISCORD_CLIENT_ID` are configured. Discord starts with `/ping`, DM/mention liveness routing, `/permissions`, `/plugins`, external app dry-run matching, and opt-in public `send_message` prefix dispatch; rich chat and restricted external app dispatch land in later slices.
 
 Set `GIGI_DISCORD_SYNC_COMMANDS=true` only when you want Gigi to bulk-overwrite its current slash command set. Use `GIGI_DISCORD_GUILD_ID` for a test server during development; leaving it blank targets global application commands.
 

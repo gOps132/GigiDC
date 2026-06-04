@@ -31,6 +31,7 @@ Each manifest must keep the same format as Gigi's runtime validator:
 - `triggers` with kind and value
 - `surfaces`
 - `permissions`
+- optional `dispatch`: `dry_run` or `send_message`
 - optional `config_schema`
 - `audit_events`
 - `attribution` with name, use, and source
@@ -41,6 +42,7 @@ Contribution rules for manifests:
 - Declare only behavior verified from public docs, maintainer-owned source, or direct admin-owned configuration.
 - Do not include secrets, provider keys, private URLs, private Discord messages, private guild data, or hidden prompts.
 - Do not scrape private content or submit LLM-guessed behavior as fact.
+- Use `dispatch: "send_message"` only for public prefix actions that are safe to send as Gigi; otherwise omit it or use `dry_run`.
 - Include attribution for Discord docs, external app docs, provider docs, and any examples used to build the manifest.
 - Keep one plugin manifest contribution per PR unless multiple manifests share one small schema fix.
 - Use `source_kind: "uploaded_file"` only for manifests imported from Discord attachments; URL imports are normalized to `manifest_url`.
@@ -49,6 +51,6 @@ Discord application IDs, bot user IDs, and application command behavior are base
 
 ## Current Limits
 
-Gigi can validate and store approved manifests, but external app command execution is not live yet. Contributor manifests are preparation for later plugin catalog and guild enablement work.
+Gigi can validate and store approved manifests and can dispatch public `send_message` prefix actions when a guild enables an approved manifest. Restricted dispatch, richer command surfaces, and LLM routing are still future work. Contributor manifests prepare that catalog one known external app at a time.
 
 Do not document an external app integration as usable until the runtime can import, enable, authorize, audit, and drive that external app behavior.

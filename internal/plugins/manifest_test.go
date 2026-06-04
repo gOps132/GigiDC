@@ -47,6 +47,25 @@ func TestManifestValidateRejectsManifestURLSecrets(t *testing.T) {
 	}
 }
 
+func TestManifestValidateAcceptsSendMessageDispatch(t *testing.T) {
+	manifest := validManifest()
+	manifest.Dispatch = DispatchModeSendMessage
+
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("Validate returned error: %v", err)
+	}
+}
+
+func TestManifestValidateRejectsUnsupportedDispatchMode(t *testing.T) {
+	manifest := validManifest()
+	manifest.Dispatch = "launch_missiles"
+
+	err := manifest.Validate()
+	if err == nil || !strings.Contains(err.Error(), "unsupported dispatch mode") {
+		t.Fatalf("error = %v, want unsupported dispatch mode", err)
+	}
+}
+
 func TestDecodeManifestValidatesJSON(t *testing.T) {
 	_, err := DecodeManifest(strings.NewReader(`{"id":"example-tool"}`))
 	if err == nil || !strings.Contains(err.Error(), "name is required") {

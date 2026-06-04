@@ -296,7 +296,7 @@ func cleanPluginError(err error) string {
 }
 
 func formatPluginDryRunPlan(plan plugins.CommandPlan) string {
-	return fmt.Sprintf("Matched external app: `%s`.\nPlanned command: `%s`.\nDispatch is not live yet.",
+	return fmt.Sprintf("Matched external app: `%s`.\nPlanned command: `%s`.\nDry-run only; no command sent.",
 		safeInlineLimit(plan.Manifest.Name, 80),
 		safeInlineLimit(plan.Command, 180),
 	)

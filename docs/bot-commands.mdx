@@ -369,15 +369,19 @@ Revoked `job.admin` for user @person.
 
 Dynamic external app capabilities such as `plugin.run.<id>` are future work and should appear only after plugin install/enable flow exists.
 
-## External App Dry-Run Messages
+## External App Mention Actions
 
-External app dry-run is live for guild mentions. It does not use an LLM, does not call LangChain, does not run harnesses, and does not send commands to the external app.
+External app matching is live for guild mentions. It does not use an LLM, does not call LangChain, and does not run harnesses.
+
+Dispatch is opt-in per manifest. If a matched enabled manifest has `dispatch: "send_message"` and empty `permissions`, Gigi sends the planned prefix command into the channel as Gigi. If the manifest omits that dispatch mode, or if the matched action has non-empty `permissions`, Gigi returns a dry-run response instead.
+
+External apps may ignore bot-authored messages. Gigi can send `!play ...`; the external app decides whether to act.
 
 Surface: guild mention message.
 
 Required Gigi capability: the matched manifest's `permissions` entry. If a manifest has no permissions, the action is public for guild members after the plugin is enabled.
 
-Audit: matched, denied, and failed dry-run attempts are audited without storing raw message text or the planned command.
+Audit: matched, denied, failed dry-run, and sent dispatch attempts are audited without storing raw message text or the planned command.
 
 Syntax:
 
@@ -391,7 +395,13 @@ Expected response:
 ```text
 Matched external app: `Jockie Music`.
 Planned command: `!play never gonna give you up`.
-Dispatch is not live yet.
+Dry-run only; no command sent.
+```
+
+Expected response when the enabled manifest opts into public `send_message` dispatch:
+
+```text
+!play never gonna give you up
 ```
 
 Failure cases:
@@ -400,12 +410,13 @@ Failure cases:
 - requester lacks the matched manifest permission and has no Discord administrator override; public actions with empty `permissions` do not require this check
 - database is unavailable
 - manifest trigger or surface does not match the message
+- external app ignores bot-authored messages after Gigi sends the command
 
 If mention routing is silent, use `/plugins dry-run` to test the same enabled manifest matcher through slash commands. This avoids Discord message-content delivery issues and proves whether import, enable, and trigger matching work.
 
 ## Plugin Commands
 
-All `/plugins` commands are live admin commands for the external app manifest catalog. They do not dispatch external app commands.
+All `/plugins` commands are live admin commands for the external app manifest catalog. They never dispatch external app commands; only guild mention routing can send an opted-in public command.
 
 Surface: slash command.
 
@@ -498,7 +509,7 @@ Privacy and audit: Discord attachment URLs are not stored in audit metadata or m
 
 ### `/plugins enable`
 
-Enables an approved external app version for the current Discord server. This permits dry-run matching only; it does not dispatch external app commands.
+Enables an approved external app version for the current Discord server. This permits matching. Dispatch still depends on the manifest declaring `dispatch: "send_message"` and empty `permissions`.
 
 Syntax:
 
@@ -566,7 +577,7 @@ Failure cases:
 
 ### `/plugins dry-run`
 
-Tests enabled external app trigger matching without using message content events and without sending commands to the external app.
+Tests enabled external app trigger matching without using message content events and without sending commands to the external app. This command always dry-runs, even if the manifest has `dispatch: "send_message"`.
 
 Syntax:
 
@@ -579,7 +590,7 @@ Expected response:
 ```text
 Matched external app: `Jockie Music`.
 Planned command: `!play never gonna give you up`.
-Dispatch is not live yet.
+Dry-run only; no command sent.
 ```
 
 Failure cases:
@@ -595,4 +606,5 @@ Failure cases:
 - tasks
 - relay actions
 - LLM provider management commands
-- confirmed external app command dispatch
+- restricted external app command dispatch
+- confirmed per-message dispatch approval
