@@ -1,0 +1,380 @@
+---
+title: Bot Commands
+description: Current Discord commands and command documentation rules.
+---
+
+# Bot Commands
+
+This page is the canonical guide for commands Gigi can run today.
+
+## Documentation Rule
+
+Every new or changed Discord command must update this page in the same pull request.
+
+Each command entry must include:
+
+- current status: live, planned, or not implemented
+- surface: slash command, DM, guild mention, prefix, button, or select menu
+- required Gigi capability
+- Discord bot permission requirements
+- options and inputs
+- example usage
+- expected response
+- failure cases
+- privacy or audit behavior
+
+Do not document planned behavior as shipped behavior. If a command is planned, mark it planned and keep it out of the live command list.
+
+## Live Commands
+
+### `/ping`
+
+Status: live.
+
+Surface: slash command.
+
+Required Gigi capability: none.
+
+Discord bot permissions: normal slash command access.
+
+Options: none.
+
+Example:
+
+```text
+/ping
+```
+
+Expected response:
+
+```text
+pong
+```
+
+Failure cases:
+
+- command is missing if slash command sync has not run
+- bot is offline if no response appears
+
+Privacy and audit: no privileged action; no permission audit required.
+
+### DM `ping`
+
+Status: live.
+
+Surface: direct message.
+
+Required Gigi capability: none.
+
+Discord bot permissions: bot must be able to receive/send DMs for that user.
+
+Example:
+
+```text
+ping
+```
+
+Expected response:
+
+```text
+pong
+```
+
+Failure cases:
+
+- user blocks bot DMs
+- bot is offline
+
+### Guild Mention `ping`
+
+Status: live.
+
+Surface: guild message that mentions Gigi.
+
+Required Gigi capability: none.
+
+Discord bot permissions: read/send messages in the channel.
+
+Example:
+
+```text
+@Gigi ping
+```
+
+Expected response:
+
+```text
+pong
+```
+
+Failure cases:
+
+- bot cannot read/send in the channel
+- message does not mention Gigi
+
+Ordinary guild messages without a Gigi mention are ignored.
+
+## Permission Commands
+
+All `/permissions` commands are live.
+
+Surface: slash command.
+
+Required Gigi capability: `capability.manage`.
+
+Admin bootstrap: Discord guild owner or a member with Discord `ADMINISTRATOR` permission can pass through admin override.
+
+Responses: ephemeral.
+
+Audit: permission checks and permission changes are audited.
+
+Discord bot permissions:
+
+- `role create` requires Gigi's bot role to have `Manage Roles`
+- `role assign` and `role unassign` require `Manage Roles`
+- Gigi's bot role must be higher than any role it assigns, removes, or manages
+- channel membership or channel admin status is not enough
+
+### `/permissions role create`
+
+Creates a Discord role and grants a preset capability set to that role.
+
+Syntax:
+
+```text
+/permissions role create name:<role-name> preset:<preset>
+```
+
+Example:
+
+```text
+/permissions role create name:Gigi Plugin Managers preset:plugin-manager
+```
+
+Expected response:
+
+```text
+Created role @Gigi Plugin Managers and granted preset `plugin-manager`.
+```
+
+Failure cases:
+
+- requester lacks `capability.manage` and has no admin override
+- Gigi lacks `Manage Roles`
+- role name is missing or too long
+- preset is unknown
+
+### `/permissions role assign`
+
+Assigns a Discord role to a user.
+
+Syntax:
+
+```text
+/permissions role assign role:<role> user:<user>
+```
+
+Example:
+
+```text
+/permissions role assign role:@Gigi Plugin Managers user:@person
+```
+
+Expected response:
+
+```text
+Assigned role @Gigi Plugin Managers to user @person.
+```
+
+Failure cases:
+
+- requester lacks `capability.manage` and has no admin override
+- Gigi lacks `Manage Roles`
+- Gigi's bot role is not higher than target role
+- role or user is missing
+
+### `/permissions role unassign`
+
+Removes a Discord role from a user.
+
+Syntax:
+
+```text
+/permissions role unassign role:<role> user:<user>
+```
+
+Expected response:
+
+```text
+Unassigned role @Gigi Plugin Managers from user @person.
+```
+
+Failure cases match `/permissions role assign`.
+
+### `/permissions role grant`
+
+Grants one capability to an existing Discord role.
+
+Syntax:
+
+```text
+/permissions role grant role:<role> capability:<capability>
+```
+
+Example:
+
+```text
+/permissions role grant role:@Gigi Plugin Managers capability:plugin.install
+```
+
+Expected response:
+
+```text
+Granted `plugin.install` for role @Gigi Plugin Managers.
+```
+
+Failure cases:
+
+- requester lacks `capability.manage` and has no admin override
+- capability is unknown or invalid
+- role is missing
+
+### `/permissions role revoke`
+
+Revokes one capability from an existing Discord role.
+
+Syntax:
+
+```text
+/permissions role revoke role:<role> capability:<capability>
+```
+
+Expected response:
+
+```text
+Revoked `plugin.install` for role @Gigi Plugin Managers.
+```
+
+Failure cases match `/permissions role grant`.
+
+### `/permissions role grant-preset`
+
+Grants a preset capability set to an existing Discord role.
+
+Syntax:
+
+```text
+/permissions role grant-preset role:<role> preset:<preset>
+```
+
+Example:
+
+```text
+/permissions role grant-preset role:@Gigi Relay preset:relay-user
+```
+
+Expected response:
+
+```text
+Granted preset `relay-user` for role @Gigi Relay.
+```
+
+Failure cases:
+
+- requester lacks `capability.manage` and has no admin override
+- preset is unknown
+- role is missing
+
+### `/permissions role revoke-preset`
+
+Revokes a preset capability set from an existing Discord role.
+
+Syntax:
+
+```text
+/permissions role revoke-preset role:<role> preset:<preset>
+```
+
+Expected response:
+
+```text
+Revoked preset `relay-user` for role @Gigi Relay.
+```
+
+Failure cases match `/permissions role grant-preset`.
+
+### `/permissions user grant`
+
+Grants one direct user capability exception.
+
+Syntax:
+
+```text
+/permissions user grant user:<user> capability:<capability>
+```
+
+Example:
+
+```text
+/permissions user grant user:@person capability:job.admin
+```
+
+Expected response:
+
+```text
+Granted `job.admin` for user @person.
+```
+
+Use direct user grants only for rare audited exceptions. Prefer Discord role grants for normal access control.
+
+### `/permissions user revoke`
+
+Revokes one direct user capability exception.
+
+Syntax:
+
+```text
+/permissions user revoke user:<user> capability:<capability>
+```
+
+Expected response:
+
+```text
+Revoked `job.admin` for user @person.
+```
+
+## Presets
+
+| Preset | Capabilities |
+| --- | --- |
+| `gigi-admin` | `capability.manage`, `plugin.install`, `job.admin`, `llm.provider.write`, `llm.provider.test`, `llm.provider.select` |
+| `plugin-manager` | `plugin.install` |
+| `llm-manager` | `llm.provider.write`, `llm.provider.test`, `llm.provider.select` |
+| `memory-reader` | `memory.read.guild` |
+| `relay-user` | `relay.dispatch`, `relay.receive` |
+
+## Capabilities
+
+| Capability | What it allows |
+| --- | --- |
+| `capability.manage` | Grant or revoke role/user capabilities |
+| `plugin.install` | Install or configure guild plugins |
+| `job.admin` | Inspect, retry, or cancel durable jobs |
+| `memory.read.guild` | Read permitted guild memory scope |
+| `relay.dispatch` | Ask Gigi to send a mediated message |
+| `relay.receive` | Receive mediated messages from Gigi |
+| `llm.provider.write` | Set, rotate, or delete guild-scoped provider credentials |
+| `llm.provider.test` | Test a guild-scoped provider credential without viewing it |
+| `llm.provider.select` | Choose active guild provider/model |
+
+Dynamic plugin capabilities such as `plugin.run.<id>` are future work and should appear only after plugin install/enable flow exists.
+
+## Not Implemented Yet
+
+- `/plugins`
+- rich DM chat
+- memory retrieval
+- tasks
+- relay actions
+- LLM provider management commands
+- plugin-declared prefix commands

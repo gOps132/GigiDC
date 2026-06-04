@@ -84,6 +84,7 @@ After health checks pass, enable Discord with `DISCORD_TOKEN`, `DISCORD_CLIENT_I
 ## Docs
 
 - [Official docs](https://gigi-f9937525.mintlify.app/)
+- [Bot commands](https://gigi-f9937525.mintlify.app/bot-commands)
 - [Architecture](https://gigi-f9937525.mintlify.app/architecture-v1)
 - [Setup](https://gigi-f9937525.mintlify.app/setup)
 - [CI/CD](https://gigi-f9937525.mintlify.app/ci-cd)
