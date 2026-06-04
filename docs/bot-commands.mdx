@@ -401,6 +401,8 @@ Failure cases:
 - database is unavailable
 - manifest trigger or surface does not match the message
 
+If mention routing is silent, use `/plugins dry-run` to test the same enabled manifest matcher through slash commands. This avoids Discord message-content delivery issues and proves whether import, enable, and trigger matching work.
+
 ## Plugin Commands
 
 All `/plugins` commands are live admin commands for the external app manifest catalog. They do not dispatch external app commands.
@@ -560,6 +562,30 @@ Enabled plugins:
 Failure cases:
 
 - requester lacks `plugin.install` and has no admin override
+- database is unavailable
+
+### `/plugins dry-run`
+
+Tests enabled external app trigger matching without using message content events and without sending commands to the external app.
+
+Syntax:
+
+```text
+/plugins dry-run text:play never gonna give you up
+```
+
+Expected response:
+
+```text
+Matched external app: `Jockie Music`.
+Planned command: `!play never gonna give you up`.
+Dispatch is not live yet.
+```
+
+Failure cases:
+
+- requester lacks `plugin.install` and has no admin override
+- no enabled manifest matches the text
 - database is unavailable
 
 ## Not Implemented Yet

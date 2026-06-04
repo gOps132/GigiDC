@@ -78,6 +78,14 @@ func PluginCommands(manager PluginCatalogManager, fetcher PluginManifestFetcher,
 				Name:        "enabled",
 				Description: "List plugins enabled for this server.",
 			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "dry-run",
+				Description: "Test enabled external app trigger matching without dispatch.",
+				Options: []*discordgo.ApplicationCommandOption{
+					stringOption("text", "Text to match against enabled manifest triggers.", nil),
+				},
+			},
 		},
 		Handle: pluginHandler(manager, fetcher, recorder),
 	}}
@@ -115,6 +123,7 @@ type pluginRequest struct {
 	Attachment   InteractionAttachment
 	Plugin       string
 	Version      string
+	Text         string
 }
 
 func parsePluginRequest(interaction Interaction) (pluginRequest, error) {
@@ -128,6 +137,12 @@ func parsePluginRequest(interaction Interaction) (pluginRequest, error) {
 	request := pluginRequest{Action: action.Name}
 	switch request.Action {
 	case "list", "enabled":
+		return request, nil
+	case "dry-run":
+		request.Text = strings.TrimSpace(optionByName(action.Options, "text"))
+		if request.Text == "" {
+			return request, fmt.Errorf("Dry-run text is required.")
+		}
 		return request, nil
 	case "import-manifest":
 		request.URL = strings.TrimSpace(optionByName(action.Options, "url"))
@@ -178,6 +193,18 @@ func executePluginRequest(ctx context.Context, manager PluginCatalogManager, fet
 			return "", err
 		}
 		return formatPluginList("Enabled plugins", manifests), nil
+	case "dry-run":
+		manifests, err := manager.EnabledForGuild(ctx, interaction.GuildID)
+		if err != nil {
+			return "", err
+		}
+		plan, ok := plugins.PlanCommand(manifests, "guild_text", request.Text)
+		if !ok {
+			return "No enabled external app manifest matched that text.", nil
+		}
+		request.Plugin = plan.Manifest.ID
+		request.Version = plan.Manifest.Version
+		return formatPluginDryRunPlan(plan), nil
 	case "import-manifest":
 		if fetcher == nil {
 			return "", fmt.Errorf("plugin manifest fetcher is required")
@@ -266,6 +293,13 @@ func cleanPluginError(err error) string {
 	default:
 		return "Plugin command failed."
 	}
+}
+
+func formatPluginDryRunPlan(plan plugins.CommandPlan) string {
+	return fmt.Sprintf("Matched external app: `%s`.\nPlanned command: `%s`.\nDispatch is not live yet.",
+		safeInlineLimit(plan.Manifest.Name, 80),
+		safeInlineLimit(plan.Command, 180),
+	)
 }
 
 func recordPluginAction(ctx context.Context, recorder AuditRecorder, interaction Interaction, request pluginRequest, status audit.Status, err error) error {

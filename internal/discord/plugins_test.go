@@ -21,7 +21,7 @@ func TestPluginCommandsExposeAdminSurface(t *testing.T) {
 	if command.RequiredCapability != capability.Capability("plugin.install") {
 		t.Fatalf("required capability = %q, want plugin.install", command.RequiredCapability)
 	}
-	for _, name := range []string{"list", "import-manifest", "import-file", "enable", "disable", "enabled"} {
+	for _, name := range []string{"list", "import-manifest", "import-file", "enable", "disable", "enabled", "dry-run"} {
 		if findOption(command.Options, name) == nil {
 			t.Fatalf("plugins command missing %q", name)
 		}
@@ -33,6 +33,10 @@ func TestPluginCommandsExposeAdminSurface(t *testing.T) {
 	importFile := findOption(command.Options, "import-file")
 	if option := findOption(importFile.Options, "attachment"); option == nil || option.Type != discordgo.ApplicationCommandOptionAttachment {
 		t.Fatalf("import file option = %+v, want attachment", option)
+	}
+	dryRun := findOption(command.Options, "dry-run")
+	if option := findOption(dryRun.Options, "text"); option == nil || option.Type != discordgo.ApplicationCommandOptionString {
+		t.Fatalf("dry-run text option = %+v, want string", option)
 	}
 }
 
@@ -155,6 +159,44 @@ func TestPluginCommandEnableDisableAndAudit(t *testing.T) {
 	}
 	if len(recorder.events) != 2 || recorder.events[0].Metadata["action"] != "enable" || recorder.events[1].Metadata["action"] != "disable" {
 		t.Fatalf("audit events = %+v, want enable and disable audit", recorder.events)
+	}
+}
+
+func TestPluginCommandDryRunsEnabledManifest(t *testing.T) {
+	manifest := pluginManifest("jockie-music", "0.1.0")
+	manifest.Name = "Jockie Music"
+	manifest.Triggers = []plugins.Trigger{{Kind: "prefix", Value: "!play"}}
+	manager := &fakePluginManager{manifests: []plugins.Manifest{manifest}}
+	handler := PluginCommands(manager, &fakePluginFetcher{}, nil)[0].Handle
+
+	response, err := handler(context.Background(), pluginInteraction("dry-run", []InteractionOption{
+		{Name: "text", Value: "play never gonna give you up"},
+	}))
+	if err != nil {
+		t.Fatalf("dry-run returned error: %v", err)
+	}
+	if manager.method != "EnabledForGuild" || manager.guildID != "guild-id" {
+		t.Fatalf("manager = %+v, want enabled manifests lookup", manager)
+	}
+	if !strings.Contains(response.Content, "Matched external app: `Jockie Music`.") ||
+		!strings.Contains(response.Content, "Planned command: `!play never gonna give you up`.") ||
+		!response.Ephemeral {
+		t.Fatalf("response = %+v, want ephemeral dry-run plan", response)
+	}
+}
+
+func TestPluginCommandDryRunFallsClosedWithoutMatch(t *testing.T) {
+	manager := &fakePluginManager{manifests: []plugins.Manifest{pluginManifest("example-tool", "1.0.0")}}
+	handler := PluginCommands(manager, &fakePluginFetcher{}, nil)[0].Handle
+
+	response, err := handler(context.Background(), pluginInteraction("dry-run", []InteractionOption{
+		{Name: "text", Value: "play never gonna give you up"},
+	}))
+	if err != nil {
+		t.Fatalf("dry-run returned error: %v", err)
+	}
+	if response.Content != "No enabled external app manifest matched that text." || !response.Ephemeral {
+		t.Fatalf("response = %+v, want clean no-match response", response)
 	}
 }
 
