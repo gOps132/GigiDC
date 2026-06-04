@@ -42,6 +42,12 @@
         ]
       },
       {
+        "group": "Developer",
+        "pages": [
+          "contributing"
+        ]
+      },
+      {
         "group": "Reference",
         "pages": [
           "diagrams/index",

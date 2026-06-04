@@ -17,6 +17,8 @@ Plugin catalog work has started. This slice validates and stores approved plugin
 
 V1 does not guess plugin identity from fuzzy names, bot display names, domains, or docs pages. Fuzzy suggestions may come later, but exact admin approval remains required.
 
+Future manifest contributions should follow the same runtime format and safety rules in the [contributor guide](/contributing).
+
 ## Manifest Requirements
 
 Each manifest must include:
@@ -70,6 +72,9 @@ Manifest URL imports must use HTTPS. The current code validates supplied manifes
 
 - Discord `/plugins` admin commands
 - guild enable/configure command flow
+- manifest import command flow
+- admin-assisted custom manifest creation
+- community registry support
 - plugin command publishing
 - prefix trigger routing
 - LLM tool routing
