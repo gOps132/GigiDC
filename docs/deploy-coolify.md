@@ -43,7 +43,7 @@ Do not paste `docker compose config` output into issues, PRs, or chat after real
 
 Only enable Discord after `/healthz` and `/readyz` pass. With Discord enabled, the current safe smoke test is `/ping`, DM `ping`, `@Gigi ping`, or `/permissions role grant` against a test role in a private admin channel.
 
-Role create, assign, and unassign require the bot to have Discord `Manage Roles` and a high enough role position.
+Role create, assign, and unassign require the bot's Discord server role to have `Manage Roles`. For assign/unassign, the bot role must also sit higher than the target role. Channel membership or channel admin status is not enough because Discord enforces role changes at the server role level.
 
 ## Health Checks
 

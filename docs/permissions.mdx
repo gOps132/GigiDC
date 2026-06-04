@@ -30,7 +30,17 @@ Capability foundation is now present:
 
 The command is protected by `capability.manage`. A Discord server administrator can bootstrap grants through admin override, then use Discord roles for normal access control. Direct user grants remain available for rare audited exceptions.
 
-Role create, assign, and unassign require Gigi's Discord bot role to have `Manage Roles` and to sit higher in the Discord role hierarchy than the target role.
+Role create, assign, and unassign require Discord server-level bot permissions. Being the only user in a channel, or being the person who runs the command, does not grant Gigi authority to edit roles.
+
+If Gigi replies `Could not update Discord role. Check Gigi has Manage Roles and role hierarchy is high enough.`:
+
+- open Discord server settings
+- open Roles
+- find Gigi's bot role
+- enable `Manage Roles`
+- drag Gigi's bot role above any role it must assign, remove, or manage
+
+`role create` mainly needs `Manage Roles`. `role assign` and `role unassign` also depend on hierarchy: Gigi cannot assign or remove a role equal to or higher than its own highest role.
 
 Future Discord slices should keep the earlier authority rule: surface is presentation, not authority. DM, slash commands, message commands, buttons, and plugin triggers must resolve the same guild identity and capability model before doing work.
 
