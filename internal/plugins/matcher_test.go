@@ -43,7 +43,7 @@ func TestPlanCommandSkipsSurfaceMismatch(t *testing.T) {
 	}
 }
 
-func TestPlanCommandUsesDynamicCapabilityFallback(t *testing.T) {
+func TestPlanCommandTreatsEmptyPermissionsAsPublic(t *testing.T) {
 	manifest := musicManifest()
 	manifest.Permissions = nil
 
@@ -51,8 +51,8 @@ func TestPlanCommandUsesDynamicCapabilityFallback(t *testing.T) {
 	if !ok {
 		t.Fatal("expected trigger match")
 	}
-	if len(plan.RequiredCapabilities) != 1 || plan.RequiredCapabilities[0] != "plugin.run.jockie-music" {
-		t.Fatalf("required capabilities = %+v, want dynamic fallback", plan.RequiredCapabilities)
+	if len(plan.RequiredCapabilities) != 0 {
+		t.Fatalf("required capabilities = %+v, want public action with no required capabilities", plan.RequiredCapabilities)
 	}
 }
 

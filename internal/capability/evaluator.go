@@ -25,6 +25,7 @@ const (
 	ReasonAdminOverride     Reason = "admin_override"
 	ReasonUserGrant         Reason = "user_grant"
 	ReasonRoleGrant         Reason = "role_grant"
+	ReasonPublicAction      Reason = "public_action"
 	ReasonMissingCapability Reason = "missing_capability"
 	ReasonStoreError        Reason = "store_error"
 	ReasonUnknownIdentity   Reason = "unknown_identity"

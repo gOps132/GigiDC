@@ -116,8 +116,5 @@ func requiredCapabilities(manifest Manifest) []capability.Capability {
 		}
 		capabilities = append(capabilities, capability)
 	}
-	if len(capabilities) == 0 {
-		capabilities = append(capabilities, capability.Capability("plugin.run."+strings.TrimSpace(manifest.ID)))
-	}
 	return capabilities
 }
