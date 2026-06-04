@@ -12,6 +12,7 @@ import (
 	"github.com/gOps132/GigiDC/internal/capability"
 	"github.com/gOps132/GigiDC/internal/config"
 	"github.com/gOps132/GigiDC/internal/discord"
+	"github.com/gOps132/GigiDC/internal/plugins"
 	"github.com/gOps132/GigiDC/internal/storage"
 	"github.com/gOps132/GigiDC/internal/web"
 )
@@ -67,8 +68,10 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		grantStore := capability.NewSQLGrantStore(db)
 		grantManager := capability.NewSQLGrantManager(db, func() string { return storage.NewID("capgrant") })
 		auditStore := audit.NewStore(db, func() string { return storage.NewID("audit") })
+		pluginStore := plugins.NewSQLCatalogStore(db, func() string { return storage.NewID("plugin") })
 		commands := discord.CoreCommands()
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
+		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
 
 		router, err := discord.NewCommandRouter(commands...)
 		if err != nil {

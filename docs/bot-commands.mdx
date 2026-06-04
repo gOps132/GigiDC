@@ -9,7 +9,7 @@ This page is the canonical guide for commands Gigi can run today.
 
 ## Documentation Rule
 
-Every new or changed Discord command must update this page in the same pull request.
+Every new or changed Discord command must update this page in the same change.
 
 Each command entry must include:
 
@@ -369,9 +369,141 @@ Revoked `job.admin` for user @person.
 
 Dynamic plugin capabilities such as `plugin.run.<id>` are future work and should appear only after plugin install/enable flow exists.
 
+## Plugin Commands
+
+All `/plugins` commands are live admin commands for the plugin catalog. They do not execute plugin behavior yet.
+
+Surface: slash command.
+
+Required Gigi capability: `plugin.install`.
+
+Admin bootstrap: Discord guild owner or a member with Discord `ADMINISTRATOR` permission can pass through admin override.
+
+Responses: ephemeral.
+
+Audit: import, enable, and disable changes are audited.
+
+Discord bot permissions: normal slash command access.
+
+### `/plugins list`
+
+Lists approved plugin manifests in the catalog.
+
+Syntax:
+
+```text
+/plugins list
+```
+
+Expected response:
+
+```text
+Approved plugins:
+- `example-tool@1.0.0` - Example Tool
+```
+
+Failure cases:
+
+- requester lacks `plugin.install` and has no admin override
+- database is unavailable
+
+### `/plugins import-manifest`
+
+Fetches `gigi-plugin.json` from HTTPS, validates it, and stores it as an approved manifest.
+
+Syntax:
+
+```text
+/plugins import-manifest url:<https-url>
+```
+
+Expected response:
+
+```text
+Imported plugin `Example Tool` (`example-tool@1.0.0`).
+```
+
+Failure cases:
+
+- requester lacks `plugin.install` and has no admin override
+- URL is missing, is not HTTPS, or includes user info, query, or fragment data
+- manifest is too large
+- manifest JSON is invalid
+- manifest lacks exact Discord application ID or bot user ID
+- manifest fails capability, trigger, surface, audit, or attribution validation
+
+Privacy and audit: raw URLs are not written to audit metadata. Manifests must not contain secrets, private Discord content, private URLs, signed URLs, or guessed behavior.
+
+### `/plugins enable`
+
+Enables an approved plugin version for the current Discord server. This does not execute plugin commands yet.
+
+Syntax:
+
+```text
+/plugins enable plugin:<plugin-id> version:<version>
+```
+
+Expected response:
+
+```text
+Enabled plugin `example-tool@1.0.0` for this server.
+```
+
+Failure cases:
+
+- requester lacks `plugin.install` and has no admin override
+- plugin id or version is missing
+- approved plugin version does not exist
+- database is unavailable
+
+### `/plugins disable`
+
+Disables a plugin for the current Discord server.
+
+Syntax:
+
+```text
+/plugins disable plugin:<plugin-id>
+```
+
+Expected response:
+
+```text
+Disabled plugin `example-tool` for this server.
+```
+
+Failure cases:
+
+- requester lacks `plugin.install` and has no admin override
+- plugin id is missing
+- enabled plugin is not found
+- database is unavailable
+
+### `/plugins enabled`
+
+Lists plugins enabled for the current Discord server.
+
+Syntax:
+
+```text
+/plugins enabled
+```
+
+Expected response:
+
+```text
+Enabled plugins:
+- `example-tool@1.0.0` - Example Tool
+```
+
+Failure cases:
+
+- requester lacks `plugin.install` and has no admin override
+- database is unavailable
+
 ## Not Implemented Yet
 
-- `/plugins`
 - rich DM chat
 - memory retrieval
 - tasks

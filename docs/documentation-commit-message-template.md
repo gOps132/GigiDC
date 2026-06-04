@@ -13,7 +13,7 @@ Examples:
 ```text
 docs: document Coolify deploy workflow
 docs: clarify slash command permission model
-docs: add architecture notes for V1 bot flow
+docs: add architecture notes for bot flow
 ```
 
 ## Extended Commit Message Template

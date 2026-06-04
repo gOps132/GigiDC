@@ -145,6 +145,142 @@ on conflict (plugin_id, version) do update set
 	return nil
 }
 
+func (s SQLCatalogStore) ApprovedManifests(ctx context.Context) ([]Manifest, error) {
+	if s.query == nil {
+		return nil, fmt.Errorf("plugin catalog query database is required")
+	}
+	rows, err := s.query(ctx, `
+select pv.manifest
+from plugin_versions pv
+join plugins p on p.id = pv.plugin_id
+where pv.approved = true
+order by p.name, pv.version
+`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanManifests(rows)
+}
+
+func (s SQLCatalogStore) EnableForGuild(ctx context.Context, guildID string, pluginID string, version string, actorID string) error {
+	guildID = strings.TrimSpace(guildID)
+	pluginID = strings.TrimSpace(pluginID)
+	version = strings.TrimSpace(version)
+	if guildID == "" {
+		return fmt.Errorf("guild ID is required")
+	}
+	if pluginID == "" {
+		return fmt.Errorf("plugin ID is required")
+	}
+	if version == "" {
+		return fmt.Errorf("plugin version is required")
+	}
+	if s.beginTx == nil {
+		return fmt.Errorf("plugin catalog transaction is required")
+	}
+	if s.newID == nil {
+		return fmt.Errorf("plugin install ID generator is required")
+	}
+	installID := strings.TrimSpace(s.newID())
+	if installID == "" {
+		return fmt.Errorf("plugin install ID is required")
+	}
+
+	tx, err := s.beginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin plugin catalog transaction: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	result, err := tx.ExecContext(ctx, `
+insert into guild_plugin_installs (
+  id,
+  guild_id,
+  plugin_version_id,
+  enabled,
+  configured_by_user_id,
+  enabled_by_user_id,
+  updated_at
+)
+select $1, $2, pv.id, true, $3, $3, now()
+from plugin_versions pv
+where pv.plugin_id = $4
+  and pv.version = $5
+  and pv.approved = true
+on conflict (guild_id, plugin_version_id) do update set
+  enabled = true,
+  configured_by_user_id = excluded.configured_by_user_id,
+  enabled_by_user_id = excluded.enabled_by_user_id,
+  updated_at = now()
+`, installID, guildID, strings.TrimSpace(actorID), pluginID, version)
+	if err != nil {
+		return fmt.Errorf("enable guild plugin: %w", err)
+	}
+	if err := requireRowsAffected(result, "approved plugin version was not found"); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit plugin catalog transaction: %w", err)
+	}
+	committed = true
+	return nil
+}
+
+func (s SQLCatalogStore) DisableForGuild(ctx context.Context, guildID string, pluginID string, actorID string) error {
+	guildID = strings.TrimSpace(guildID)
+	pluginID = strings.TrimSpace(pluginID)
+	if guildID == "" {
+		return fmt.Errorf("guild ID is required")
+	}
+	if pluginID == "" {
+		return fmt.Errorf("plugin ID is required")
+	}
+	if s.beginTx == nil {
+		return fmt.Errorf("plugin catalog transaction is required")
+	}
+
+	tx, err := s.beginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin plugin catalog transaction: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	result, err := tx.ExecContext(ctx, `
+update guild_plugin_installs gpi
+set
+  enabled = false,
+  configured_by_user_id = $3,
+  updated_at = now()
+from plugin_versions pv
+where gpi.plugin_version_id = pv.id
+  and gpi.guild_id = $1
+  and pv.plugin_id = $2
+  and gpi.enabled = true
+`, guildID, pluginID, strings.TrimSpace(actorID))
+	if err != nil {
+		return fmt.Errorf("disable guild plugin: %w", err)
+	}
+	if err := requireRowsAffected(result, "enabled plugin was not found"); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit plugin catalog transaction: %w", err)
+	}
+	committed = true
+	return nil
+}
+
 func (s SQLCatalogStore) EnabledForGuild(ctx context.Context, guildID string) ([]Manifest, error) {
 	if strings.TrimSpace(guildID) == "" {
 		return nil, fmt.Errorf("guild ID is required")
@@ -167,6 +303,10 @@ order by p.name, pv.version
 	}
 	defer rows.Close()
 
+	return scanManifests(rows)
+}
+
+func scanManifests(rows catalogRows) ([]Manifest, error) {
 	var manifests []Manifest
 	for rows.Next() {
 		var raw []byte
@@ -186,4 +326,15 @@ order by p.name, pv.version
 		return nil, err
 	}
 	return manifests, nil
+}
+
+func requireRowsAffected(result sql.Result, emptyMessage string) error {
+	if result == nil {
+		return nil
+	}
+	rows, err := result.RowsAffected()
+	if err == nil && rows == 0 {
+		return fmt.Errorf("%s", emptyMessage)
+	}
+	return nil
 }

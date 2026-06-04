@@ -13,7 +13,7 @@ description: Planned evolution of the Go foundation rebuild.
 - health and readiness endpoints
 - plugin, job, Discord, storage, and LLM interfaces
 
-## V1 Discord Surface
+## v0 Discord Surface Slice
 
 - Discord gateway adapter behind `GIGI_DISCORD_ENABLED`
 - slash command registration
@@ -23,7 +23,7 @@ description: Planned evolution of the Go foundation rebuild.
 
 Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, capability evaluator, identity resolver contract, DB-backed role-first `/permissions` command, startup migration runner, and durable audit-log seam are started. Rich conversation, usage/ingestion/assignment/task commands, and action execution remain.
 
-## V2 Memory And Actions
+## v0 Memory And Actions Slice
 
 - durable jobs
 - message history
@@ -32,7 +32,7 @@ Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing,
 - relays with confirmation
 - usage tracking
 
-## V3 Plugin Skills
+## v0 Plugin Skills Slice
 
 - approved plugin catalog
 - guild enable/configure flow
@@ -40,4 +40,4 @@ Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing,
 - plugin permissions and audit logs
 - plugin-specific behavior through approved manifests
 
-Current status: manifest validation, exact Discord application/bot identity lookup, manifest URL metadata, approved-manifest storage, and enabled-guild manifest loading are started. Discord `/plugins` admin commands, guild enable/configure flow, command publishing, prefix routing, and plugin execution remain future slices. Any domain behavior only exists if an approved installed plugin declares and implements it.
+Current status: manifest validation, exact Discord application/bot identity lookup, manifest URL metadata, approved-manifest storage, enabled-guild manifest loading, and Discord `/plugins` admin commands are started. Command publishing, prefix routing, and plugin execution remain future slices. Any domain behavior only exists if an approved installed plugin declares and implements it.
