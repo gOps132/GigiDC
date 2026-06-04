@@ -375,7 +375,7 @@ External app dry-run is live for guild mentions. It does not use an LLM, does no
 
 Surface: guild mention message.
 
-Required Gigi capability: the matched manifest's `permissions` entry. If a manifest has no permissions, Gigi falls back to `plugin.run.<plugin-id>`.
+Required Gigi capability: the matched manifest's `permissions` entry. If a manifest has no permissions, the action is public for guild members after the plugin is enabled.
 
 Audit: matched, denied, and failed dry-run attempts are audited without storing raw message text or the planned command.
 
@@ -397,7 +397,7 @@ Dispatch is not live yet.
 Failure cases:
 
 - no enabled external app manifest matches the text, so Gigi falls back to normal mention behavior
-- requester lacks the matched manifest permission and has no Discord administrator override
+- requester lacks the matched manifest permission and has no Discord administrator override; public actions with empty `permissions` do not require this check
 - database is unavailable
 - manifest trigger or surface does not match the message
 

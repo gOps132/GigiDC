@@ -23,7 +23,7 @@ Plugin catalog work has started. This slice validates, imports, stores, lists, e
 - `/plugins enabled` shows enabled guild external app integrations
 - enabled guild external app installs can be loaded from PostgreSQL
 - guild mentions can dry-run match enabled `prefix` triggers on `guild_text`
-- dry-run checks manifest permissions before returning a planned command
+- dry-run checks manifest permissions before returning a planned command; empty `permissions` means public guild action after enablement
 - `/plugins dry-run` can test enabled manifest matching without depending on Discord message-content events
 
 v0 does not guess external app identity from fuzzy names, bot display names, domains, or docs pages. Fuzzy suggestions may come later, but exact admin approval remains required.
@@ -39,7 +39,7 @@ Each manifest must include:
 - capabilities
 - triggers
 - supported surfaces
-- required Gigi capabilities
+- optional Gigi capabilities; empty `permissions` means public guild action
 - audit events
 - attribution resources
 

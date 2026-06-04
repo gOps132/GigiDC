@@ -61,11 +61,11 @@ func (h externalAppDryRunHandler) HandleMessage(ctx context.Context, message Mes
 }
 
 func (h externalAppDryRunHandler) authorize(ctx context.Context, message Message, plan plugins.CommandPlan) (capability.Decision, error) {
+	if len(plan.RequiredCapabilities) == 0 {
+		return capability.Decision{Allowed: true, Reason: capability.ReasonPublicAction}, nil
+	}
 	if h.checker == nil {
 		return capability.Decision{Allowed: false, Reason: capability.ReasonStoreError}, fmt.Errorf("capability checker is required")
-	}
-	if len(plan.RequiredCapabilities) == 0 {
-		return capability.Decision{Allowed: false, Reason: capability.ReasonMissingCapability}, nil
 	}
 	subject := capability.Subject{
 		GuildID:          message.GuildID,

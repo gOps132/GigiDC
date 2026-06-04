@@ -78,6 +78,37 @@ func TestExternalAppDryRunHandlerDeniesMissingCapability(t *testing.T) {
 	}
 }
 
+func TestExternalAppDryRunHandlerAllowsPublicManifestWithoutChecker(t *testing.T) {
+	manifest := dryRunManifest()
+	manifest.Permissions = nil
+	recorder := &fakeAuditRecorder{}
+	handler := ExternalAppDryRunHandler(
+		&fakeExternalAppRegistry{manifests: []plugins.Manifest{manifest}},
+		nil,
+		recorder,
+		CoreMessageHandler(),
+	)
+
+	response, err := handler.HandleMessage(context.Background(), Message{
+		Surface: MessageSurfaceGuildMention,
+		GuildID: "guild-id",
+		UserID:  "user-id",
+		Text:    "play never gonna give you up",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if !strings.Contains(response.Content, "Matched external app: `Jockie Music`.") {
+		t.Fatalf("response = %q, want public dry-run plan", response.Content)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Status != audit.StatusSucceeded {
+		t.Fatalf("audit events = %+v, want succeeded public dry-run", recorder.events)
+	}
+	if _, ok := recorder.events[0].Metadata["capability"]; ok {
+		t.Fatalf("audit metadata = %+v, want no capability for public action", recorder.events[0].Metadata)
+	}
+}
+
 func TestExternalAppDryRunHandlerFallsBackWhenNoManifestMatches(t *testing.T) {
 	handler := ExternalAppDryRunHandler(
 		&fakeExternalAppRegistry{manifests: []plugins.Manifest{dryRunManifest()}},

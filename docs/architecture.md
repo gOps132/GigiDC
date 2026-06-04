@@ -53,7 +53,7 @@ Local PostgreSQL is the new source of truth. The first migration creates foundat
 
 ## External App Direction
 
-Gigi will understand approved external Discord apps and bots from manifests. During v0, discovery is exact-match only: a known manifest must match a Discord application ID or bot user ID, or an operator/admin must provide an approved HTTPS manifest URL or uploaded JSON manifest. A guild admin can enable an approved integration, then Gigi can dry-run matching guild mention text against declared prefix triggers after permission checks. Later slices can dispatch prefix commands, slash commands, buttons, mentions, DMs, or natural-language requests to that external app after config checks.
+Gigi will understand approved external Discord apps and bots from manifests. During v0, discovery is exact-match only: a known manifest must match a Discord application ID or bot user ID, or an operator/admin must provide an approved HTTPS manifest URL or uploaded JSON manifest. A guild admin can enable an approved integration, then Gigi can dry-run matching guild mention text against declared prefix triggers. Public actions use empty `permissions`; restricted actions still require capability checks. Later slices can dispatch prefix commands, slash commands, buttons, mentions, DMs, or natural-language requests to that external app after config checks.
 
 ## Known Limits
 
@@ -63,7 +63,7 @@ Gigi will understand approved external Discord apps and bots from manifests. Dur
 - `/permissions` can create/assign Discord roles, grant/revoke role capabilities and presets, and manage direct user exceptions.
 - `/plugins` can list approved manifests, import HTTPS manifests or uploaded JSON manifests, enable approved external app versions for a guild, disable guild integrations, and list enabled guild integrations.
 - Durable audit store is used for permission checks and permission changes, but current Discord liveness replies do not depend on it yet.
-- No external app command dispatch yet. Prefix dry-run planning only becomes possible if an approved installed external app manifest declares that trigger and the requester passes capability checks.
+- No external app command dispatch yet. Prefix dry-run planning only becomes possible if an approved installed external app manifest declares that trigger and the requester passes any declared capability checks.
 - No LLM calls yet.
 - No retrieval or memory behavior yet.
 - Readiness checks database reachability; startup applies idempotent SQL migration files before Discord command wiring.
