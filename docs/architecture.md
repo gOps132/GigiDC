@@ -15,7 +15,7 @@ Gigi is in a foundation rebuild. The old Node/Supabase runtime is gone. The curr
 - config loading through `internal/config`
 - database reachability through `internal/storage`
 
-Discord login is disabled by default through `GIGI_DISCORD_ENABLED=false`. When enabled, the gateway can publish `/ping` and `/permissions`, answer `/ping`, route DMs, route guild mentions, ignore ordinary unmentioned guild messages, and ignore bot-authored messages. Plugin catalog validation and storage have started, but plugin execution, retrieval, and LLM calls are intentionally not active yet.
+Discord login is disabled by default through `GIGI_DISCORD_ENABLED=false`. When enabled, the gateway can publish `/ping`, `/permissions`, and `/plugins`, answer `/ping`, route DMs, route guild mentions, ignore ordinary unmentioned guild messages, and ignore bot-authored messages. Plugin catalog validation, storage, import, enable, and disable controls have started, but plugin execution, retrieval, and LLM calls are intentionally not active yet.
 
 Capability and identity foundations now exist as internal gates for privileged actions. Role and user capability grants are keyed by Discord IDs, not role names, and admin override is modeled separately from role grants.
 
@@ -53,15 +53,15 @@ Local PostgreSQL is the new source of truth. The first migration creates foundat
 
 ## Plugin Direction
 
-Gigi will discover approved plugins from manifests. V1 discovery is exact-match only: a known manifest must match a Discord application ID or bot user ID, or an operator/admin must provide an approved HTTPS manifest URL. A guild admin can later enable an approved plugin, then Gigi can route prefix commands, slash commands, buttons, mentions, DMs, or natural-language requests to that plugin after permission and config checks.
+Gigi will discover approved plugins from manifests. During v0, discovery is exact-match only: a known manifest must match a Discord application ID or bot user ID, or an operator/admin must provide an approved HTTPS manifest URL. A guild admin can enable an approved plugin, then later slices can route prefix commands, slash commands, buttons, mentions, DMs, or natural-language requests to that plugin after permission and config checks.
 
 ## Known Limits
 
 - No Discord gateway connection unless `GIGI_DISCORD_ENABLED=true`.
 - No slash command publishing unless `GIGI_DISCORD_SYNC_COMMANDS=true`.
 - DM and guild-mention routing only has `ping` plus placeholder replies.
-- `/permissions` can create/assign Discord roles, grant/revoke role capabilities and presets, and manage direct user exceptions; no broader user-facing admin command family is live yet.
-- Plugin manifests can be validated and stored, but there is no `/plugins` command yet.
+- `/permissions` can create/assign Discord roles, grant/revoke role capabilities and presets, and manage direct user exceptions.
+- `/plugins` can list approved manifests, import HTTPS manifests, enable approved plugin versions for a guild, disable guild plugins, and list enabled guild plugins.
 - Durable audit store is used for permission checks and permission changes, but current Discord liveness replies do not depend on it yet.
 - No plugin command execution yet. Prefix, slash, button, or natural-language plugin actions only become possible if an approved installed plugin declares that trigger and implements that behavior.
 - No LLM calls yet.

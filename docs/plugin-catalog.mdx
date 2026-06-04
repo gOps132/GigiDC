@@ -5,17 +5,22 @@ description: Current plugin manifest catalog model for the Go rebuild.
 
 # Plugin Catalog
 
-Plugin catalog work has started. This slice validates and stores approved plugin manifests, but it does not execute plugins, publish plugin commands, scrape docs, or route plugin prefix commands yet.
+Plugin catalog work has started. This slice validates, imports, stores, lists, enables, and disables approved plugin manifests, but it does not execute plugins, publish plugin commands, scrape docs, or route plugin prefix commands yet.
 
 ## Current Behavior
 
 - plugin manifests can be decoded from `gigi-plugin.json`
 - manifests must declare exact Discord application ID or bot user ID
-- manifests can come from the known catalog or from an explicitly provided manifest URL
+- manifests can come from the known catalog or from an explicitly provided HTTPS manifest URL
 - approved manifests can be stored in PostgreSQL
+- `/plugins list` shows approved manifests
+- `/plugins import-manifest` imports and approves a URL-sourced manifest
+- `/plugins enable` enables an approved plugin version for the current guild
+- `/plugins disable` disables a plugin for the current guild
+- `/plugins enabled` shows enabled guild plugins
 - enabled guild plugin installs can be loaded from PostgreSQL
 
-V1 does not guess plugin identity from fuzzy names, bot display names, domains, or docs pages. Fuzzy suggestions may come later, but exact admin approval remains required.
+v0 does not guess plugin identity from fuzzy names, bot display names, domains, or docs pages. Fuzzy suggestions may come later, but exact admin approval remains required.
 
 Future manifest contributions should follow the same runtime format and safety rules in the [contributor guide](/contributing).
 
@@ -32,7 +37,7 @@ Each manifest must include:
 - audit events
 - attribution resources
 
-Manifest URL imports must use HTTPS. The current code validates supplied manifest JSON; it does not browse or scrape plugin documentation.
+Manifest URL imports must use HTTPS and cannot include user info, query strings, or fragments. The current code validates supplied manifest JSON; it does not browse or scrape plugin documentation.
 
 ```json
 {
@@ -70,9 +75,6 @@ Manifest URL imports must use HTTPS. The current code validates supplied manifes
 
 ## Not Live Yet
 
-- Discord `/plugins` admin commands
-- guild enable/configure command flow
-- manifest import command flow
 - admin-assisted custom manifest creation
 - community registry support
 - plugin command publishing
