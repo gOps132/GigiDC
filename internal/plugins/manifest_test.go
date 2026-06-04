@@ -70,6 +70,24 @@ func TestDecodeManifestFromURLAppliesURLSource(t *testing.T) {
 	}
 }
 
+func TestDecodeManifestFromAttachmentAppliesUploadedFileSource(t *testing.T) {
+	manifest := validManifest()
+	manifest.SourceKind = SourceKindManifestURL
+	manifest.ManifestURL = "https://example.test/gigi-plugin.json"
+	raw, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("Marshal returned error: %v", err)
+	}
+
+	got, err := DecodeManifestFromAttachment(raw)
+	if err != nil {
+		t.Fatalf("DecodeManifestFromAttachment returned error: %v", err)
+	}
+	if got.SourceKind != SourceKindUploadedFile || got.ManifestURL != "" {
+		t.Fatalf("manifest source = %q/%q, want uploaded_file source without URL", got.SourceKind, got.ManifestURL)
+	}
+}
+
 func validManifest() Manifest {
 	return Manifest{
 		ID:                   "example-tool",

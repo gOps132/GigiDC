@@ -53,7 +53,7 @@ Local PostgreSQL is the new source of truth. The first migration creates foundat
 
 ## Plugin Direction
 
-Gigi will discover approved plugins from manifests. During v0, discovery is exact-match only: a known manifest must match a Discord application ID or bot user ID, or an operator/admin must provide an approved HTTPS manifest URL. A guild admin can enable an approved plugin, then later slices can route prefix commands, slash commands, buttons, mentions, DMs, or natural-language requests to that plugin after permission and config checks.
+Gigi will discover approved plugins from manifests. During v0, discovery is exact-match only: a known manifest must match a Discord application ID or bot user ID, or an operator/admin must provide an approved HTTPS manifest URL or uploaded JSON manifest. A guild admin can enable an approved plugin, then later slices can route prefix commands, slash commands, buttons, mentions, DMs, or natural-language requests to that plugin after permission and config checks.
 
 ## Known Limits
 
@@ -61,7 +61,7 @@ Gigi will discover approved plugins from manifests. During v0, discovery is exac
 - No slash command publishing unless `GIGI_DISCORD_SYNC_COMMANDS=true`.
 - DM and guild-mention routing only has `ping` plus placeholder replies.
 - `/permissions` can create/assign Discord roles, grant/revoke role capabilities and presets, and manage direct user exceptions.
-- `/plugins` can list approved manifests, import HTTPS manifests, enable approved plugin versions for a guild, disable guild plugins, and list enabled guild plugins.
+- `/plugins` can list approved manifests, import HTTPS manifests or uploaded JSON manifests, enable approved plugin versions for a guild, disable guild plugins, and list enabled guild plugins.
 - Durable audit store is used for permission checks and permission changes, but current Discord liveness replies do not depend on it yet.
 - No plugin command execution yet. Prefix, slash, button, or natural-language plugin actions only become possible if an approved installed plugin declares that trigger and implements that behavior.
 - No LLM calls yet.

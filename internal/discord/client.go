@@ -199,6 +199,7 @@ type Interaction struct {
 	Name             string
 	Text             string
 	Options          []InteractionOption
+	Attachments      map[string]InteractionAttachment
 	RoleService      GuildRoleService
 }
 
@@ -207,4 +208,12 @@ type InteractionOption struct {
 	Type    discordgo.ApplicationCommandOptionType
 	Value   string
 	Options []InteractionOption
+}
+
+type InteractionAttachment struct {
+	ID          string
+	URL         string
+	Filename    string
+	ContentType string
+	Size        int
 }

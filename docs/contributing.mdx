@@ -43,6 +43,7 @@ Contribution rules for manifests:
 - Do not scrape private content or submit LLM-guessed behavior as fact.
 - Include attribution for Discord docs, plugin docs, provider docs, and any examples used to build the manifest.
 - Keep one plugin manifest contribution per PR unless multiple manifests share one small schema fix.
+- Use `source_kind: "uploaded_file"` only for manifests imported from Discord attachments; URL imports are normalized to `manifest_url`.
 
 Discord application IDs, bot user IDs, and application command behavior are based on Discord's public developer documentation: [Discord Developer Documentation](https://discord.com/developers/docs).
 

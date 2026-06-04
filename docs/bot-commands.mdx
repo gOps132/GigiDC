@@ -434,6 +434,34 @@ Failure cases:
 
 Privacy and audit: raw URLs are not written to audit metadata. Manifests must not contain secrets, private Discord content, private URLs, signed URLs, or guessed behavior.
 
+### `/plugins import-file`
+
+Imports an uploaded `gigi-plugin.json` attachment, validates it, and stores it as an approved manifest.
+
+Syntax:
+
+```text
+/plugins import-file attachment:<json-file>
+```
+
+Expected response:
+
+```text
+Imported plugin `Example Tool` (`example-tool@1.0.0`) from uploaded file.
+```
+
+Failure cases:
+
+- requester lacks `plugin.install` and has no admin override
+- attachment is missing or cannot be resolved by Discord
+- attachment filename does not end in `.json`
+- manifest is too large
+- manifest JSON is invalid
+- manifest lacks exact Discord application ID or bot user ID
+- manifest fails capability, trigger, surface, audit, or attribution validation
+
+Privacy and audit: Discord attachment URLs are not stored in audit metadata or manifest source metadata. Uploaded manifests are normalized to `source_kind: "uploaded_file"` and `manifest_url` is cleared.
+
 ### `/plugins enable`
 
 Enables an approved plugin version for the current Discord server. This does not execute plugin commands yet.

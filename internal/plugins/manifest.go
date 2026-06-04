@@ -18,8 +18,9 @@ const maxManifestBytes = 1 << 20
 type SourceKind string
 
 const (
-	SourceKindKnown       SourceKind = "known"
-	SourceKindManifestURL SourceKind = "manifest_url"
+	SourceKindKnown        SourceKind = "known"
+	SourceKindManifestURL  SourceKind = "manifest_url"
+	SourceKindUploadedFile SourceKind = "uploaded_file"
 )
 
 type Manifest struct {
@@ -84,6 +85,19 @@ func DecodeManifestFromURL(body []byte, manifestURL string) (Manifest, error) {
 	return manifest, nil
 }
 
+func DecodeManifestFromAttachment(body []byte) (Manifest, error) {
+	manifest, err := decodeManifest(bytes.NewReader(body))
+	if err != nil {
+		return Manifest{}, err
+	}
+	manifest.SourceKind = SourceKindUploadedFile
+	manifest.ManifestURL = ""
+	if err := manifest.Validate(); err != nil {
+		return Manifest{}, err
+	}
+	return manifest, nil
+}
+
 func decodeManifest(reader io.Reader) (Manifest, error) {
 	if reader == nil {
 		return Manifest{}, fmt.Errorf("manifest reader is required")
@@ -116,7 +130,7 @@ func (m Manifest) Validate() error {
 	if m.SourceKind == "" {
 		return fmt.Errorf("source kind is required")
 	}
-	if m.SourceKind != SourceKindKnown && m.SourceKind != SourceKindManifestURL {
+	if m.SourceKind != SourceKindKnown && m.SourceKind != SourceKindManifestURL && m.SourceKind != SourceKindUploadedFile {
 		return fmt.Errorf("unsupported source kind %q", m.SourceKind)
 	}
 	if strings.TrimSpace(m.DiscordApplicationID) == "" && strings.TrimSpace(m.DiscordBotUserID) == "" {

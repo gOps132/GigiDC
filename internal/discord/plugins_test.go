@@ -21,7 +21,7 @@ func TestPluginCommandsExposeAdminSurface(t *testing.T) {
 	if command.RequiredCapability != capability.Capability("plugin.install") {
 		t.Fatalf("required capability = %q, want plugin.install", command.RequiredCapability)
 	}
-	for _, name := range []string{"list", "import-manifest", "enable", "disable", "enabled"} {
+	for _, name := range []string{"list", "import-manifest", "import-file", "enable", "disable", "enabled"} {
 		if findOption(command.Options, name) == nil {
 			t.Fatalf("plugins command missing %q", name)
 		}
@@ -29,6 +29,10 @@ func TestPluginCommandsExposeAdminSurface(t *testing.T) {
 	importManifest := findOption(command.Options, "import-manifest")
 	if option := findOption(importManifest.Options, "url"); option == nil || option.Type != discordgo.ApplicationCommandOptionString {
 		t.Fatalf("import url option = %+v, want string", option)
+	}
+	importFile := findOption(command.Options, "import-file")
+	if option := findOption(importFile.Options, "attachment"); option == nil || option.Type != discordgo.ApplicationCommandOptionAttachment {
+		t.Fatalf("import file option = %+v, want attachment", option)
 	}
 }
 
@@ -74,6 +78,49 @@ func TestPluginCommandImportsManifestAndAudits(t *testing.T) {
 	}
 	if len(recorder.events) != 1 || recorder.events[0].Status != audit.StatusSucceeded || recorder.events[0].Metadata["plugin_id"] != "example-tool" {
 		t.Fatalf("audit events = %+v, want successful import audit", recorder.events)
+	}
+}
+
+func TestPluginCommandImportsAttachmentAndAudits(t *testing.T) {
+	manager := &fakePluginManager{}
+	fetcher := &fakePluginFetcher{manifest: pluginManifest("example-tool", "1.0.0")}
+	recorder := &fakeAuditRecorder{}
+	handler := PluginCommands(manager, fetcher, recorder)[0].Handle
+
+	response, err := handler(context.Background(), Interaction{
+		GuildID: "guild-id",
+		UserID:  "actor-id",
+		Name:    "plugins",
+		Attachments: map[string]InteractionAttachment{
+			"attachment-id": {
+				ID:          "attachment-id",
+				URL:         "https://cdn.discordapp.com/attachments/gigi-plugin.json?ex=value",
+				Filename:    "gigi-plugin.json",
+				ContentType: "application/json",
+				Size:        123,
+			},
+		},
+		Options: []InteractionOption{{
+			Name: "import-file",
+			Options: []InteractionOption{
+				{Name: "attachment", Type: discordgo.ApplicationCommandOptionAttachment, Value: "attachment-id"},
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("import-file returned error: %v", err)
+	}
+	if fetcher.attachment.ID != "attachment-id" || fetcher.attachment.Filename != "gigi-plugin.json" {
+		t.Fatalf("attachment = %+v, want resolved attachment", fetcher.attachment)
+	}
+	if manager.method != "UpsertApprovedManifest" || manager.manifest.ID != "example-tool" || manager.actorID != "actor-id" {
+		t.Fatalf("manager = %+v, want approved manifest upsert", manager)
+	}
+	if !strings.Contains(response.Content, "uploaded file") || !response.Ephemeral {
+		t.Fatalf("response = %+v, want ephemeral upload import success", response)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Status != audit.StatusSucceeded || recorder.events[0].Metadata["action"] != "import-file" {
+		t.Fatalf("audit events = %+v, want successful import-file audit", recorder.events)
 	}
 }
 
@@ -204,12 +251,18 @@ func (m *fakePluginManager) EnabledForGuild(_ context.Context, guildID string) (
 }
 
 type fakePluginFetcher struct {
-	url      string
-	manifest plugins.Manifest
-	err      error
+	url        string
+	attachment plugins.AttachmentSource
+	manifest   plugins.Manifest
+	err        error
 }
 
 func (f *fakePluginFetcher) Fetch(_ context.Context, manifestURL string) (plugins.Manifest, error) {
 	f.url = manifestURL
+	return f.manifest, f.err
+}
+
+func (f *fakePluginFetcher) FetchAttachment(_ context.Context, attachment plugins.AttachmentSource) (plugins.Manifest, error) {
+	f.attachment = attachment
 	return f.manifest, f.err
 }
