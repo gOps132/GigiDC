@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -60,6 +61,30 @@ type Registry interface {
 }
 
 func DecodeManifest(reader io.Reader) (Manifest, error) {
+	manifest, err := decodeManifest(reader)
+	if err != nil {
+		return Manifest{}, err
+	}
+	if err := manifest.Validate(); err != nil {
+		return Manifest{}, err
+	}
+	return manifest, nil
+}
+
+func DecodeManifestFromURL(body []byte, manifestURL string) (Manifest, error) {
+	manifest, err := decodeManifest(bytes.NewReader(body))
+	if err != nil {
+		return Manifest{}, err
+	}
+	manifest.SourceKind = SourceKindManifestURL
+	manifest.ManifestURL = strings.TrimSpace(manifestURL)
+	if err := manifest.Validate(); err != nil {
+		return Manifest{}, err
+	}
+	return manifest, nil
+}
+
+func decodeManifest(reader io.Reader) (Manifest, error) {
 	if reader == nil {
 		return Manifest{}, fmt.Errorf("manifest reader is required")
 	}
@@ -68,9 +93,6 @@ func DecodeManifest(reader io.Reader) (Manifest, error) {
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&manifest); err != nil {
 		return Manifest{}, fmt.Errorf("decode manifest: %w", err)
-	}
-	if err := manifest.Validate(); err != nil {
-		return Manifest{}, err
 	}
 	return manifest, nil
 }
@@ -170,6 +192,9 @@ func validateManifestURL(value string) error {
 	parsed, err := url.Parse(value)
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
 		return fmt.Errorf("manifest URL must be an HTTPS URL")
+	}
+	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("manifest URL must not include user info, query, or fragment")
 	}
 	return nil
 }

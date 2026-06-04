@@ -65,6 +65,78 @@ func TestSQLCatalogStoreLoadsEnabledApprovedManifests(t *testing.T) {
 	}
 }
 
+func TestSQLCatalogStoreListsApprovedManifests(t *testing.T) {
+	manifest := validManifest()
+	manifestJSON, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("Marshal returned error: %v", err)
+	}
+	db := &fakeCatalogDB{rows: &fakeCatalogRows{values: [][]byte{manifestJSON}}}
+	store := NewSQLCatalogStore(db, nil)
+
+	got, err := store.ApprovedManifests(context.Background())
+	if err != nil {
+		t.Fatalf("ApprovedManifests returned error: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "example-tool" {
+		t.Fatalf("manifests = %+v, want example-tool manifest", got)
+	}
+	if !strings.Contains(db.query, "pv.approved = true") {
+		t.Fatalf("query = %q, want approved manifest lookup", db.query)
+	}
+}
+
+func TestSQLCatalogStoreEnablesApprovedPluginForGuild(t *testing.T) {
+	db := &fakeCatalogDB{tx: &fakeCatalogTx{}}
+	store := NewSQLCatalogStore(db, func() string { return "install-id" })
+
+	err := store.EnableForGuild(context.Background(), "guild-id", "example-tool", "1.0.0", "actor-id")
+	if err != nil {
+		t.Fatalf("EnableForGuild returned error: %v", err)
+	}
+	if !db.tx.committed || db.tx.rolledBack {
+		t.Fatalf("tx state = %+v, want commit", db.tx)
+	}
+	if len(db.tx.queries) != 1 || !strings.Contains(db.tx.queries[0], "insert into guild_plugin_installs") {
+		t.Fatalf("queries = %+v, want guild install upsert", db.tx.queries)
+	}
+	if db.tx.args[0][0] != "install-id" || db.tx.args[0][1] != "guild-id" || db.tx.args[0][3] != "example-tool" {
+		t.Fatalf("args = %+v, want install/guild/plugin identifiers", db.tx.args)
+	}
+}
+
+func TestSQLCatalogStoreEnableFailsWhenApprovedVersionMissing(t *testing.T) {
+	db := &fakeCatalogDB{tx: &fakeCatalogTx{affectedRows: -1}}
+	store := NewSQLCatalogStore(db, func() string { return "install-id" })
+
+	err := store.EnableForGuild(context.Background(), "guild-id", "missing", "1.0.0", "actor-id")
+	if err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("error = %v, want missing approved version", err)
+	}
+	if !db.tx.rolledBack || db.tx.committed {
+		t.Fatalf("tx state = %+v, want rollback", db.tx)
+	}
+}
+
+func TestSQLCatalogStoreDisablesPluginForGuild(t *testing.T) {
+	db := &fakeCatalogDB{tx: &fakeCatalogTx{}}
+	store := NewSQLCatalogStore(db, nil)
+
+	err := store.DisableForGuild(context.Background(), "guild-id", "example-tool", "actor-id")
+	if err != nil {
+		t.Fatalf("DisableForGuild returned error: %v", err)
+	}
+	if !db.tx.committed || db.tx.rolledBack {
+		t.Fatalf("tx state = %+v, want commit", db.tx)
+	}
+	if len(db.tx.queries) != 1 || !strings.Contains(db.tx.queries[0], "update guild_plugin_installs") {
+		t.Fatalf("queries = %+v, want guild install update", db.tx.queries)
+	}
+	if db.tx.args[0][0] != "guild-id" || db.tx.args[0][1] != "example-tool" {
+		t.Fatalf("args = %+v, want guild/plugin identifiers", db.tx.args)
+	}
+}
+
 type fakeCatalogDB struct {
 	tx         *fakeCatalogTx
 	rows       catalogRows
@@ -91,12 +163,13 @@ func (db *fakeCatalogDB) QueryContext(_ context.Context, query string, args ...a
 }
 
 type fakeCatalogTx struct {
-	queries    []string
-	args       [][]any
-	err        error
-	failOnCall int
-	committed  bool
-	rolledBack bool
+	queries      []string
+	args         [][]any
+	err          error
+	failOnCall   int
+	affectedRows int64
+	committed    bool
+	rolledBack   bool
 }
 
 func (tx *fakeCatalogTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
@@ -105,7 +178,14 @@ func (tx *fakeCatalogTx) ExecContext(_ context.Context, query string, args ...an
 	if tx.failOnCall > 0 && len(tx.queries) == tx.failOnCall {
 		return nil, tx.err
 	}
-	return fakeCatalogResult(1), nil
+	affected := tx.affectedRows
+	if affected == 0 {
+		affected = 1
+	}
+	if tx.affectedRows == -1 {
+		affected = 0
+	}
+	return fakeCatalogResult(affected), nil
 }
 
 func (tx *fakeCatalogTx) Commit() error {

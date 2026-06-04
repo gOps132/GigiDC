@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -35,10 +36,37 @@ func TestManifestValidateRejectsManifestURLSourceWithoutHTTPSURL(t *testing.T) {
 	}
 }
 
+func TestManifestValidateRejectsManifestURLSecrets(t *testing.T) {
+	manifest := validManifest()
+	manifest.SourceKind = SourceKindManifestURL
+	manifest.ManifestURL = "https://example.test/gigi-plugin.json?token=value"
+
+	err := manifest.Validate()
+	if err == nil || !strings.Contains(err.Error(), "query") {
+		t.Fatalf("error = %v, want query rejection", err)
+	}
+}
+
 func TestDecodeManifestValidatesJSON(t *testing.T) {
 	_, err := DecodeManifest(strings.NewReader(`{"id":"example-tool"}`))
 	if err == nil || !strings.Contains(err.Error(), "name is required") {
 		t.Fatalf("error = %v, want validation failure", err)
+	}
+}
+
+func TestDecodeManifestFromURLAppliesURLSource(t *testing.T) {
+	manifest := validManifest()
+	raw, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("Marshal returned error: %v", err)
+	}
+
+	got, err := DecodeManifestFromURL(raw, "https://example.test/gigi-plugin.json")
+	if err != nil {
+		t.Fatalf("DecodeManifestFromURL returned error: %v", err)
+	}
+	if got.SourceKind != SourceKindManifestURL || got.ManifestURL != "https://example.test/gigi-plugin.json" {
+		t.Fatalf("manifest source = %q/%q, want manifest_url source", got.SourceKind, got.ManifestURL)
 	}
 }
 
