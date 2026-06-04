@@ -7,7 +7,7 @@ description: Discord status for the Go foundation rebuild.
 
 Discord usage is active in a narrow foundation slice.
 
-The current codebase has a disabled-by-default Discord gateway adapter, a minimal `/ping` slash-command handler, opt-in command sync, DM routing, guild-mention routing, and admin-gated `/permissions` capability grants. It intentionally does not run LLM chat, memory retrieval, task actions, relay actions, or external app commands yet.
+The current codebase has a disabled-by-default Discord gateway adapter, a minimal `/ping` slash-command handler, opt-in command sync, DM routing, guild-mention routing, admin-gated `/permissions` capability grants, `/plugins` catalog controls, and deterministic external app dry-run matching. It intentionally does not run LLM chat, memory retrieval, task actions, relay actions, or external app command dispatch yet.
 
 For exact command syntax, required capabilities, responses, and failure cases, use [Bot Commands](/bot-commands) as the canonical command guide.
 
@@ -18,6 +18,7 @@ For exact command syntax, required capabilities, responses, and failure cases, u
 - `/permissions user grant|revoke` manages direct user capability exceptions.
 - DM `ping` replies `pong`.
 - Guild message `<@Gigi> ping` replies `pong`.
+- Guild mention text can dry-run match an enabled external app manifest prefix trigger and return the planned command without sending it.
 - Other DMs or guild mentions reply with a placeholder so users know Gigi is online.
 - Ordinary guild messages without a Gigi mention are ignored.
 - Bot-authored messages are ignored.
@@ -47,7 +48,7 @@ Use direct user grants only when one person needs an exception without a Discord
 
 ## Plugin Status
 
-Approved external app manifest validation, storage, import, enable, and disable controls are started through `/plugins`. Discovery is exact-match only by Discord application ID or bot user ID, or by an explicitly approved HTTPS manifest URL or uploaded JSON manifest. Gigi does not scrape external app docs, guess behavior from names, or execute external app commands yet.
+Approved external app manifest validation, storage, import, enable, disable, and dry-run matching are started through `/plugins` plus guild mention routing. Discovery is exact-match only by Discord application ID or bot user ID, or by an explicitly approved HTTPS manifest URL or uploaded JSON manifest. Gigi does not scrape external app docs, guess behavior from names, or dispatch external app commands yet.
 
 ## Current Verification
 
