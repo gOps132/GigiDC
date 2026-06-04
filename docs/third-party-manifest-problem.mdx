@@ -1,0 +1,224 @@
+---
+title: Third-Party Manifest Problem
+description: Why Gigi needs plugin manifests, what Discord exposes, and practical workarounds.
+---
+
+# Third-Party Manifest Problem
+
+Gigi's plugin catalog depends on explicit plugin manifests. A manifest tells Gigi what a plugin can do, how users can trigger it, what capabilities protect it, what Discord surfaces it can use, and how to audit it.
+
+Third-party Discord bots and external tools usually do not publish a `gigi-plugin.json`. That creates a discovery and safety problem: Gigi can see that an app or bot exists, but it cannot safely infer how to operate it.
+
+## Problem
+
+Gigi needs structured data before it can treat another tool as a capability.
+
+Required manifest facts:
+
+- plugin identity: id, name, version, source, exact Discord application ID or bot user ID
+- capabilities: actions such as `poll.create`, `assignment.publish`, or `example.run`
+- triggers: prefix commands, slash commands, buttons, select menus, or natural-language phrases
+- surfaces: guild text, DM, slash command, button, select menu, voice context, or other declared target surface
+- required permissions: Gigi capabilities and Discord permissions needed before action
+- config: required guild-specific settings
+- safety policy: rate limits, confirmation needs, and concurrency limits
+- audit: event names and attribution data
+
+Without those facts, Gigi has three bad options:
+
+- guess from bot names or docs and risk wrong behavior
+- let the LLM invent unsupported tools
+- refuse to use the tool
+
+V1 should prefer refusal over guessing. Unknown plugins stay inert until a trusted manifest exists.
+
+## Discord API Limits
+
+Discord application commands are native app-owned interaction surfaces. The docs define command objects, option limits, command scopes, permissions, contexts, and endpoints for an application to register or edit its own commands. They do not provide a universal behavior manifest for arbitrary third-party bots installed in a guild. See Discord's Application Commands documentation: https://docs.discord.com/developers/interactions/application-commands
+
+Practical limits for Gigi:
+
+- Gigi cannot reliably discover custom message prefixes such as `!example` from Discord alone.
+- Gigi cannot inspect another bot's internal capability model, provider credentials, queue state, or business rules.
+- Gigi cannot infer whether another bot requires confirmation, voice permissions, channel restrictions, paid features, or rate limits.
+- Gigi cannot safely treat a bot's display name, role name, or docs domain as authority.
+- Application command permission APIs are about enabling/disabling commands for users, roles, and channels; they are not a semantic description of what a third-party bot does.
+- Command permission updates have Discord-specific constraints, including user/Bearer-token requirements and per-command permission overwrite limits.
+- Message content and prefix-command discovery are brittle for larger verified apps because message content is a privileged surface and because prefixes are often app-specific configuration.
+
+Discord does expose useful identifiers and integration surfaces:
+
+- application ID
+- bot user ID
+- guild/channel/user/role IDs
+- slash command interactions for Gigi's own commands
+- command permissions for Discord's own visibility/access model
+
+Those are enough to anchor a manifest to the right app, but not enough to synthesize the manifest.
+
+## Design Constraint
+
+Manifest acquisition must be explicit.
+
+Accepted V1 sources:
+
+- known catalog entry keyed by exact Discord application ID or bot user ID
+- admin-provided HTTPS manifest URL
+- admin-written/custom manifest produced by a guided tool
+
+Rejected V1 sources:
+
+- fuzzy bot-name match
+- docs scraping
+- browser discovery
+- LLM-generated command schema without human approval
+- automatic prefix probing in guild channels
+
+Discovery V2 can add helpers, but helpers should produce suggestions only. A Discord admin or repository maintainer must approve the final manifest before it affects execution.
+
+## Workaround A: Admin-Written Manifest
+
+Admin-written manifests are the simplest escape hatch.
+
+Flow:
+
+1. Admin identifies the third-party app's Discord application ID or bot user ID.
+2. Admin writes `gigi-plugin.json`.
+3. Admin hosts it at an HTTPS URL.
+4. Gigi imports and validates it.
+5. Admin enables it for the guild.
+
+Strengths:
+
+- works for private/custom bots
+- keeps local guild config explicit
+- avoids pretending that Discord exposes behavior metadata
+- reviewable in PR, gist, or internal docs
+
+Weaknesses:
+
+- higher admin effort
+- easy to drift if the third-party bot changes its commands
+- requires humans to understand permissions and triggers
+
+Best use:
+
+- private bots
+- small guild utilities
+- early integrations before community registry exists
+
+## Workaround B: Community Registry
+
+Community registry means a maintained catalog of manifests for popular third-party bots and tools.
+
+Flow:
+
+1. Maintainers create manifest entries in a public registry.
+2. Each manifest is keyed by exact Discord application ID or bot user ID.
+3. Registry PRs include attribution, docs links, declared triggers, and safety notes.
+4. Gigi can import from the registry or ship curated snapshots.
+5. Guild admins approve install/enable per guild.
+
+Strengths:
+
+- reduces admin friction
+- central review improves quality
+- popular integrations get reusable manifests
+- changes become auditable over time
+
+Weaknesses:
+
+- registry can go stale
+- popular bots may have per-guild config differences
+- trust model needs moderation, signatures, or maintainer review
+
+Best use:
+
+- widely used third-party bots
+- common non-secret command mappings
+- plugin templates that many guilds reuse
+
+Minimum registry rules:
+
+- exact app/bot ID required
+- no credentials in manifests
+- attribution/source links required
+- declared Discord permissions required
+- declared surfaces required
+- changelog or version history required
+- no executable code in manifest
+
+## Workaround C: CLI Wizard
+
+CLI wizard is a safer way to help admins create manifests without hand-writing JSON.
+
+Flow:
+
+1. Admin runs local command, for example `gigi plugins wizard`.
+2. Wizard asks for plugin identity, triggers, surfaces, capabilities, and permissions.
+3. Wizard validates IDs, capability names, HTTPS URLs, and attribution fields.
+4. Wizard writes `gigi-plugin.json`.
+5. Admin commits, hosts, or imports the generated manifest.
+
+Strengths:
+
+- better UX than raw JSON
+- can validate before upload
+- can generate docs and examples with the manifest
+- avoids entering secrets into Discord chat
+
+Weaknesses:
+
+- still depends on admin-provided truth
+- local tooling must be distributed and versioned
+- cannot verify opaque third-party bot internals
+
+Best use:
+
+- custom guild bots
+- private integrations
+- self-hosted tools
+- setup flows where Discord slash forms are too cramped
+
+## Comparison
+
+| Workaround | Best for | Trust model | Main risk |
+| --- | --- | --- | --- |
+| Admin-written manifest | private/custom bots | guild admin owns truth | drift and human error |
+| Community registry | popular bots/tools | registry review and exact IDs | stale or incorrect shared manifest |
+| CLI wizard | custom setup with better UX | admin-provided answers plus local validation | generated manifest still needs review |
+
+## Recommendation
+
+Use all three, in this order:
+
+1. **Admin-written manifest** for immediate V1 support.
+2. **CLI wizard** to reduce JSON mistakes and keep secrets out of Discord chat.
+3. **Community registry** once manifest shape stabilizes and common integrations repeat.
+
+Do not build automatic docs scraping or LLM-based manifest guessing in V1. Those features may help later as suggestion engines, but they should not become authority.
+
+## Implications For Gigi
+
+Implementation defaults:
+
+- store exact Discord application ID and bot user ID in plugin catalog tables
+- reject manifests without exact Discord identity
+- require HTTPS for manifest URL imports
+- audit manifest import, approval, enable, disable, and config updates
+- keep plugin execution disabled until manifest, guild install, config, user capability, and Discord permission checks pass
+- show manifest source and attribution in admin-facing responses
+- fail closed when a plugin identity or trigger is ambiguous
+
+Docs defaults:
+
+- document current shipped behavior only
+- keep examples domain-neutral unless a real plugin is being documented
+- explain that domain behavior exists only when a plugin declares and implements it
+
+## References
+
+- Discord Application Commands: https://docs.discord.com/developers/interactions/application-commands
+- Discord Permissions: https://docs.discord.com/developers/topics/permissions
+- Discord Rate Limits: https://docs.discord.com/developers/topics/rate-limits
+- Discord App Commands migration notes: https://docs.discord.com/developers/tutorials/upgrading-to-application-commands

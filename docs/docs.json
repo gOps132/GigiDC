@@ -38,7 +38,8 @@
           "discord-usage",
           "bot-commands",
           "permissions",
-          "plugin-catalog"
+          "plugin-catalog",
+          "third-party-manifest-problem"
         ]
       },
       {
