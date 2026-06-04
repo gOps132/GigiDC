@@ -73,6 +73,30 @@ func TestMessageRouterRoutesNicknameMentions(t *testing.T) {
 	}
 }
 
+func TestMessageRouterIncludesGuildMemberAuthorityContext(t *testing.T) {
+	var got Message
+	router, err := NewMessageRouter("bot-id", MessageHandlerFunc(func(ctx context.Context, message Message) (MessageResponse, error) {
+		got = message
+		return MessageResponse{Content: "mention-ok"}, nil
+	}), nil)
+	if err != nil {
+		t.Fatalf("NewMessageRouter returned error: %v", err)
+	}
+	event := messageCreate("guild-id", "channel-id", "user-id", false, "<@bot-id> play song")
+	event.Member = &discordgo.Member{
+		Roles:       []string{"role-id"},
+		Permissions: discordgo.PermissionAdministrator,
+	}
+
+	err = router.HandleMessage(context.Background(), &fakeMessageSender{}, event)
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if len(got.RoleIDs) != 1 || got.RoleIDs[0] != "role-id" || !got.HasAdministrator {
+		t.Fatalf("authority context = roles:%+v admin:%v, want role-id/admin", got.RoleIDs, got.HasAdministrator)
+	}
+}
+
 func TestMessageRouterIgnoresUnroutedMessages(t *testing.T) {
 	calls := 0
 	router, err := NewMessageRouter("bot-id", MessageHandlerFunc(func(ctx context.Context, message Message) (MessageResponse, error) {

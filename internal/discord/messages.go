@@ -16,12 +16,14 @@ const (
 )
 
 type Message struct {
-	Surface    MessageSurface
-	GuildID    string
-	ChannelID  string
-	UserID     string
-	Text       string
-	RawContent string
+	Surface          MessageSurface
+	GuildID          string
+	ChannelID        string
+	UserID           string
+	RoleIDs          []string
+	HasAdministrator bool
+	Text             string
+	RawContent       string
 }
 
 type MessageResponse struct {
@@ -144,10 +146,12 @@ func (r *MessageRouter) HandleMessage(ctx context.Context, sender messageSender,
 
 func (r *MessageRouter) route(message *discordgo.Message) (Message, bool) {
 	base := Message{
-		GuildID:    message.GuildID,
-		ChannelID:  message.ChannelID,
-		UserID:     message.Author.ID,
-		RawContent: message.Content,
+		GuildID:          message.GuildID,
+		ChannelID:        message.ChannelID,
+		UserID:           message.Author.ID,
+		RoleIDs:          messageRoleIDs(message),
+		HasAdministrator: messageHasAdministrator(message),
+		RawContent:       message.Content,
 	}
 
 	if message.GuildID == "" {
@@ -163,6 +167,20 @@ func (r *MessageRouter) route(message *discordgo.Message) (Message, bool) {
 	base.Surface = MessageSurfaceGuildMention
 	base.Text = text
 	return base, true
+}
+
+func messageRoleIDs(message *discordgo.Message) []string {
+	if message == nil || message.Member == nil {
+		return nil
+	}
+	return append([]string(nil), message.Member.Roles...)
+}
+
+func messageHasAdministrator(message *discordgo.Message) bool {
+	if message == nil || message.Member == nil {
+		return false
+	}
+	return message.Member.Permissions&discordgo.PermissionAdministrator != 0
 }
 
 func (r *MessageRouter) stripMention(content string) (string, bool) {

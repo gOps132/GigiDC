@@ -15,7 +15,7 @@ Gigi is in a foundation rebuild. The old Node/Supabase runtime is gone. The curr
 - config loading through `internal/config`
 - database reachability through `internal/storage`
 
-Discord login is disabled by default through `GIGI_DISCORD_ENABLED=false`. When enabled, the gateway can publish `/ping`, `/permissions`, and `/plugins`, answer `/ping`, route DMs, route guild mentions, ignore ordinary unmentioned guild messages, and ignore bot-authored messages. External app manifest validation, storage, import, enable, and disable controls have started, but external app command execution, retrieval, and LLM calls are intentionally not active yet.
+Discord login is disabled by default through `GIGI_DISCORD_ENABLED=false`. When enabled, the gateway can publish `/ping`, `/permissions`, and `/plugins`, answer `/ping`, route DMs, route guild mentions, ignore ordinary unmentioned guild messages, and ignore bot-authored messages. External app manifest validation, storage, import, enable, disable, and deterministic dry-run matching have started, but external app command dispatch, retrieval, and LLM calls are intentionally not active yet.
 
 Capability and identity foundations now exist as internal gates for privileged actions. Role and user capability grants are keyed by Discord IDs, not role names, and admin override is modeled separately from role grants.
 
@@ -53,17 +53,17 @@ Local PostgreSQL is the new source of truth. The first migration creates foundat
 
 ## External App Direction
 
-Gigi will understand approved external Discord apps and bots from manifests. During v0, discovery is exact-match only: a known manifest must match a Discord application ID or bot user ID, or an operator/admin must provide an approved HTTPS manifest URL or uploaded JSON manifest. A guild admin can enable an approved integration, then later slices can route prefix commands, slash commands, buttons, mentions, DMs, or natural-language requests to that external app after permission and config checks.
+Gigi will understand approved external Discord apps and bots from manifests. During v0, discovery is exact-match only: a known manifest must match a Discord application ID or bot user ID, or an operator/admin must provide an approved HTTPS manifest URL or uploaded JSON manifest. A guild admin can enable an approved integration, then Gigi can dry-run matching guild mention text against declared prefix triggers after permission checks. Later slices can dispatch prefix commands, slash commands, buttons, mentions, DMs, or natural-language requests to that external app after config checks.
 
 ## Known Limits
 
 - No Discord gateway connection unless `GIGI_DISCORD_ENABLED=true`.
 - No slash command publishing unless `GIGI_DISCORD_SYNC_COMMANDS=true`.
-- DM and guild-mention routing only has `ping` plus placeholder replies.
+- DM routing only has `ping` plus placeholder replies. Guild mentions can also dry-run enabled external app prefix triggers.
 - `/permissions` can create/assign Discord roles, grant/revoke role capabilities and presets, and manage direct user exceptions.
 - `/plugins` can list approved manifests, import HTTPS manifests or uploaded JSON manifests, enable approved external app versions for a guild, disable guild integrations, and list enabled guild integrations.
 - Durable audit store is used for permission checks and permission changes, but current Discord liveness replies do not depend on it yet.
-- No external app command execution yet. Prefix, slash, button, or natural-language actions only become possible if an approved installed external app manifest declares that trigger and the external app supports that behavior.
+- No external app command dispatch yet. Prefix dry-run planning only becomes possible if an approved installed external app manifest declares that trigger and the requester passes capability checks.
 - No LLM calls yet.
 - No retrieval or memory behavior yet.
 - Readiness checks database reachability; startup applies idempotent SQL migration files before Discord command wiring.

@@ -78,9 +78,11 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			_ = db.Close()
 			return nil, err
 		}
-		router.SetAuthorizer(discord.NewCapabilityAuthorizer(capability.NewEvaluator(grantStore), auditStore))
+		evaluator := capability.NewEvaluator(grantStore)
+		router.SetAuthorizer(discord.NewCapabilityAuthorizer(evaluator, auditStore))
 
-		messageRouter, err := discord.NewMessageRouter(cfg.DiscordClientID, discord.CoreMessageHandler(), nil)
+		messageHandler := discord.ExternalAppDryRunHandler(pluginStore, evaluator, auditStore, discord.CoreMessageHandler())
+		messageRouter, err := discord.NewMessageRouter(cfg.DiscordClientID, messageHandler, nil)
 		if err != nil {
 			_ = db.Close()
 			return nil, err

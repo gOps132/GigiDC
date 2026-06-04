@@ -7,7 +7,7 @@ description: Current external Discord app manifest catalog model for the Go rebu
 
 In Gigi docs, plugin means an approved external Discord app, bot, or service integration that Gigi can understand through a manifest. It does not mean arbitrary code loaded into Gigi, and Gigi does not run third-party app code.
 
-Plugin catalog work has started. This slice validates, imports, stores, lists, enables, and disables approved external app manifests, but it does not drive external app commands, publish commands declared by manifests, scrape docs, or route external app prefix commands yet.
+Plugin catalog work has started. This slice validates, imports, stores, lists, enables, disables, and dry-run matches approved external app manifests, but it does not dispatch external app commands, publish commands declared by manifests, scrape docs, or use LLM routing yet.
 
 ## Current Behavior
 
@@ -22,6 +22,8 @@ Plugin catalog work has started. This slice validates, imports, stores, lists, e
 - `/plugins disable` disables an external app integration for the current guild
 - `/plugins enabled` shows enabled guild external app integrations
 - enabled guild external app installs can be loaded from PostgreSQL
+- guild mentions can dry-run match enabled `prefix` triggers on `guild_text`
+- dry-run checks manifest permissions before returning a planned command
 
 v0 does not guess external app identity from fuzzy names, bot display names, domains, or docs pages. Fuzzy suggestions may come later, but exact admin approval remains required.
 
@@ -81,9 +83,9 @@ Manifest URL imports must use HTTPS and cannot include user info, query strings,
 - admin-assisted custom manifest creation
 - community registry support
 - external app command publishing
-- prefix trigger routing to external apps
+- actual prefix trigger dispatch to external apps
 - LLM tool routing to external app actions
 - external app command execution
 - docs scraping or browser-based discovery
 
-Next slice should expose a permission-gated admin flow to list known external app manifests and enable an approved manifest for a guild.
+Next slice should add confirmed dispatch after dry-run matching, permission checks, and audit are proven.

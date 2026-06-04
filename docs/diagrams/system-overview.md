@@ -5,7 +5,7 @@ description: High-level view of the Go foundation runtime.
 
 # System Overview
 
-This overview reflects the current Go foundation. Health/readiness, Discord liveness routing, and permission grants run today; LLM, retrieval, and external app command execution remain foundations for later privileged behavior.
+This overview reflects the current Go foundation. Health/readiness, Discord liveness routing, permission grants, plugin catalog controls, and external app dry-run matching run today; LLM, retrieval, and external app command dispatch remain foundations for later privileged behavior.
 
 ```mermaid
 flowchart LR
@@ -14,7 +14,7 @@ flowchart LR
   Web["internal/web<br/>/healthz + /readyz"]
   Ready["internal/storage<br/>DB readiness + migrations"]
   DB["Local PostgreSQL + pgvector"]
-  Discord["Discord Gateway<br/>/ping + DM/mention ping + /permissions"]
+  Discord["Discord Gateway<br/>/ping + DM/mention ping + /permissions + /plugins + dry-run"]
   Security["Capability + Identity + Audit<br/>permission gate"]
   Seams["Future Seams<br/>external apps jobs retrieval llm"]
   Compose["Docker Compose"]
@@ -40,13 +40,13 @@ flowchart LR
 - `/healthz` reports process/build health.
 - `/readyz` fails closed unless required config exists and PostgreSQL is reachable.
 - Discord liveness behavior is active when Discord is enabled.
-- Capability, identity, and audit gate `/permissions`; external app, job, retrieval, and LLM packages are foundations for later privileged behavior.
+- Capability, identity, and audit gate `/permissions` and external app dry-run planning; job, retrieval, and LLM packages are foundations for later privileged behavior.
 - Docker Compose is the local and production deployment shape.
 
 ## Keep This Updated When
 
 - command surfaces become live
-- external app command execution becomes live
+- external app command dispatch becomes live
 - job workers become live
 - storage schema boundaries change
 - deployment topology changes

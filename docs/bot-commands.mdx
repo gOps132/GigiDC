@@ -369,9 +369,41 @@ Revoked `job.admin` for user @person.
 
 Dynamic external app capabilities such as `plugin.run.<id>` are future work and should appear only after plugin install/enable flow exists.
 
+## External App Dry-Run Messages
+
+External app dry-run is live for guild mentions. It does not use an LLM, does not call LangChain, does not run harnesses, and does not send commands to the external app.
+
+Surface: guild mention message.
+
+Required Gigi capability: the matched manifest's `permissions` entry. If a manifest has no permissions, Gigi falls back to `plugin.run.<plugin-id>`.
+
+Audit: matched, denied, and failed dry-run attempts are audited without storing raw message text or the planned command.
+
+Syntax:
+
+```text
+@Gigi play never gonna give you up
+@Gigi !play never gonna give you up
+```
+
+Expected response:
+
+```text
+Matched external app: `Jockie Music`.
+Planned command: `!play never gonna give you up`.
+Dispatch is not live yet.
+```
+
+Failure cases:
+
+- no enabled external app manifest matches the text, so Gigi falls back to normal mention behavior
+- requester lacks the matched manifest permission and has no Discord administrator override
+- database is unavailable
+- manifest trigger or surface does not match the message
+
 ## Plugin Commands
 
-All `/plugins` commands are live admin commands for the external app manifest catalog. They do not drive external app behavior yet.
+All `/plugins` commands are live admin commands for the external app manifest catalog. They do not dispatch external app commands.
 
 Surface: slash command.
 
@@ -464,7 +496,7 @@ Privacy and audit: Discord attachment URLs are not stored in audit metadata or m
 
 ### `/plugins enable`
 
-Enables an approved external app version for the current Discord server. This does not execute external app commands yet.
+Enables an approved external app version for the current Discord server. This permits dry-run matching only; it does not dispatch external app commands.
 
 Syntax:
 
@@ -537,4 +569,4 @@ Failure cases:
 - tasks
 - relay actions
 - LLM provider management commands
-- external app declared prefix commands
+- confirmed external app command dispatch
