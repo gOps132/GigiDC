@@ -5,10 +5,10 @@ description: Go foundation for the rebuilt Gigi Discord assistant.
 
 # GigiDC
 
-GigiDC is being rebuilt as a Go service with Docker Compose, local PostgreSQL, pgvector, durable jobs, and a plugin-aware skill runtime.
+GigiDC is being rebuilt as a Go service with Docker Compose, local PostgreSQL, pgvector, durable jobs, and an external Discord app integration layer.
 
 <Note>
-The old Node/Supabase runtime has been removed. The current foundation exposes health/readiness, Discord liveness routing, and admin-gated capability grants; LLM, retrieval, and plugin behavior will land in later slices.
+The old Node/Supabase runtime has been removed. The current foundation exposes health/readiness, Discord liveness routing, and admin-gated capability grants; LLM, retrieval, and external app command routing will land in later slices.
 </Note>
 
 ## Foundation Shape
@@ -16,7 +16,7 @@ The old Node/Supabase runtime has been removed. The current foundation exposes h
 ```mermaid
 flowchart LR
   Runtime["Go Runtime"] --> Health["Health + Readiness"]
-  Runtime --> Plugins["Plugin Skill Registry"]
+  Runtime --> Plugins["External App Catalog"]
   Runtime --> Jobs["Durable Jobs"]
   Runtime --> Storage["PostgreSQL + pgvector"]
   Runtime --> Discord["Discord Adapter"]

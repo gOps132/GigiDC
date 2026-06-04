@@ -11,7 +11,7 @@ description: External resources, platforms, and tooling used by GigiDC.
   - Use: Primary application runtime for the rebuilt Gigi service
   - Source: https://go.dev/
 - `PostgreSQL`
-  - Use: Local relational database for runtime state, jobs, plugins, and future history storage
+  - Use: Local relational database for runtime state, jobs, external app integrations, and future history storage
   - Source: https://www.postgresql.org/
 - `pgvector`
   - Use: PostgreSQL vector extension planned for semantic retrieval
@@ -23,7 +23,7 @@ description: External resources, platforms, and tooling used by GigiDC.
   - Use: Local app/Postgres orchestration and deployable Compose shape
   - Source: https://docs.docker.com/compose/
 - `Discord API`
-  - Use: Planned Discord gateway, slash commands, interactions, messages, and voice/plugin surfaces
+  - Use: Planned Discord gateway, slash commands, interactions, messages, and external app surfaces
   - Source: https://discord.com/developers/docs/
 - `discordgo`
   - Use: Go client library for the Discord gateway adapter

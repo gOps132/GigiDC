@@ -11,7 +11,7 @@ description: Planned evolution of the Go foundation rebuild.
 - Docker Compose
 - PostgreSQL + pgvector
 - health and readiness endpoints
-- plugin, job, Discord, storage, and LLM interfaces
+- external app integration, job, Discord, storage, and LLM interfaces
 
 ## v0 Discord Surface Slice
 
@@ -32,12 +32,12 @@ Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing,
 - relays with confirmation
 - usage tracking
 
-## v0 Plugin Skills Slice
+## v0 External App Integration Slice
 
-- approved plugin catalog
+- approved external app catalog
 - guild enable/configure flow
-- plugin-declared prefix commands
-- plugin permissions and audit logs
-- plugin-specific behavior through approved manifests
+- external app declared prefix commands
+- external app permissions and audit logs
+- external app behavior through approved manifests
 
-Current status: manifest validation, exact Discord application/bot identity lookup, manifest source metadata, approved-manifest storage, enabled-guild manifest loading, and Discord `/plugins` admin commands are started. Command publishing, prefix routing, and plugin execution remain future slices. Any domain behavior only exists if an approved installed plugin declares and implements it.
+Current status: manifest validation, exact Discord application/bot identity lookup, manifest source metadata, approved-manifest storage, enabled-guild manifest loading, and Discord `/plugins` admin commands are started. Command publishing, prefix routing, and external app command execution remain future slices. Any domain behavior only exists if an approved installed external app manifest declares it and the external app supports it.
