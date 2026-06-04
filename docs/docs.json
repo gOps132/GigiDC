@@ -32,9 +32,18 @@
         ]
       },
       {
+        "group": "Bot Guides",
+        "pages": [
+          "user-guide",
+          "discord-usage",
+          "bot-commands",
+          "permissions",
+          "plugin-catalog"
+        ]
+      },
+      {
         "group": "Reference",
         "pages": [
-          "plugin-catalog",
           "diagrams/index",
           "credits"
         ]
