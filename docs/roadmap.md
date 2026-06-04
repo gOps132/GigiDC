@@ -37,7 +37,8 @@ Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing,
 - approved external app catalog
 - guild enable/configure flow
 - external app declared prefix dry-run matching
+- opt-in public `send_message` prefix dispatch
 - external app permissions and audit logs
 - external app behavior through approved manifests
 
-Current status: manifest validation, exact Discord application/bot identity lookup, manifest source metadata, approved-manifest storage, enabled-guild manifest loading, Discord `/plugins` admin commands, and deterministic guild mention dry-run matching are started. Command publishing, confirmed dispatch, and external app command execution remain future slices. Any domain behavior only exists if an approved installed external app manifest declares it and the external app supports it.
+Current status: manifest validation, exact Discord application/bot identity lookup, manifest source metadata, approved-manifest storage, enabled-guild manifest loading, Discord `/plugins` admin commands, deterministic guild mention dry-run matching, and public `send_message` prefix dispatch are started. Command publishing, restricted dispatch, confirmed per-message approval, and richer external app execution remain future slices. Any domain behavior only exists if an approved installed external app manifest declares it and the external app supports it.

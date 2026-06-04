@@ -23,6 +23,13 @@ const (
 	SourceKindUploadedFile SourceKind = "uploaded_file"
 )
 
+type DispatchMode string
+
+const (
+	DispatchModeDryRun      DispatchMode = "dry_run"
+	DispatchModeSendMessage DispatchMode = "send_message"
+)
+
 type Manifest struct {
 	ID                   string       `json:"id"`
 	Name                 string       `json:"name"`
@@ -36,6 +43,7 @@ type Manifest struct {
 	Triggers             []Trigger    `json:"triggers"`
 	Surfaces             []string     `json:"surfaces"`
 	Permissions          []string     `json:"permissions"`
+	Dispatch             DispatchMode `json:"dispatch,omitempty"`
 	ConfigSchema         string       `json:"config_schema,omitempty"`
 	AuditEvents          []string     `json:"audit_events"`
 	Attribution          []Resource   `json:"attribution"`
@@ -178,6 +186,9 @@ func (m Manifest) Validate() error {
 		if _, err := capability.Normalize(permission); err != nil {
 			return fmt.Errorf("permission %q: %w", permission, err)
 		}
+	}
+	if m.Dispatch != "" && m.Dispatch != DispatchModeDryRun && m.Dispatch != DispatchModeSendMessage {
+		return fmt.Errorf("unsupported dispatch mode %q", m.Dispatch)
 	}
 	if len(m.AuditEvents) == 0 {
 		return fmt.Errorf("audit events are required")

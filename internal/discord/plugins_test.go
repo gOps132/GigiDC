@@ -166,6 +166,8 @@ func TestPluginCommandDryRunsEnabledManifest(t *testing.T) {
 	manifest := pluginManifest("jockie-music", "0.1.0")
 	manifest.Name = "Jockie Music"
 	manifest.Triggers = []plugins.Trigger{{Kind: "prefix", Value: "!play"}}
+	manifest.Permissions = nil
+	manifest.Dispatch = plugins.DispatchModeSendMessage
 	manager := &fakePluginManager{manifests: []plugins.Manifest{manifest}}
 	handler := PluginCommands(manager, &fakePluginFetcher{}, nil)[0].Handle
 
@@ -180,6 +182,7 @@ func TestPluginCommandDryRunsEnabledManifest(t *testing.T) {
 	}
 	if !strings.Contains(response.Content, "Matched external app: `Jockie Music`.") ||
 		!strings.Contains(response.Content, "Planned command: `!play never gonna give you up`.") ||
+		!strings.Contains(response.Content, "Dry-run only; no command sent.") ||
 		!response.Ephemeral {
 		t.Fatalf("response = %+v, want ephemeral dry-run plan", response)
 	}

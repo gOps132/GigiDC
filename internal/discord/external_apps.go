@@ -54,6 +54,12 @@ func (h externalAppDryRunHandler) HandleMessage(ctx context.Context, message Mes
 		_ = h.record(ctx, message, plan, audit.StatusDenied, string(decision.Reason), string(decision.Capability))
 		return MessageResponse{Content: "Permission denied for external app action."}, nil
 	}
+	if shouldDispatch(plan) {
+		if err := h.recordKind(ctx, "discord.external_app.dispatch", message, plan, audit.StatusSucceeded, "", ""); err != nil {
+			return MessageResponse{}, err
+		}
+		return MessageResponse{Content: plan.Command}, nil
+	}
 	if err := h.record(ctx, message, plan, audit.StatusSucceeded, "", capabilityList(plan.RequiredCapabilities)); err != nil {
 		return MessageResponse{}, err
 	}
@@ -85,6 +91,10 @@ func (h externalAppDryRunHandler) authorize(ctx context.Context, message Message
 }
 
 func (h externalAppDryRunHandler) record(ctx context.Context, message Message, plan plugins.CommandPlan, status audit.Status, reason string, capabilityValue string) error {
+	return h.recordKind(ctx, "discord.external_app.dry_run", message, plan, status, reason, capabilityValue)
+}
+
+func (h externalAppDryRunHandler) recordKind(ctx context.Context, kind string, message Message, plan plugins.CommandPlan, status audit.Status, reason string, capabilityValue string) error {
 	if h.recorder == nil || strings.TrimSpace(message.UserID) == "" {
 		return nil
 	}
@@ -99,7 +109,7 @@ func (h externalAppDryRunHandler) record(ctx context.Context, message Message, p
 		metadata["capability"] = capabilityValue
 	}
 	return h.recorder.Record(ctx, audit.Event{
-		Kind:     "discord.external_app.dry_run",
+		Kind:     kind,
 		GuildID:  message.GuildID,
 		ActorID:  message.UserID,
 		Status:   status,
@@ -108,8 +118,12 @@ func (h externalAppDryRunHandler) record(ctx context.Context, message Message, p
 	})
 }
 
+func shouldDispatch(plan plugins.CommandPlan) bool {
+	return plan.Manifest.Dispatch == plugins.DispatchModeSendMessage && len(plan.RequiredCapabilities) == 0
+}
+
 func formatDryRunPlan(plan plugins.CommandPlan) string {
-	return fmt.Sprintf("Matched external app: `%s`.\nPlanned command: `%s`.\nDispatch is not live yet.",
+	return fmt.Sprintf("Matched external app: `%s`.\nPlanned command: `%s`.\nDry-run only; no command sent.",
 		safeInlineLimit(plan.Manifest.Name, 80),
 		safeInlineLimit(plan.Command, 180),
 	)

@@ -32,7 +32,7 @@ func TestExternalAppDryRunHandlerPlansEnabledManifest(t *testing.T) {
 	}
 	if !strings.Contains(response.Content, "Matched external app: `Jockie Music`.") ||
 		!strings.Contains(response.Content, "Planned command: `!play never gonna give you up`.") ||
-		!strings.Contains(response.Content, "Dispatch is not live yet.") {
+		!strings.Contains(response.Content, "Dry-run only; no command sent.") {
 		t.Fatalf("response = %q, want dry-run plan", response.Content)
 	}
 	if registry.guildID != "guild-id" {
@@ -106,6 +106,66 @@ func TestExternalAppDryRunHandlerAllowsPublicManifestWithoutChecker(t *testing.T
 	}
 	if _, ok := recorder.events[0].Metadata["capability"]; ok {
 		t.Fatalf("audit metadata = %+v, want no capability for public action", recorder.events[0].Metadata)
+	}
+}
+
+func TestExternalAppDryRunHandlerDispatchesPublicSendMessageManifest(t *testing.T) {
+	manifest := dryRunManifest()
+	manifest.Permissions = nil
+	manifest.Dispatch = plugins.DispatchModeSendMessage
+	recorder := &fakeAuditRecorder{}
+	handler := ExternalAppDryRunHandler(
+		&fakeExternalAppRegistry{manifests: []plugins.Manifest{manifest}},
+		nil,
+		recorder,
+		CoreMessageHandler(),
+	)
+
+	response, err := handler.HandleMessage(context.Background(), Message{
+		Surface: MessageSurfaceGuildMention,
+		GuildID: "guild-id",
+		UserID:  "user-id",
+		Text:    "play never gonna give you up",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if response.Content != "!play never gonna give you up" {
+		t.Fatalf("response = %q, want dispatched command", response.Content)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Kind != "discord.external_app.dispatch" || recorder.events[0].Status != audit.StatusSucceeded {
+		t.Fatalf("audit events = %+v, want succeeded dispatch", recorder.events)
+	}
+	if _, ok := recorder.events[0].Metadata["command"]; ok {
+		t.Fatalf("audit metadata = %+v, must not store raw dispatched command", recorder.events[0].Metadata)
+	}
+}
+
+func TestExternalAppDryRunHandlerDoesNotDispatchRestrictedManifest(t *testing.T) {
+	manifest := dryRunManifest()
+	manifest.Dispatch = plugins.DispatchModeSendMessage
+	recorder := &fakeAuditRecorder{}
+	handler := ExternalAppDryRunHandler(
+		&fakeExternalAppRegistry{manifests: []plugins.Manifest{manifest}},
+		&fakeCapabilityChecker{decision: capability.Decision{Allowed: true, Capability: "plugin.install", Reason: capability.ReasonRoleGrant}},
+		recorder,
+		CoreMessageHandler(),
+	)
+
+	response, err := handler.HandleMessage(context.Background(), Message{
+		Surface: MessageSurfaceGuildMention,
+		GuildID: "guild-id",
+		UserID:  "user-id",
+		Text:    "play never gonna give you up",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if !strings.Contains(response.Content, "Dry-run only; no command sent.") {
+		t.Fatalf("response = %q, want dry-run for restricted manifest", response.Content)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Kind != "discord.external_app.dry_run" {
+		t.Fatalf("audit events = %+v, want dry-run audit", recorder.events)
 	}
 }
 
