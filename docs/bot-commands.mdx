@@ -375,6 +375,8 @@ External app matching is live for guild mentions. It does not use an LLM, does n
 
 Dispatch is opt-in per manifest. If a matched enabled manifest has `dispatch: "send_message"` and empty `permissions`, Gigi sends the planned prefix command into the channel as Gigi. If the manifest omits that dispatch mode, or if the matched action has non-empty `permissions`, Gigi returns a dry-run response instead.
 
+Prefix trigger `value` is the command Gigi sends. Trigger `aliases` are optional user-facing phrases Gigi can match from the mention. For example, a manifest can match `@Gigi play never gonna give you up` and dispatch `m!play never gonna give you up`.
+
 External apps may ignore bot-authored messages. Gigi can send `!play ...`; the external app decides whether to act.
 
 Surface: guild mention message.

@@ -66,6 +66,16 @@ func TestManifestValidateRejectsUnsupportedDispatchMode(t *testing.T) {
 	}
 }
 
+func TestManifestValidateRejectsEmptyTriggerAlias(t *testing.T) {
+	manifest := validManifest()
+	manifest.Triggers[0].Aliases = []string{" "}
+
+	err := manifest.Validate()
+	if err == nil || !strings.Contains(err.Error(), "trigger alias") {
+		t.Fatalf("error = %v, want trigger alias validation", err)
+	}
+}
+
 func TestDecodeManifestValidatesJSON(t *testing.T) {
 	_, err := DecodeManifest(strings.NewReader(`{"id":"example-tool"}`))
 	if err == nil || !strings.Contains(err.Error(), "name is required") {

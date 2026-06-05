@@ -55,8 +55,9 @@ type Capability struct {
 }
 
 type Trigger struct {
-	Kind  string `json:"kind"`
-	Value string `json:"value"`
+	Kind    string   `json:"kind"`
+	Value   string   `json:"value"`
+	Aliases []string `json:"aliases,omitempty"`
 }
 
 type Resource struct {
@@ -172,6 +173,11 @@ func (m Manifest) Validate() error {
 	for _, trigger := range m.Triggers {
 		if strings.TrimSpace(trigger.Kind) == "" || strings.TrimSpace(trigger.Value) == "" {
 			return fmt.Errorf("trigger kind and value are required")
+		}
+		for _, alias := range trigger.Aliases {
+			if strings.TrimSpace(alias) == "" {
+				return fmt.Errorf("trigger alias is required")
+			}
 		}
 	}
 	if len(m.Surfaces) == 0 {

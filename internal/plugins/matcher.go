@@ -30,7 +30,7 @@ func PlanCommand(manifests []Manifest, surface string, text string) (CommandPlan
 			if strings.TrimSpace(trigger.Kind) != "prefix" {
 				continue
 			}
-			command, args, ok := matchPrefixTrigger(trigger.Value, text)
+			command, args, ok := matchPrefixTrigger(trigger, text)
 			if !ok {
 				continue
 			}
@@ -55,22 +55,37 @@ func supportsSurface(manifest Manifest, surface string) bool {
 	return false
 }
 
-func matchPrefixTrigger(trigger string, text string) (string, string, bool) {
-	trigger = strings.TrimSpace(trigger)
-	if trigger == "" {
+func matchPrefixTrigger(trigger Trigger, text string) (string, string, bool) {
+	value := strings.TrimSpace(trigger.Value)
+	if value == "" {
 		return "", "", false
 	}
-	if args, ok := matchCommand(text, trigger); ok {
-		return buildCommand(trigger, args), args, true
+	if args, ok := matchCommand(text, value); ok {
+		return buildCommand(value, args), args, true
 	}
-	bare := bareCommand(trigger)
-	if bare == "" || bare == trigger {
-		return "", "", false
-	}
-	if args, ok := matchCommand(text, bare); ok {
-		return buildCommand(trigger, args), args, true
+	for _, alias := range triggerAliases(trigger) {
+		if args, ok := matchCommand(text, alias); ok {
+			return buildCommand(value, args), args, true
+		}
 	}
 	return "", "", false
+}
+
+func triggerAliases(trigger Trigger) []string {
+	value := strings.TrimSpace(trigger.Value)
+	aliases := make([]string, 0, len(trigger.Aliases)+1)
+	bare := bareCommand(value)
+	if bare != "" && !strings.EqualFold(bare, value) {
+		aliases = append(aliases, bare)
+	}
+	for _, alias := range trigger.Aliases {
+		alias = strings.TrimSpace(alias)
+		if alias == "" || strings.EqualFold(alias, value) {
+			continue
+		}
+		aliases = append(aliases, alias)
+	}
+	return aliases
 }
 
 func matchCommand(text string, command string) (string, bool) {
