@@ -31,6 +31,19 @@ func TestPlanCommandMatchesBareAliasForPrefixTrigger(t *testing.T) {
 	}
 }
 
+func TestPlanCommandMatchesExplicitAliasForPrefixedTrigger(t *testing.T) {
+	manifest := musicManifest()
+	manifest.Triggers = []Trigger{{Kind: "prefix", Value: "m!play", Aliases: []string{"play"}}}
+
+	plan, ok := PlanCommand([]Manifest{manifest}, "guild_text", "play never gonna give you up")
+	if !ok {
+		t.Fatal("expected explicit trigger alias match")
+	}
+	if plan.Command != "m!play never gonna give you up" || plan.Trigger.Value != "m!play" {
+		t.Fatalf("plan = %+v, want normalized external app command", plan)
+	}
+}
+
 func TestPlanCommandRequiresTriggerBoundary(t *testing.T) {
 	if _, ok := PlanCommand([]Manifest{musicManifest()}, "guild_text", "playlist never gonna give you up"); ok {
 		t.Fatal("must not match trigger inside a longer word")

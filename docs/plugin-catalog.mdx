@@ -27,6 +27,7 @@ Plugin catalog work has started. This slice validates, imports, stores, lists, e
 - `dispatch: "send_message"` sends the planned prefix command as Gigi only when the matched action has empty `permissions`
 - manifests without `dispatch: "send_message"` remain dry-run only
 - restricted actions with non-empty `permissions` remain dry-run only even when the manifest asks for `send_message`
+- trigger `aliases` can match friendlier Gigi mention text while dispatch still uses the trigger `value`
 - `/plugins dry-run` can test enabled manifest matching without depending on Discord message-content events
 
 v0 does not guess external app identity from fuzzy names, bot display names, domains, or docs pages. Fuzzy suggestions may come later, but exact admin approval remains required.
@@ -40,7 +41,7 @@ Each manifest must include:
 - plugin id, name, version, source, and source kind
 - exact Discord application ID or bot user ID
 - capabilities
-- triggers
+- triggers; prefix triggers may include aliases
 - supported surfaces
 - optional Gigi capabilities; empty `permissions` means public guild action
 - optional dispatch mode: `dry_run` or `send_message`
@@ -67,7 +68,8 @@ Manifest URL imports must use HTTPS and cannot include user info, query strings,
   "triggers": [
     {
       "kind": "prefix",
-      "value": "!example"
+      "value": "m!example",
+      "aliases": ["example"]
     }
   ],
   "surfaces": ["guild_text"],
