@@ -1,6 +1,9 @@
 node_modules/
 dist/
 .agents/
+.agent/
+docs/superpowers/
+superpowers/
 .codex/
 .understand-anything/
 AGENTS.md
