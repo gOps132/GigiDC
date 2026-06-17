@@ -97,3 +97,39 @@ func TestLLMProviderCredentialsMigrationDefinesEncryptedMultiOwnerSchema(t *test
 		}
 	}
 }
+
+func TestAssistantConversationMigrationStoresMetadataOnly(t *testing.T) {
+	sqlBytes, err := os.ReadFile("../../db/migrations/000004_assistant_conversation_turns.sql")
+	if err != nil {
+		t.Fatalf("ReadFile returned error: %v", err)
+	}
+	sql := string(sqlBytes)
+
+	for _, want := range []string{
+		"create table if not exists assistant_conversation_turns",
+		"request_id text not null",
+		"surface text not null",
+		"actor_user_id text not null",
+		"role text not null",
+		"content_storage text not null default 'metadata_only'",
+		"content_chars integer not null",
+		"assistant_conversation_turns_guild_channel_idx",
+		"assistant_conversation_turns_request_idx",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("assistant conversation migration missing %q", want)
+		}
+	}
+
+	for _, forbidden := range []string{
+		"prompt",
+		"completion",
+		"message_text",
+		"content text",
+		"raw_content",
+	} {
+		if strings.Contains(sql, forbidden) {
+			t.Fatalf("assistant conversation migration must not include raw text column %q", forbidden)
+		}
+	}
+}

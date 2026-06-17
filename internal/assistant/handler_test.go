@@ -35,6 +35,42 @@ func TestHandlerRepliesToGuildMentionWithGuildChatProfile(t *testing.T) {
 	}
 }
 
+func TestHandlerRecordsMetadataOnlyConversationTurns(t *testing.T) {
+	recorder := &fakeConversationRecorder{}
+	runtime := &fakeRuntime{response: llm.TextResponse{
+		Text:       "Hello from model.",
+		RequestID:  "request-id",
+		ProviderID: "openai",
+		ModelID:    "model-id",
+	}}
+	handler := Handler{Runtime: runtime, Recorder: recorder}
+
+	got, err := handler.Reply(context.Background(), Message{
+		Surface:     SurfaceGuildMention,
+		GuildID:     "guild-id",
+		ChannelID:   "channel-id",
+		ActorUserID: "actor-id",
+		Text:        "hello",
+	})
+	if err != nil {
+		t.Fatalf("Reply returned error: %v", err)
+	}
+	if got.Text != "Hello from model." {
+		t.Fatalf("response = %+v, want model text", got)
+	}
+	if len(recorder.turns) != 2 {
+		t.Fatalf("turns = %+v, want user and assistant turns", recorder.turns)
+	}
+	if recorder.turns[0].Role != TurnRoleUser || recorder.turns[0].ContentChars != 5 || recorder.turns[1].Role != TurnRoleAssistant || recorder.turns[1].ContentChars != 17 {
+		t.Fatalf("turns = %+v, want metadata-only turn counts", recorder.turns)
+	}
+	for _, turn := range recorder.turns {
+		if turn.RequestID != "request-id" || turn.ProviderID != "openai" || turn.ModelID != "model-id" || turn.Surface != SurfaceGuildMention {
+			t.Fatalf("turn = %+v, want linked metadata", turn)
+		}
+	}
+}
+
 func TestHandlerDoesNotUseLLMForDMs(t *testing.T) {
 	runtime := &fakeRuntime{}
 	handler := Handler{Runtime: runtime}
@@ -114,4 +150,14 @@ func (r *fakeRuntime) GenerateText(_ context.Context, req llm.GenerateTextReques
 	r.calls++
 	r.req = req
 	return r.response, r.err
+}
+
+type fakeConversationRecorder struct {
+	turns []ConversationTurn
+	err   error
+}
+
+func (r *fakeConversationRecorder) RecordTurn(_ context.Context, turn ConversationTurn) error {
+	r.turns = append(r.turns, turn)
+	return r.err
 }

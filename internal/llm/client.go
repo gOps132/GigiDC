@@ -12,6 +12,9 @@ type TextResponse struct {
 	Text         string
 	InputTokens  int
 	OutputTokens int
+	RequestID    string
+	ProviderID   string
+	ModelID      string
 }
 
 type Client interface {

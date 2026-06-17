@@ -87,6 +87,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		providerStore := llmprovider.NewSQLStore(db, func() string { return storage.NewID("llm") })
 		providerService := llmprovider.NewServiceWithTester(providerStore, secretSealer, llmprovider.DefaultRegistry(), llmprovider.NewHTTPTester(nil))
 		usageRecorder := llmprovider.NewSQLUsageRecorder(db, func() string { return storage.NewID("llmusage") })
+		conversationStore := assistant.NewSQLConversationStore(db, func() string { return storage.NewID("asstturn") })
 		llmRuntime := llm.Runtime{
 			Resolver:     providerService,
 			Client:       llm.NewHTTPProviderClient(nil),
@@ -94,6 +95,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			NewRequestID: func() string { return storage.NewID("llmreq") },
 		}
 		assistantHandler := assistant.NewHandler(llmRuntime)
+		assistantHandler.Recorder = conversationStore
 		commands := discord.CoreCommands()
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)

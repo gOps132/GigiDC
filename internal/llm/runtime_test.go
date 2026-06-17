@@ -24,7 +24,7 @@ func TestRuntimeGeneratesTextAndRecordsUsage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateText returned error: %v", err)
 	}
-	if got.Text != "hello back" || got.InputTokens != 12 || got.OutputTokens != 34 {
+	if got.Text != "hello back" || got.InputTokens != 12 || got.OutputTokens != 34 || got.RequestID != "request-id" || got.ProviderID != "openai" || got.ModelID != "model-id" {
 		t.Fatalf("response = %+v, want generated text", got)
 	}
 	if resolver.req.Owner.GuildID != "guild-id" || resolver.req.Purpose != llmprovider.PurposeChat || resolver.req.ActorID != "actor-id" {

@@ -37,6 +37,7 @@ type Runtime interface {
 
 type Handler struct {
 	Runtime          Runtime
+	Recorder         ConversationRecorder
 	Instructions     string
 	MaxOutputTokens  int
 	MaxResponseRunes int
@@ -74,7 +75,11 @@ func (h Handler) Reply(ctx context.Context, message Message) (Response, error) {
 	if text == "" {
 		return Response{Text: "I did not get a text response from the model."}, nil
 	}
-	return Response{Text: truncateRunes(text, h.maxResponseRunes())}, nil
+	text = truncateRunes(text, h.maxResponseRunes())
+	if err := h.recordConversation(ctx, message, generated, text); err != nil {
+		return Response{}, err
+	}
+	return Response{Text: text}, nil
 }
 
 func normalizeMessage(message Message) Message {
@@ -107,4 +112,29 @@ func truncateRunes(value string, limit int) string {
 	}
 	runes := []rune(value)
 	return strings.TrimSpace(string(runes[:limit])) + "..."
+}
+
+func (h Handler) recordConversation(ctx context.Context, message Message, generated llm.TextResponse, responseText string) error {
+	if h.Recorder == nil {
+		return nil
+	}
+	base := ConversationTurn{
+		RequestID:   generated.RequestID,
+		Surface:     message.Surface,
+		GuildID:     message.GuildID,
+		ChannelID:   message.ChannelID,
+		ActorUserID: message.ActorUserID,
+		ProviderID:  generated.ProviderID,
+		ModelID:     generated.ModelID,
+	}
+	userTurn := base
+	userTurn.Role = TurnRoleUser
+	userTurn.ContentChars = utf8.RuneCountInString(message.Text)
+	if err := h.Recorder.RecordTurn(ctx, userTurn); err != nil {
+		return err
+	}
+	assistantTurn := base
+	assistantTurn.Role = TurnRoleAssistant
+	assistantTurn.ContentChars = utf8.RuneCountInString(responseText)
+	return h.Recorder.RecordTurn(ctx, assistantTurn)
 }

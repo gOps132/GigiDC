@@ -68,6 +68,9 @@ func (r Runtime) GenerateText(ctx context.Context, req GenerateTextRequest) (Tex
 	if usageErr != nil {
 		return TextResponse{}, usageErr
 	}
+	response.RequestID = normalized.RequestID
+	response.ProviderID = string(resolved.ProviderID)
+	response.ModelID = resolved.ModelID
 	return response, nil
 }
 
