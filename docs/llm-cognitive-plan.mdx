@@ -69,7 +69,7 @@ Remaining V0 work:
 - Minimal cognitive fallback chat for DMs and guild mentions after deterministic plugin matching fails.
 - Metadata-only conversation turn storage is in place; raw memory/retrieval policy remains deferred.
 - Semantic plugin routing in dry-run or confirmation-required mode only.
-- Policy fields for personal keys defaulted to `off`, or an explicit deferral before V1 personal BYOK.
+- Guild policy storage defaults personal keys to `off`; `/llm key` behavior remains V1.
 
 The important product rule: an admin can personally pay for a provider key, but if that key powers shared server behavior, Gigi treats it as a guild credential governed by guild policy and audit.
 
