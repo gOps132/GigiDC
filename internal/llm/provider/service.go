@@ -11,6 +11,8 @@ type CredentialStore interface {
 	UpsertCredential(ctx context.Context, input CredentialInput) (CredentialRecord, error)
 	RevokeCredential(ctx context.Context, owner Scope, label string, actorID string) error
 	ListCredentials(ctx context.Context, owner Scope) ([]CredentialRecord, error)
+	CredentialForTest(ctx context.Context, owner Scope, label string) (CredentialRecord, error)
+	UpdateCredentialTestResult(ctx context.Context, credentialID string, status TestStatus, errorCode TestErrorCode) error
 	SelectModelProfile(ctx context.Context, input ModelProfileInput) error
 	ActiveModelProfile(ctx context.Context, owner Scope, purpose Purpose) (ModelProfile, error)
 }
@@ -19,6 +21,7 @@ type Service struct {
 	Store    CredentialStore
 	Sealer   SecretSealer
 	Registry Registry
+	Tester   CredentialTester
 }
 
 type AddCredentialRequest struct {
@@ -45,6 +48,12 @@ func NewService(store CredentialStore, sealer SecretSealer, registry Registry) S
 		Sealer:   sealer,
 		Registry: registry,
 	}
+}
+
+func NewServiceWithTester(store CredentialStore, sealer SecretSealer, registry Registry, tester CredentialTester) Service {
+	service := NewService(store, sealer, registry)
+	service.Tester = tester
+	return service
 }
 
 func (s Service) AddCredential(ctx context.Context, req AddCredentialRequest) (CredentialRecord, error) {
@@ -149,6 +158,57 @@ func (s Service) ActiveModelProfile(ctx context.Context, owner Scope, purpose Pu
 	return s.Store.ActiveModelProfile(ctx, owner, purpose)
 }
 
+func (s Service) TestCredential(ctx context.Context, req TestCredentialRequest) (TestCredentialResult, error) {
+	if s.Store == nil {
+		return TestCredentialResult{}, fmt.Errorf("credential store is required")
+	}
+	if s.Sealer == nil {
+		return TestCredentialResult{}, fmt.Errorf("secret sealer is required")
+	}
+	if s.Tester == nil {
+		return TestCredentialResult{}, fmt.Errorf("credential tester is required")
+	}
+
+	owner, label, err := normalizeTestCredentialRequest(req)
+	if err != nil {
+		return TestCredentialResult{}, err
+	}
+	record, err := s.Store.CredentialForTest(ctx, owner, label)
+	if err != nil {
+		return TestCredentialResult{}, err
+	}
+	secret, err := s.Sealer.Open(ctx, SealedSecret{
+		Ciphertext: append([]byte(nil), record.Ciphertext...),
+		Nonce:      append([]byte(nil), record.Nonce...),
+		KeyID:      record.KeyID,
+	}, []byte(credentialAAD(owner, record.ProviderID, record.Label)))
+	if err != nil {
+		_ = s.Store.UpdateCredentialTestResult(ctx, record.ID, TestStatusFailed, TestErrorSecretOpenFailed)
+		return TestCredentialResult{}, fmt.Errorf("open credential secret: %w", err)
+	}
+
+	result, err := s.Tester.TestCredential(ctx, ProviderTestRequest{
+		ProviderID: record.ProviderID,
+		APIKey:     string(secret),
+	})
+	if err != nil {
+		_ = s.Store.UpdateCredentialTestResult(ctx, record.ID, TestStatusFailed, TestErrorRequestFailed)
+		return TestCredentialResult{}, err
+	}
+	if result.Status == "" {
+		result.Status = TestStatusFailed
+	}
+	result.ProviderID = record.ProviderID
+	result.Label = record.Label
+	if result.Status == TestStatusSucceeded {
+		result.ErrorCode = TestErrorNone
+	}
+	if err := s.Store.UpdateCredentialTestResult(ctx, record.ID, result.Status, result.ErrorCode); err != nil {
+		return TestCredentialResult{}, err
+	}
+	return result, nil
+}
+
 func (s Service) normalizeAddCredentialRequest(req AddCredentialRequest) (Scope, ProviderID, string, string, error) {
 	owner, err := normalizeScope(req.Owner)
 	if err != nil {
@@ -168,6 +228,22 @@ func (s Service) normalizeAddCredentialRequest(req AddCredentialRequest) (Scope,
 		return Scope{}, "", "", "", fmt.Errorf("actor user ID is required")
 	}
 	return owner, providerID, label, actorID, nil
+}
+
+func normalizeTestCredentialRequest(req TestCredentialRequest) (Scope, string, error) {
+	owner, err := normalizeScope(req.Owner)
+	if err != nil {
+		return Scope{}, "", err
+	}
+	label := strings.TrimSpace(req.Label)
+	if label == "" {
+		return Scope{}, "", fmt.Errorf("credential label is required")
+	}
+	actorID := strings.TrimSpace(req.ActorID)
+	if actorID == "" {
+		return Scope{}, "", fmt.Errorf("actor user ID is required")
+	}
+	return owner, label, nil
 }
 
 func (s Service) modelProfileInput(req SelectModelRequest) (ModelProfileInput, error) {

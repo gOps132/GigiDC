@@ -19,6 +19,7 @@ type LLMProviderManager interface {
 	AddCredential(ctx context.Context, req provider.AddCredentialRequest) (provider.CredentialRecord, error)
 	RotateCredential(ctx context.Context, req provider.AddCredentialRequest) (provider.CredentialRecord, error)
 	ListCredentials(ctx context.Context, owner provider.Scope) ([]provider.CredentialRecord, error)
+	TestCredential(ctx context.Context, req provider.TestCredentialRequest) (provider.TestCredentialResult, error)
 	RevokeCredential(ctx context.Context, owner provider.Scope, label string, actorID string) error
 	SelectModelProfile(ctx context.Context, req provider.SelectModelRequest) error
 	ActiveModelProfile(ctx context.Context, owner provider.Scope, purpose provider.Purpose) (provider.ModelProfile, error)
@@ -355,7 +356,19 @@ func executeLLMRequest(ctx context.Context, manager LLMProviderManager, interact
 		}
 		return CommandResponse{Modal: credentialModal(request.Action, nonce)}, nil
 	case request.Group == "provider" && request.Action == "test":
-		return CommandResponse{Content: "Provider test requires provider client adapters; not enabled yet."}, nil
+		result, err := manager.TestCredential(ctx, provider.TestCredentialRequest{
+			Owner:   owner,
+			Label:   request.Label,
+			ActorID: interaction.UserID,
+		})
+		if err != nil {
+			return CommandResponse{}, err
+		}
+		request.ProviderID = result.ProviderID
+		if result.Status == provider.TestStatusFailed && result.ErrorCode != "" {
+			return CommandResponse{Content: fmt.Sprintf("Tested `%s` credential `%s`: %s (%s).", safeInline(string(result.ProviderID)), safeInline(result.Label), result.Status, result.ErrorCode)}, nil
+		}
+		return CommandResponse{Content: fmt.Sprintf("Tested `%s` credential `%s`: %s.", safeInline(string(result.ProviderID)), safeInline(result.Label), result.Status)}, nil
 	case request.Group == "provider" && request.Action == "delete":
 		if err := manager.RevokeCredential(ctx, owner, request.Label, interaction.UserID); err != nil {
 			return CommandResponse{}, err
@@ -501,7 +514,7 @@ func cleanLLMError(err error) string {
 
 func shouldAuditLLMAction(request llmRequest) bool {
 	switch {
-	case request.Group == "provider" && request.Action == "delete":
+	case request.Group == "provider" && (request.Action == "delete" || request.Action == "test"):
 		return true
 	case request.Group == "model" && request.Action == "set":
 		return true

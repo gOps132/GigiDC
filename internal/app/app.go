@@ -83,7 +83,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		auditStore := audit.NewStore(db, func() string { return storage.NewID("audit") })
 		pluginStore := plugins.NewSQLCatalogStore(db, func() string { return storage.NewID("plugin") })
 		providerStore := llmprovider.NewSQLStore(db, func() string { return storage.NewID("llm") })
-		providerService := llmprovider.NewService(providerStore, secretSealer, llmprovider.DefaultRegistry())
+		providerService := llmprovider.NewServiceWithTester(providerStore, secretSealer, llmprovider.DefaultRegistry(), llmprovider.NewHTTPTester(nil))
 		commands := discord.CoreCommands()
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)

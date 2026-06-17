@@ -135,13 +135,50 @@ func TestLLMCommandProviderAddRotateDisabledWithoutCredentialEntry(t *testing.T)
 	if addResponse.Content != "LLM credential entry is not configured." || !addResponse.Ephemeral {
 		t.Fatalf("response = %+v, want disabled credential entry message", addResponse)
 	}
+}
 
-	testResponse, err := handler(context.Background(), llmInteraction("provider", "test", []InteractionOption{{Name: "label", Value: "main"}}))
+func TestLLMCommandProviderTestsCredentialAndAudits(t *testing.T) {
+	manager := &fakeLLMProviderManager{testResult: provider.TestCredentialResult{
+		ProviderID: provider.ProviderOpenAI,
+		Label:      "main",
+		Status:     provider.TestStatusSucceeded,
+	}}
+	recorder := &fakeAuditRecorder{}
+	handler := LLMCommands(manager, recorder)[0].Handle
+
+	response, err := handler(context.Background(), llmInteraction("provider", "test", []InteractionOption{{Name: "label", Value: "main"}}))
 	if err != nil {
 		t.Fatalf("test returned error: %v", err)
 	}
-	if !strings.Contains(testResponse.Content, "Provider test requires") || !testResponse.Ephemeral {
-		t.Fatalf("response = %+v, want tester-required message", testResponse)
+	if manager.method != "TestCredential" || manager.testReq.Owner.GuildID != "guild-id" || manager.testReq.Label != "main" || manager.testReq.ActorID != "actor-id" {
+		t.Fatalf("manager = %+v, want test credential request", manager)
+	}
+	if !strings.Contains(response.Content, "Tested `openai` credential `main`: succeeded.") || !response.Ephemeral {
+		t.Fatalf("response = %+v, want safe test response", response)
+	}
+	for _, forbidden := range []string{"sk-", "ciphertext", "nonce", "fingerprint"} {
+		if strings.Contains(response.Content, forbidden) {
+			t.Fatalf("response leaked %q: %+v", forbidden, response)
+		}
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Status != audit.StatusSucceeded || recorder.events[0].Metadata["action"] != "test" || recorder.events[0].Metadata["provider_id"] != "openai" {
+		t.Fatalf("audit events = %+v, want successful test audit", recorder.events)
+	}
+}
+
+func TestLLMCommandProviderTestFailureIsCleanAndAudited(t *testing.T) {
+	recorder := &fakeAuditRecorder{}
+	handler := LLMCommands(&fakeLLMProviderManager{err: errors.New("provider rejected sk-live-secret")}, recorder)[0].Handle
+
+	response, err := handler(context.Background(), llmInteraction("provider", "test", []InteractionOption{{Name: "label", Value: "main"}}))
+	if err != nil {
+		t.Fatalf("test returned error: %v", err)
+	}
+	if response.Content != "LLM command failed." || strings.Contains(response.Content, "sk-live-secret") || !response.Ephemeral {
+		t.Fatalf("response = %+v, want clean test failure", response)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Status != audit.StatusFailed || recorder.events[0].Metadata["action"] != "test" {
+		t.Fatalf("audit events = %+v, want failed test audit", recorder.events)
 	}
 }
 
@@ -430,17 +467,19 @@ func llmInteraction(group string, action string, options []InteractionOption) In
 }
 
 type fakeLLMProviderManager struct {
-	method    string
-	owner     provider.Scope
-	label     string
-	actorID   string
-	purpose   provider.Purpose
-	selectReq provider.SelectModelRequest
-	addReq    provider.AddCredentialRequest
-	rotateReq provider.AddCredentialRequest
-	records   []provider.CredentialRecord
-	profile   provider.ModelProfile
-	err       error
+	method     string
+	owner      provider.Scope
+	label      string
+	actorID    string
+	purpose    provider.Purpose
+	selectReq  provider.SelectModelRequest
+	addReq     provider.AddCredentialRequest
+	rotateReq  provider.AddCredentialRequest
+	testReq    provider.TestCredentialRequest
+	testResult provider.TestCredentialResult
+	records    []provider.CredentialRecord
+	profile    provider.ModelProfile
+	err        error
 }
 
 func (m *fakeLLMProviderManager) AddCredential(_ context.Context, req provider.AddCredentialRequest) (provider.CredentialRecord, error) {
@@ -456,6 +495,11 @@ func (m *fakeLLMProviderManager) RotateCredential(_ context.Context, req provide
 func (m *fakeLLMProviderManager) ListCredentials(_ context.Context, owner provider.Scope) ([]provider.CredentialRecord, error) {
 	m.method, m.owner = "ListCredentials", owner
 	return m.records, m.err
+}
+
+func (m *fakeLLMProviderManager) TestCredential(_ context.Context, req provider.TestCredentialRequest) (provider.TestCredentialResult, error) {
+	m.method, m.testReq = "TestCredential", req
+	return m.testResult, m.err
 }
 
 func (m *fakeLLMProviderManager) RevokeCredential(_ context.Context, owner provider.Scope, label string, actorID string) error {

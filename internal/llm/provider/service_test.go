@@ -238,6 +238,77 @@ func TestServiceActiveModelProfileDelegates(t *testing.T) {
 	}
 }
 
+func TestServiceTestCredentialOpensSecretTestsAndUpdatesStatus(t *testing.T) {
+	store := &fakeCredentialStore{testCredential: CredentialRecord{
+		ID:          "credential-id",
+		OwnerType:   OwnerGuild,
+		GuildID:     "guild-id",
+		ProviderID:  ProviderOpenAI,
+		Label:       "Main",
+		Ciphertext:  []byte("sealed-secret"),
+		Nonce:       []byte("nonce"),
+		KeyID:       "key-id",
+		Fingerprint: "fingerprint",
+		Status:      CredentialStatusActive,
+	}}
+	sealer := &fakeSecretSealer{opened: []byte("sk-live-test-secret")}
+	tester := &fakeCredentialTester{result: TestCredentialResult{Status: TestStatusSucceeded}}
+	service := NewServiceWithTester(store, sealer, DefaultRegistry(), tester)
+
+	got, err := service.TestCredential(context.Background(), TestCredentialRequest{
+		Owner:   Scope{OwnerType: OwnerGuild, GuildID: "guild-id"},
+		Label:   "main",
+		ActorID: "actor-id",
+	})
+	if err != nil {
+		t.Fatalf("TestCredential returned error: %v", err)
+	}
+	if string(sealer.openAAD) != "owner_type=guild;guild_id=guild-id;user_id=;provider_id=openai;label=Main" {
+		t.Fatalf("open AAD = %q, want canonical label AAD", sealer.openAAD)
+	}
+	if tester.req.ProviderID != ProviderOpenAI || tester.req.APIKey != "sk-live-test-secret" {
+		t.Fatalf("tester req = %+v, want provider and plaintext secret", tester.req)
+	}
+	if store.updateTestStatus != TestStatusSucceeded || store.updateErrorCode != TestErrorNone || store.updateCredentialID != "credential-id" {
+		t.Fatalf("test update = %q/%q/%q, want succeeded", store.updateCredentialID, store.updateTestStatus, store.updateErrorCode)
+	}
+	if got.ProviderID != ProviderOpenAI || got.Label != "Main" || got.Status != TestStatusSucceeded {
+		t.Fatalf("result = %+v, want canonical provider/label/status", got)
+	}
+}
+
+func TestServiceTestCredentialFailureUpdatesCleanErrorCode(t *testing.T) {
+	store := &fakeCredentialStore{testCredential: CredentialRecord{
+		ID:         "credential-id",
+		OwnerType:  OwnerGuild,
+		GuildID:    "guild-id",
+		ProviderID: ProviderOpenAI,
+		Label:      "main",
+		Ciphertext: []byte("sealed-secret"),
+		Nonce:      []byte("nonce"),
+		KeyID:      "key-id",
+		Status:     CredentialStatusActive,
+	}}
+	sealer := &fakeSecretSealer{opened: []byte("sk-live-test-secret")}
+	tester := &fakeCredentialTester{result: TestCredentialResult{Status: TestStatusFailed, ErrorCode: TestErrorAuthFailed}}
+	service := NewServiceWithTester(store, sealer, DefaultRegistry(), tester)
+
+	got, err := service.TestCredential(context.Background(), TestCredentialRequest{
+		Owner:   Scope{OwnerType: OwnerGuild, GuildID: "guild-id"},
+		Label:   "main",
+		ActorID: "actor-id",
+	})
+	if err != nil {
+		t.Fatalf("TestCredential returned error: %v", err)
+	}
+	if got.Status != TestStatusFailed || got.ErrorCode != TestErrorAuthFailed {
+		t.Fatalf("result = %+v, want failed auth code", got)
+	}
+	if store.updateTestStatus != TestStatusFailed || store.updateErrorCode != TestErrorAuthFailed {
+		t.Fatalf("test update = %q/%q, want failed auth", store.updateTestStatus, store.updateErrorCode)
+	}
+}
+
 func validAddCredentialRequest() AddCredentialRequest {
 	return AddCredentialRequest{
 		Owner:      Scope{OwnerType: OwnerGuild, GuildID: "guild-id"},
@@ -261,18 +332,24 @@ func validSelectModelRequest() SelectModelRequest {
 }
 
 type fakeCredentialStore struct {
-	credentialInput CredentialInput
-	profileInput    ModelProfileInput
-	credentials     []CredentialRecord
-	activeProfile   ModelProfile
-	revokedScope    Scope
-	revokedLabel    string
-	revokedActorID  string
-	upsertCalls     int
-	revokeCalls     int
-	listCalls       int
-	selectCalls     int
-	activeCalls     int
+	credentialInput    CredentialInput
+	profileInput       ModelProfileInput
+	credentials        []CredentialRecord
+	activeProfile      ModelProfile
+	testCredential     CredentialRecord
+	revokedScope       Scope
+	revokedLabel       string
+	revokedActorID     string
+	updateCredentialID string
+	updateTestStatus   TestStatus
+	updateErrorCode    TestErrorCode
+	upsertCalls        int
+	revokeCalls        int
+	listCalls          int
+	testCalls          int
+	updateTestCalls    int
+	selectCalls        int
+	activeCalls        int
 }
 
 func (s *fakeCredentialStore) UpsertCredential(_ context.Context, input CredentialInput) (CredentialRecord, error) {
@@ -307,6 +384,19 @@ func (s *fakeCredentialStore) ListCredentials(_ context.Context, scope Scope) ([
 	return append([]CredentialRecord(nil), s.credentials...), nil
 }
 
+func (s *fakeCredentialStore) CredentialForTest(_ context.Context, scope Scope, label string) (CredentialRecord, error) {
+	s.testCalls++
+	return s.testCredential, nil
+}
+
+func (s *fakeCredentialStore) UpdateCredentialTestResult(_ context.Context, credentialID string, status TestStatus, errorCode TestErrorCode) error {
+	s.updateTestCalls++
+	s.updateCredentialID = credentialID
+	s.updateTestStatus = status
+	s.updateErrorCode = errorCode
+	return nil
+}
+
 func (s *fakeCredentialStore) SelectModelProfile(_ context.Context, input ModelProfileInput) error {
 	s.selectCalls++
 	s.profileInput = input
@@ -321,6 +411,8 @@ func (s *fakeCredentialStore) ActiveModelProfile(_ context.Context, scope Scope,
 type fakeSecretSealer struct {
 	plaintext []byte
 	aad       []byte
+	openAAD   []byte
+	opened    []byte
 	sealed    SealedSecret
 }
 
@@ -334,5 +426,16 @@ func (s *fakeSecretSealer) Seal(_ context.Context, plaintext, aad []byte) (Seale
 }
 
 func (s *fakeSecretSealer) Open(_ context.Context, sealed SealedSecret, aad []byte) ([]byte, error) {
-	return nil, nil
+	s.openAAD = append([]byte(nil), aad...)
+	return append([]byte(nil), s.opened...), nil
+}
+
+type fakeCredentialTester struct {
+	req    ProviderTestRequest
+	result TestCredentialResult
+}
+
+func (t *fakeCredentialTester) TestCredential(_ context.Context, req ProviderTestRequest) (TestCredentialResult, error) {
+	t.req = req
+	return t.result, nil
 }

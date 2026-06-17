@@ -208,6 +208,46 @@ func TestSQLStoreActiveModelProfileLoadsEnabledProfile(t *testing.T) {
 	}
 }
 
+func TestSQLStoreLoadsCredentialForTestWithSealedBytes(t *testing.T) {
+	record := validCredentialRecord()
+	record.Ciphertext = []byte("sealed-secret")
+	record.Nonce = []byte("nonce")
+	db := &fakeLLMDB{rows: fakeCredentialRowsWithSecret(record)}
+	store := NewSQLStore(db, nil)
+
+	got, err := store.CredentialForTest(context.Background(), Scope{OwnerType: OwnerGuild, GuildID: "guild-id"}, "MAIN")
+	if err != nil {
+		t.Fatalf("CredentialForTest returned error: %v", err)
+	}
+	if got.ID != "credential-id" || string(got.Ciphertext) != "sealed-secret" || string(got.Nonce) != "nonce" {
+		t.Fatalf("credential = %+v, want sealed bytes", got)
+	}
+	for _, want := range []string{"credential_ciphertext", "credential_nonce", "status = 'active'", "revoked_at is null", "lower(label) = lower($4)"} {
+		if !strings.Contains(db.query, want) {
+			t.Fatalf("query = %q, want %q", db.query, want)
+		}
+	}
+}
+
+func TestSQLStoreUpdatesCredentialTestResult(t *testing.T) {
+	db := &fakeLLMDB{tx: &fakeLLMTx{}}
+	store := NewSQLStore(db, nil)
+
+	err := store.UpdateCredentialTestResult(context.Background(), "credential-id", TestStatusFailed, TestErrorAuthFailed)
+	if err != nil {
+		t.Fatalf("UpdateCredentialTestResult returned error: %v", err)
+	}
+	if !db.tx.committed || db.tx.rolledBack {
+		t.Fatalf("tx state = %+v, want commit", db.tx)
+	}
+	if len(db.tx.queries) != 1 || !strings.Contains(db.tx.queries[0], "last_test_status = $2") || !strings.Contains(db.tx.queries[0], "last_tested_at = now()") {
+		t.Fatalf("query = %+v, want credential test update", db.tx.queries)
+	}
+	if db.tx.args[0][0] != "credential-id" || db.tx.args[0][1] != TestStatusFailed || db.tx.args[0][2] != string(TestErrorAuthFailed) {
+		t.Fatalf("args = %+v, want test status args", db.tx.args[0])
+	}
+}
+
 func validCredentialInput() CredentialInput {
 	return CredentialInput{
 		Owner:           Scope{OwnerType: OwnerGuild, GuildID: "guild-id"},
@@ -394,6 +434,35 @@ func fakeCredentialRows(records ...CredentialRecord) llmRows {
 			*(dest[10].(*sql.NullString)) = nullString(record.LastErrorCode)
 			*(dest[11].(*sql.NullString)) = nullString(record.CreatedByUserID)
 			*(dest[12].(*sql.NullString)) = nullString(record.UpdatedByUserID)
+			return nil
+		})
+	}
+	return rows
+}
+
+func fakeCredentialRowsWithSecret(records ...CredentialRecord) llmRows {
+	rows := &fakeLLMRows{}
+	for _, record := range records {
+		record := record
+		rows.scans = append(rows.scans, func(dest ...any) error {
+			if len(dest) != 15 {
+				return fmt.Errorf("credential scan targets = %d, want 15", len(dest))
+			}
+			*(dest[0].(*string)) = record.ID
+			*(dest[1].(*OwnerType)) = record.OwnerType
+			*(dest[2].(*sql.NullString)) = nullString(record.GuildID)
+			*(dest[3].(*sql.NullString)) = nullString(record.UserID)
+			*(dest[4].(*ProviderID)) = record.ProviderID
+			*(dest[5].(*string)) = record.Label
+			*(dest[6].(*string)) = record.KeyID
+			*(dest[7].(*string)) = record.Fingerprint
+			*(dest[8].(*CredentialStatus)) = record.Status
+			*(dest[9].(*sql.NullString)) = nullString(string(record.LastTestStatus))
+			*(dest[10].(*sql.NullString)) = nullString(record.LastErrorCode)
+			*(dest[11].(*sql.NullString)) = nullString(record.CreatedByUserID)
+			*(dest[12].(*sql.NullString)) = nullString(record.UpdatedByUserID)
+			*(dest[13].(*[]byte)) = append([]byte(nil), record.Ciphertext...)
+			*(dest[14].(*[]byte)) = append([]byte(nil), record.Nonce...)
 			return nil
 		})
 	}

@@ -392,6 +392,107 @@ order by provider_id, lower(label)
 	return records, nil
 }
 
+func (s SQLStore) CredentialForTest(ctx context.Context, owner Scope, label string) (CredentialRecord, error) {
+	owner, err := normalizeScope(owner)
+	if err != nil {
+		return CredentialRecord{}, err
+	}
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return CredentialRecord{}, fmt.Errorf("credential label is required")
+	}
+	if s.query == nil {
+		return CredentialRecord{}, fmt.Errorf("llm provider query database is required")
+	}
+	rows, err := s.query(ctx, `
+select
+  id,
+  owner_type,
+  guild_id,
+  user_id,
+  provider_id,
+  label,
+  credential_key_id,
+  credential_fingerprint,
+  status,
+  last_test_status,
+  last_error_code,
+  created_by_user_id,
+  updated_by_user_id,
+  credential_ciphertext,
+  credential_nonce
+from llm_credentials
+where owner_type = $1
+  and guild_id is not distinct from $2
+  and user_id is not distinct from $3
+  and lower(label) = lower($4)
+  and status = 'active'
+  and revoked_at is null
+limit 1
+`, owner.OwnerType, nullArg(owner.GuildID), nullArg(owner.UserID), label)
+	if err != nil {
+		return CredentialRecord{}, err
+	}
+	defer rows.Close()
+
+	record, ok, err := scanCredentialRecordWithSecret(rows)
+	if err != nil {
+		return CredentialRecord{}, err
+	}
+	if !ok {
+		return CredentialRecord{}, fmt.Errorf("active credential was not found")
+	}
+	if err := rows.Err(); err != nil {
+		return CredentialRecord{}, err
+	}
+	return record, nil
+}
+
+func (s SQLStore) UpdateCredentialTestResult(ctx context.Context, credentialID string, status TestStatus, errorCode TestErrorCode) error {
+	credentialID = strings.TrimSpace(credentialID)
+	if credentialID == "" {
+		return fmt.Errorf("credential ID is required")
+	}
+	if err := ValidateTestStatus(status); err != nil {
+		return err
+	}
+	if s.beginTx == nil {
+		return fmt.Errorf("llm provider transaction is required")
+	}
+	tx, err := s.beginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin llm provider transaction: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	result, err := tx.ExecContext(ctx, `
+update llm_credentials
+set
+  last_test_status = $2,
+  last_tested_at = now(),
+  last_error_code = nullif($3, ''),
+  updated_at = now()
+where id = $1
+  and revoked_at is null
+`, credentialID, status, string(errorCode))
+	if err != nil {
+		return fmt.Errorf("update credential test result: %w", err)
+	}
+	if err := requireLLMRowsAffected(result, "active credential was not found"); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit llm provider transaction: %w", err)
+	}
+	committed = true
+	return nil
+}
+
 func (s SQLStore) SelectModelProfile(ctx context.Context, input ModelProfileInput) error {
 	input, err := normalizeModelProfileInput(input)
 	if err != nil {
@@ -613,6 +714,15 @@ func normalizeModelProfileInput(input ModelProfileInput) (ModelProfileInput, err
 	return input, nil
 }
 
+func ValidateTestStatus(status TestStatus) error {
+	switch status {
+	case TestStatusUntested, TestStatusSucceeded, TestStatusFailed:
+		return nil
+	default:
+		return fmt.Errorf("unknown test status")
+	}
+}
+
 func normalizeScope(scope Scope) (Scope, error) {
 	scope.OwnerType = OwnerType(strings.TrimSpace(string(scope.OwnerType)))
 	scope.GuildID = strings.TrimSpace(scope.GuildID)
@@ -670,6 +780,45 @@ func scanCredentialRecord(rows llmRows) (CredentialRecord, bool, error) {
 		&lastErrorCode,
 		&createdByUserID,
 		&updatedByUserID,
+	); err != nil {
+		return CredentialRecord{}, false, fmt.Errorf("scan llm credential: %w", err)
+	}
+	record.GuildID = stringFromNull(guildID)
+	record.UserID = stringFromNull(userID)
+	record.LastTestStatus = TestStatus(stringFromNull(lastTestStatus))
+	record.LastErrorCode = stringFromNull(lastErrorCode)
+	record.CreatedByUserID = stringFromNull(createdByUserID)
+	record.UpdatedByUserID = stringFromNull(updatedByUserID)
+	return record, true, nil
+}
+
+func scanCredentialRecordWithSecret(rows llmRows) (CredentialRecord, bool, error) {
+	if !rows.Next() {
+		return CredentialRecord{}, false, nil
+	}
+	var record CredentialRecord
+	var guildID sql.NullString
+	var userID sql.NullString
+	var lastTestStatus sql.NullString
+	var lastErrorCode sql.NullString
+	var createdByUserID sql.NullString
+	var updatedByUserID sql.NullString
+	if err := rows.Scan(
+		&record.ID,
+		&record.OwnerType,
+		&guildID,
+		&userID,
+		&record.ProviderID,
+		&record.Label,
+		&record.KeyID,
+		&record.Fingerprint,
+		&record.Status,
+		&lastTestStatus,
+		&lastErrorCode,
+		&createdByUserID,
+		&updatedByUserID,
+		&record.Ciphertext,
+		&record.Nonce,
 	); err != nil {
 		return CredentialRecord{}, false, fmt.Errorf("scan llm credential: %w", err)
 	}
