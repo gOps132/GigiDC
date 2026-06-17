@@ -51,25 +51,31 @@ V0 should be multi-owner architecture with guild-only product behavior. That mea
 
 ## Revised V0
 
-Current V0 provider foundation includes:
+Current V0 LLM and cognitive slice includes:
 
 - `internal/llm/provider` registry, credential store, secret sealing, model profile selection, provider testing, and credential resolution.
+- Provider-backed text clients for OpenAI, Anthropic, and Gemini using resolved model credentials.
+- Runtime generation wrapper that resolves active models and records token usage.
 - Guild-scoped provider credentials configured by users with `llm.provider.write`.
 - Guild-scoped model profiles selected by users with `llm.provider.select`.
 - Provider test commands gated by `llm.provider.test`.
 - Encrypted write-only secrets using a swappable `SecretSealer`.
 - Usage events that record actor, guild, provider, model, purpose, billing owner type, billing owner ID, token counts, status, and classified error.
 - `/llm usage guild` aggregate reporting with no raw prompt, completion, provider response, or secret storage.
+- Guild-mention cognitive fallback chat after deterministic external app matching fails.
+- Metadata-only conversation turn storage with no raw prompt or completion columns.
+- Semantic plugin routing that treats LLM output as a proposal, validates it against enabled manifests, applies capability checks, and returns dry-run plans only.
+- Guild policy storage that defaults personal keys to `off`.
 - No per-user BYOK for guild mentions, shared memory, embeddings, or semantic routing.
 - No silent fallback between billing owners.
 
-Remaining V0 work:
+Deferred beyond V0:
 
-- Provider-backed text client implementations that consume resolved model credentials.
-- Minimal cognitive fallback chat for DMs and guild mentions after deterministic plugin matching fails.
-- Metadata-only conversation turn storage is in place; raw memory/retrieval policy remains deferred.
-- Semantic plugin routing in dry-run or confirmation-required mode only.
-- Guild policy storage defaults personal keys to `off`; `/llm key` behavior remains V1.
+- Raw memory and retrieval policy.
+- `/llm key` personal BYOK behavior.
+- Tenant/operator fallback credentials.
+- Persistent confirmation records.
+- Restricted dispatch and multi-step external app actions.
 
 The important product rule: an admin can personally pay for a provider key, but if that key powers shared server behavior, Gigi treats it as a guild credential governed by guild policy and audit.
 

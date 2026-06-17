@@ -48,7 +48,7 @@ Discord Gateway
 - `internal/discord`: Discord gateway adapter, slash command router, DM/guild-mention router, and audit seam.
 - `internal/llm`: LLM client contracts for later slices.
 - `internal/llm/provider`: provider registry, encrypted credentials, model profiles, usage records, provider testing, and credential resolution for OpenAI, Anthropic, Gemini, and future providers.
-- `internal/assistant` or `internal/cognitive` (planned): surface-independent orchestration for rich chat, retrieval, action plans, and semantic routing.
+- `internal/assistant`: surface-independent orchestration for guild-mention chat, metadata-only conversation turns, and semantic plugin dry-run routing.
 
 ## Data Boundary
 
@@ -60,7 +60,7 @@ LLM provider storage supports multiple credential owners from the first schema: 
 
 Gigi should use a provider registry with first-class OpenAI, Anthropic, and Gemini entries plus room for future custom providers. Model profiles should be selected by purpose: `chat`, `reasoning`, `embedding`, and `routing`.
 
-The cognitive layer should sit behind deterministic external app matching. Exact enabled plugin prefix triggers remain first; if none match, a cognitive fallback can handle rich DM or guild-mention conversation. LLM output must only propose drafts or plans. Gigi builds final action plans from stored manifests, capability checks, confirmation policy, and audit rules.
+The cognitive layer sits behind deterministic external app matching. Exact enabled plugin prefix triggers remain first; if none match, semantic plugin routing can propose a manifest-grounded dry-run plan, or the chat fallback can answer guild mentions. LLM output is only a proposal. Gigi builds final action plans from stored manifests, capability checks, confirmation policy, and audit rules.
 
 Personal BYOK should not be required for v0. A guild admin may provide a provider key, but once it powers shared server behavior, Gigi treats it as a guild credential governed by guild policy and audit. V1 can add optional user-owned keys for DMs and explicit guild-approved personal billing, but personal keys must not grant capabilities or silently process guild context.
 
