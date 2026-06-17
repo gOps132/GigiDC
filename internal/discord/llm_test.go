@@ -122,7 +122,7 @@ func TestLLMCommandListsCredentialMetadata(t *testing.T) {
 	}
 }
 
-func TestLLMCommandProviderAddRotateTestAreDeferred(t *testing.T) {
+func TestLLMCommandProviderAddRotateDisabledWithoutCredentialEntry(t *testing.T) {
 	handler := LLMCommands(&fakeLLMProviderManager{}, nil)[0].Handle
 
 	addResponse, err := handler(context.Background(), llmInteraction("provider", "add", []InteractionOption{
@@ -132,8 +132,8 @@ func TestLLMCommandProviderAddRotateTestAreDeferred(t *testing.T) {
 	if err != nil {
 		t.Fatalf("add returned error: %v", err)
 	}
-	if !strings.Contains(addResponse.Content, "Credential entry requires") || !addResponse.Ephemeral {
-		t.Fatalf("response = %+v, want modal-required message", addResponse)
+	if addResponse.Content != "LLM credential entry is not configured." || !addResponse.Ephemeral {
+		t.Fatalf("response = %+v, want disabled credential entry message", addResponse)
 	}
 
 	testResponse, err := handler(context.Background(), llmInteraction("provider", "test", []InteractionOption{{Name: "label", Value: "main"}}))
@@ -142,6 +142,152 @@ func TestLLMCommandProviderAddRotateTestAreDeferred(t *testing.T) {
 	}
 	if !strings.Contains(testResponse.Content, "Provider test requires") || !testResponse.Ephemeral {
 		t.Fatalf("response = %+v, want tester-required message", testResponse)
+	}
+}
+
+func TestLLMCommandProviderAddReturnsOpaqueModal(t *testing.T) {
+	handler := LLMCommands(&fakeLLMProviderManager{}, nil, LLMCommandConfig{CredentialEntryEnabled: true})[0].Handle
+
+	response, err := handler(context.Background(), llmInteraction("provider", "add", []InteractionOption{
+		{Name: "provider", Value: "openai"},
+		{Name: "label", Value: "main"},
+	}))
+	if err != nil {
+		t.Fatalf("add returned error: %v", err)
+	}
+	if response.Modal == nil || response.Modal.Title != "Add LLM Credential" {
+		t.Fatalf("response = %+v, want add modal", response)
+	}
+	if !strings.HasPrefix(response.Modal.CustomID, llmCredentialModalPrefix) {
+		t.Fatalf("modal custom id = %q, want llm credential prefix", response.Modal.CustomID)
+	}
+	for _, forbidden := range []string{"openai", "main", "guild-id", "actor-id", "sk-"} {
+		if strings.Contains(response.Modal.CustomID, forbidden) {
+			t.Fatalf("modal custom id = %q, leaked %q", response.Modal.CustomID, forbidden)
+		}
+	}
+}
+
+func TestLLMCommandProviderAddRejectsSensitiveLabel(t *testing.T) {
+	handler := LLMCommands(&fakeLLMProviderManager{}, nil, LLMCommandConfig{CredentialEntryEnabled: true})[0].Handle
+
+	response, err := handler(context.Background(), llmInteraction("provider", "add", []InteractionOption{
+		{Name: "provider", Value: "openai"},
+		{Name: "label", Value: "sk-secret"},
+	}))
+	if err != nil {
+		t.Fatalf("add returned error: %v", err)
+	}
+	if response.Content != "Credential label looks sensitive." || !response.Ephemeral {
+		t.Fatalf("response = %+v, want sensitive label rejection", response)
+	}
+}
+
+func TestLLMCommandProviderAddModalSubmitStoresCredentialAndAudits(t *testing.T) {
+	manager := &fakeLLMProviderManager{}
+	recorder := &fakeAuditRecorder{}
+	command := LLMCommands(manager, recorder, LLMCommandConfig{CredentialEntryEnabled: true})[0]
+	addResponse, err := command.Handle(context.Background(), llmInteraction("provider", "add", []InteractionOption{
+		{Name: "provider", Value: "openai"},
+		{Name: "label", Value: "main"},
+	}))
+	if err != nil {
+		t.Fatalf("add returned error: %v", err)
+	}
+
+	submitResponse, err := command.HandleModal(context.Background(), ModalInteraction{
+		GuildID:  "guild-id",
+		UserID:   "actor-id",
+		Name:     "llm",
+		CustomID: addResponse.Modal.CustomID,
+		Values:   map[string]string{llmCredentialInputID: "sk-test"},
+	})
+	if err != nil {
+		t.Fatalf("modal submit returned error: %v", err)
+	}
+	if manager.method != "AddCredential" || manager.addReq.ProviderID != provider.ProviderOpenAI || manager.addReq.Label != "main" || manager.addReq.RawSecret != "sk-test" || manager.addReq.Owner.GuildID != "guild-id" || manager.addReq.ActorID != "actor-id" {
+		t.Fatalf("manager = %+v, want add credential request", manager)
+	}
+	if strings.Contains(submitResponse.Content, "sk-test") || !strings.Contains(submitResponse.Content, "Saved `openai` credential `main`.") || !submitResponse.Ephemeral {
+		t.Fatalf("response = %+v, want safe saved response", submitResponse)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Metadata["action"] != "add" || recorder.events[0].Metadata["provider_id"] != "openai" {
+		t.Fatalf("audit events = %+v, want add audit", recorder.events)
+	}
+	for _, event := range recorder.events {
+		for key, value := range event.Metadata {
+			if strings.Contains(key, "secret") || strings.Contains(value, "sk-test") || strings.Contains(value, "main") {
+				t.Fatalf("audit leaked sensitive value: %+v", event.Metadata)
+			}
+		}
+	}
+}
+
+func TestLLMCommandProviderRotateModalSubmitStoresCredential(t *testing.T) {
+	manager := &fakeLLMProviderManager{records: []provider.CredentialRecord{{
+		ID:         "credential-id",
+		ProviderID: provider.ProviderOpenAI,
+		Label:      "main",
+		Status:     provider.CredentialStatusActive,
+	}}}
+	command := LLMCommands(manager, nil, LLMCommandConfig{CredentialEntryEnabled: true})[0]
+	rotateResponse, err := command.Handle(context.Background(), llmInteraction("provider", "rotate", []InteractionOption{{Name: "label", Value: "main"}}))
+	if err != nil {
+		t.Fatalf("rotate returned error: %v", err)
+	}
+
+	_, err = command.HandleModal(context.Background(), ModalInteraction{
+		GuildID:  "guild-id",
+		UserID:   "actor-id",
+		Name:     "llm",
+		CustomID: rotateResponse.Modal.CustomID,
+		Values:   map[string]string{llmCredentialInputID: "sk-rotated"},
+	})
+	if err != nil {
+		t.Fatalf("modal submit returned error: %v", err)
+	}
+	if manager.method != "RotateCredential" || manager.rotateReq.ProviderID != provider.ProviderOpenAI || manager.rotateReq.Label != "main" || manager.rotateReq.RawSecret != "sk-rotated" {
+		t.Fatalf("manager = %+v, want rotate credential request", manager)
+	}
+}
+
+func TestLLMCommandProviderModalSubmitRejectsReplayAndActorMismatch(t *testing.T) {
+	manager := &fakeLLMProviderManager{}
+	command := LLMCommands(manager, nil, LLMCommandConfig{CredentialEntryEnabled: true})[0]
+	addResponse, err := command.Handle(context.Background(), llmInteraction("provider", "add", []InteractionOption{
+		{Name: "provider", Value: "openai"},
+		{Name: "label", Value: "main"},
+	}))
+	if err != nil {
+		t.Fatalf("add returned error: %v", err)
+	}
+
+	mismatchResponse, err := command.HandleModal(context.Background(), ModalInteraction{
+		GuildID:  "guild-id",
+		UserID:   "other-user",
+		Name:     "llm",
+		CustomID: addResponse.Modal.CustomID,
+		Values:   map[string]string{llmCredentialInputID: "sk-test"},
+	})
+	if err != nil {
+		t.Fatalf("mismatch submit returned error: %v", err)
+	}
+	if mismatchResponse.Content != "LLM provider credential or model profile was not found." || !mismatchResponse.Ephemeral {
+		t.Fatalf("response = %+v, want generic missing modal response", mismatchResponse)
+	}
+
+	replayResponse, err := command.HandleModal(context.Background(), ModalInteraction{
+		GuildID:  "guild-id",
+		UserID:   "actor-id",
+		Name:     "llm",
+		CustomID: addResponse.Modal.CustomID,
+		Values:   map[string]string{llmCredentialInputID: "sk-test"},
+	})
+	if err != nil {
+		t.Fatalf("replay submit returned error: %v", err)
+	}
+	if replayResponse.Content != "LLM provider credential or model profile was not found." || manager.method != "" {
+		t.Fatalf("response = %+v manager = %+v, want no provider call", replayResponse, manager)
 	}
 }
 
@@ -290,9 +436,21 @@ type fakeLLMProviderManager struct {
 	actorID   string
 	purpose   provider.Purpose
 	selectReq provider.SelectModelRequest
+	addReq    provider.AddCredentialRequest
+	rotateReq provider.AddCredentialRequest
 	records   []provider.CredentialRecord
 	profile   provider.ModelProfile
 	err       error
+}
+
+func (m *fakeLLMProviderManager) AddCredential(_ context.Context, req provider.AddCredentialRequest) (provider.CredentialRecord, error) {
+	m.method, m.addReq = "AddCredential", req
+	return provider.CredentialRecord{ID: "credential-id", ProviderID: req.ProviderID, Label: req.Label, Status: provider.CredentialStatusActive}, m.err
+}
+
+func (m *fakeLLMProviderManager) RotateCredential(_ context.Context, req provider.AddCredentialRequest) (provider.CredentialRecord, error) {
+	m.method, m.rotateReq = "RotateCredential", req
+	return provider.CredentialRecord{ID: "credential-id", ProviderID: req.ProviderID, Label: req.Label, Status: provider.CredentialStatusActive}, m.err
 }
 
 func (m *fakeLLMProviderManager) ListCredentials(_ context.Context, owner provider.Scope) ([]provider.CredentialRecord, error) {

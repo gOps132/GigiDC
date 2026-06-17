@@ -30,7 +30,7 @@ func TestEventAcceptsPermissionDecision(t *testing.T) {
 }
 
 func TestEventRejectsSecretLikeMetadataKeys(t *testing.T) {
-	for _, key := range []string{"api_key", "secret", "token", "authorization", "provider_secret"} {
+	for _, key := range []string{"api_key", "secret", "token", "authorization", "provider_secret", "client_secret", "private_key", "refresh_token"} {
 		event := Event{
 			Kind:     "llm.provider.update",
 			GuildID:  "guild-id",

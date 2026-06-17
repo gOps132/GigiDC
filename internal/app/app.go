@@ -87,7 +87,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		commands := discord.CoreCommands()
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
-		commands = append(commands, discord.LLMCommands(providerService, auditStore)...)
+		commands = append(commands, discord.LLMCommands(providerService, auditStore, discord.LLMCommandConfig{CredentialEntryEnabled: secretSealer != nil})...)
 
 		router, err := discord.NewCommandRouter(commands...)
 		if err != nil {

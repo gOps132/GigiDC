@@ -2,8 +2,12 @@ package discord
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/gOps132/GigiDC/internal/audit"
@@ -12,22 +16,40 @@ import (
 )
 
 type LLMProviderManager interface {
+	AddCredential(ctx context.Context, req provider.AddCredentialRequest) (provider.CredentialRecord, error)
+	RotateCredential(ctx context.Context, req provider.AddCredentialRequest) (provider.CredentialRecord, error)
 	ListCredentials(ctx context.Context, owner provider.Scope) ([]provider.CredentialRecord, error)
 	RevokeCredential(ctx context.Context, owner provider.Scope, label string, actorID string) error
 	SelectModelProfile(ctx context.Context, req provider.SelectModelRequest) error
 	ActiveModelProfile(ctx context.Context, owner provider.Scope, purpose provider.Purpose) (provider.ModelProfile, error)
 }
 
-func LLMCommands(manager LLMProviderManager, recorder AuditRecorder) []Command {
+type LLMCommandConfig struct {
+	CredentialEntryEnabled bool
+	ModalTTL               time.Duration
+}
+
+func LLMCommands(manager LLMProviderManager, recorder AuditRecorder, configs ...LLMCommandConfig) []Command {
+	cfg := LLMCommandConfig{ModalTTL: 10 * time.Minute}
+	if len(configs) > 0 {
+		cfg = configs[0]
+		if cfg.ModalTTL <= 0 {
+			cfg.ModalTTL = 10 * time.Minute
+		}
+	}
+	modals := newLLMCredentialModalStore(cfg.ModalTTL)
 	return []Command{{
-		Name:                  "llm",
-		Description:           "Manage Gigi LLM provider settings.",
-		RequiredCapabilityFor: llmRequiredCapability,
+		Name:                       "llm",
+		Description:                "Manage Gigi LLM provider settings.",
+		RequiredCapabilityFor:      llmRequiredCapability,
+		RequiredCapabilityForModal: llmRequiredCapabilityForModal,
+		ModalCustomIDPrefixes:      []string{llmCredentialModalPrefix},
 		Options: []*discordgo.ApplicationCommandOption{
 			llmProviderGroup(),
 			llmModelGroup(),
 		},
-		Handle: llmHandler(manager, recorder),
+		Handle:      llmHandler(manager, recorder, modals, cfg),
+		HandleModal: llmModalHandler(manager, recorder, modals),
 	}}
 }
 
@@ -152,6 +174,13 @@ func llmRequiredCapability(interaction Interaction) capability.Capability {
 	}
 }
 
+func llmRequiredCapabilityForModal(interaction ModalInteraction) capability.Capability {
+	if strings.HasPrefix(interaction.CustomID, llmCredentialModalPrefix) {
+		return capability.Capability("llm.provider.write")
+	}
+	return ""
+}
+
 func llmPath(interaction Interaction) (string, string, bool) {
 	if len(interaction.Options) != 1 {
 		return "", "", false
@@ -163,7 +192,7 @@ func llmPath(interaction Interaction) (string, string, bool) {
 	return group.Name, group.Options[0].Name, true
 }
 
-func llmHandler(manager LLMProviderManager, recorder AuditRecorder) CommandHandler {
+func llmHandler(manager LLMProviderManager, recorder AuditRecorder, modals *llmCredentialModalStore, cfg LLMCommandConfig) CommandHandler {
 	return func(ctx context.Context, interaction Interaction) (CommandResponse, error) {
 		if manager == nil {
 			return CommandResponse{}, fmt.Errorf("llm provider manager is required")
@@ -174,7 +203,7 @@ func llmHandler(manager LLMProviderManager, recorder AuditRecorder) CommandHandl
 			return CommandResponse{Content: err.Error(), Ephemeral: true}, nil
 		}
 
-		response, err := executeLLMRequest(ctx, manager, interaction, &request)
+		response, err := executeLLMRequest(ctx, manager, interaction, &request, modals, cfg)
 		if err != nil {
 			_ = recordLLMAction(ctx, recorder, interaction, request, audit.StatusFailed, err)
 			return CommandResponse{Content: cleanLLMError(err), Ephemeral: true}, nil
@@ -184,7 +213,8 @@ func llmHandler(manager LLMProviderManager, recorder AuditRecorder) CommandHandl
 				return CommandResponse{}, err
 			}
 		}
-		return CommandResponse{Content: response, Ephemeral: true}, nil
+		response.Ephemeral = true
+		return response, nil
 	}
 }
 
@@ -280,46 +310,72 @@ func parseLLMLabel(request llmRequest, options []InteractionOption) (llmRequest,
 	if request.Label == "" {
 		return request, fmt.Errorf("Credential label is required.")
 	}
+	if looksSensitive(request.Label) {
+		return request, fmt.Errorf("Credential label looks sensitive.")
+	}
 	if len(request.Label) > 80 {
 		return request, fmt.Errorf("Credential label is too long.")
 	}
 	return request, nil
 }
 
-func executeLLMRequest(ctx context.Context, manager LLMProviderManager, interaction Interaction, request *llmRequest) (string, error) {
+func executeLLMRequest(ctx context.Context, manager LLMProviderManager, interaction Interaction, request *llmRequest, modals *llmCredentialModalStore, cfg LLMCommandConfig) (CommandResponse, error) {
 	owner := provider.Scope{OwnerType: provider.OwnerGuild, GuildID: interaction.GuildID}
 
 	switch {
 	case request.Group == "provider" && request.Action == "list":
 		records, err := manager.ListCredentials(ctx, owner)
 		if err != nil {
-			return "", err
+			return CommandResponse{}, err
 		}
-		return formatLLMCredentialList(records), nil
+		return CommandResponse{Content: formatLLMCredentialList(records)}, nil
 	case request.Group == "provider" && (request.Action == "add" || request.Action == "rotate"):
-		return "Credential entry requires a Discord modal or private flow; not enabled yet.", nil
+		if !cfg.CredentialEntryEnabled {
+			return CommandResponse{Content: "LLM credential entry is not configured."}, nil
+		}
+		if modals == nil {
+			return CommandResponse{}, fmt.Errorf("llm credential modal store is required")
+		}
+		if request.Action == "rotate" {
+			credential, err := credentialByLabel(ctx, manager, owner, request.Label)
+			if err != nil {
+				return CommandResponse{}, err
+			}
+			request.ProviderID = credential.ProviderID
+		}
+		nonce, err := modals.create(llmPendingCredential{
+			GuildID:    interaction.GuildID,
+			ActorID:    interaction.UserID,
+			Action:     request.Action,
+			ProviderID: request.ProviderID,
+			Label:      request.Label,
+		})
+		if err != nil {
+			return CommandResponse{}, err
+		}
+		return CommandResponse{Modal: credentialModal(request.Action, nonce)}, nil
 	case request.Group == "provider" && request.Action == "test":
-		return "Provider test requires provider client adapters; not enabled yet.", nil
+		return CommandResponse{Content: "Provider test requires provider client adapters; not enabled yet."}, nil
 	case request.Group == "provider" && request.Action == "delete":
 		if err := manager.RevokeCredential(ctx, owner, request.Label, interaction.UserID); err != nil {
-			return "", err
+			return CommandResponse{}, err
 		}
-		return fmt.Sprintf("Revoked LLM credential `%s`.", safeInline(request.Label)), nil
+		return CommandResponse{Content: fmt.Sprintf("Revoked LLM credential `%s`.", safeInline(request.Label))}, nil
 	case request.Group == "model" && request.Action == "show":
 		profile, err := manager.ActiveModelProfile(ctx, owner, request.Purpose)
 		if err != nil {
-			return "", err
+			return CommandResponse{}, err
 		}
-		return fmt.Sprintf("Active `%s` model: `%s` via `%s` (`%s`).",
+		return CommandResponse{Content: fmt.Sprintf("Active `%s` model: `%s` via `%s` (`%s`).",
 			request.Purpose,
 			safeInline(profile.ModelID),
 			safeInline(string(profile.ProviderID)),
 			safeInline(profile.CredentialID),
-		), nil
+		)}, nil
 	case request.Group == "model" && request.Action == "set":
 		credential, err := credentialByLabel(ctx, manager, owner, request.Label)
 		if err != nil {
-			return "", err
+			return CommandResponse{}, err
 		}
 		if err := manager.SelectModelProfile(ctx, provider.SelectModelRequest{
 			Owner:        owner,
@@ -330,11 +386,59 @@ func executeLLMRequest(ctx context.Context, manager LLMProviderManager, interact
 			ParamsJSON:   "{}",
 			ActorID:      interaction.UserID,
 		}); err != nil {
-			return "", err
+			return CommandResponse{}, err
 		}
-		return fmt.Sprintf("Selected `%s` for `%s` using credential `%s`.", safeInline(request.ModelID), request.Purpose, safeInline(request.Label)), nil
+		return CommandResponse{Content: fmt.Sprintf("Selected `%s` for `%s` using credential `%s`.", safeInline(request.ModelID), request.Purpose, safeInline(request.Label))}, nil
 	default:
-		return "", fmt.Errorf("unsupported llm action")
+		return CommandResponse{}, fmt.Errorf("unsupported llm action")
+	}
+}
+
+func llmModalHandler(manager LLMProviderManager, recorder AuditRecorder, modals *llmCredentialModalStore) CommandModalHandler {
+	return func(ctx context.Context, interaction ModalInteraction) (CommandResponse, error) {
+		if manager == nil {
+			return CommandResponse{}, fmt.Errorf("llm provider manager is required")
+		}
+		if modals == nil {
+			return CommandResponse{}, fmt.Errorf("llm credential modal store is required")
+		}
+		pending, err := modals.consume(interaction.CustomID, interaction.GuildID, interaction.UserID, time.Now)
+		if err != nil {
+			_ = recordLLMCredentialModal(ctx, recorder, interaction, pending, audit.StatusFailed, err)
+			return CommandResponse{Content: cleanLLMError(err), Ephemeral: true}, nil
+		}
+
+		rawSecret := strings.TrimSpace(interaction.Values["credential"])
+		if rawSecret == "" {
+			_ = recordLLMCredentialModal(ctx, recorder, interaction, pending, audit.StatusFailed, fmt.Errorf("credential is required"))
+			return CommandResponse{Content: "Credential value is required.", Ephemeral: true}, nil
+		}
+
+		req := provider.AddCredentialRequest{
+			Owner:      provider.Scope{OwnerType: provider.OwnerGuild, GuildID: interaction.GuildID},
+			ProviderID: pending.ProviderID,
+			Label:      pending.Label,
+			RawSecret:  rawSecret,
+			ActorID:    interaction.UserID,
+		}
+		var record provider.CredentialRecord
+		switch pending.Action {
+		case "add":
+			record, err = manager.AddCredential(ctx, req)
+		case "rotate":
+			record, err = manager.RotateCredential(ctx, req)
+		default:
+			err = fmt.Errorf("unsupported credential modal action")
+		}
+		if err != nil {
+			_ = recordLLMCredentialModal(ctx, recorder, interaction, pending, audit.StatusFailed, err)
+			return CommandResponse{Content: cleanLLMError(err), Ephemeral: true}, nil
+		}
+		pending.ProviderID = record.ProviderID
+		if err := recordLLMCredentialModal(ctx, recorder, interaction, pending, audit.StatusSucceeded, nil); err != nil {
+			return CommandResponse{}, err
+		}
+		return CommandResponse{Content: fmt.Sprintf("Saved `%s` credential `%s`.", safeInline(string(record.ProviderID)), safeInline(record.Label)), Ephemeral: true}, nil
 	}
 }
 
@@ -436,4 +540,158 @@ func recordLLMAction(ctx context.Context, recorder AuditRecorder, interaction In
 		Reason:   reason,
 		Metadata: metadata,
 	})
+}
+
+const (
+	llmCredentialModalPrefix = "gigi:llmcred:v1:"
+	llmCredentialInputID     = "credential"
+)
+
+type llmPendingCredential struct {
+	GuildID    string
+	ActorID    string
+	Action     string
+	ProviderID provider.ProviderID
+	Label      string
+	ExpiresAt  time.Time
+}
+
+type llmCredentialModalStore struct {
+	mu      sync.Mutex
+	ttl     time.Duration
+	pending map[string]llmPendingCredential
+	now     func() time.Time
+}
+
+func newLLMCredentialModalStore(ttl time.Duration) *llmCredentialModalStore {
+	if ttl <= 0 {
+		ttl = 10 * time.Minute
+	}
+	return &llmCredentialModalStore{
+		ttl:     ttl,
+		pending: make(map[string]llmPendingCredential),
+		now:     time.Now,
+	}
+}
+
+func (s *llmCredentialModalStore) create(pending llmPendingCredential) (string, error) {
+	if s == nil {
+		return "", fmt.Errorf("llm credential modal store is required")
+	}
+	nonceBytes := make([]byte, 16)
+	if _, err := rand.Read(nonceBytes); err != nil {
+		return "", fmt.Errorf("create credential modal nonce: %w", err)
+	}
+	customID := llmCredentialModalPrefix + hex.EncodeToString(nonceBytes)
+	now := s.now
+	if now == nil {
+		now = time.Now
+	}
+	pending.ExpiresAt = now().Add(s.ttl)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pending[customID] = pending
+	return customID, nil
+}
+
+func (s *llmCredentialModalStore) consume(customID string, guildID string, actorID string, now func() time.Time) (llmPendingCredential, error) {
+	if s == nil {
+		return llmPendingCredential{}, fmt.Errorf("llm credential modal store is required")
+	}
+	customID = strings.TrimSpace(customID)
+	guildID = strings.TrimSpace(guildID)
+	actorID = strings.TrimSpace(actorID)
+	if now == nil {
+		now = time.Now
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pending, ok := s.pending[customID]
+	if !ok {
+		return llmPendingCredential{}, fmt.Errorf("credential modal was not found")
+	}
+	delete(s.pending, customID)
+	if now().After(pending.ExpiresAt) {
+		return pending, fmt.Errorf("credential modal expired")
+	}
+	if pending.GuildID != guildID || pending.ActorID != actorID {
+		return pending, fmt.Errorf("credential modal was not found")
+	}
+	return pending, nil
+}
+
+func credentialModal(action string, customID string) *ModalResponse {
+	title := "Add LLM Credential"
+	if action == "rotate" {
+		title = "Rotate LLM Credential"
+	}
+	return &ModalResponse{
+		CustomID: customID,
+		Title:    title,
+		Components: []discordgo.MessageComponent{
+			discordgo.ActionsRow{Components: []discordgo.MessageComponent{
+				discordgo.TextInput{
+					CustomID:    llmCredentialInputID,
+					Label:       "API key",
+					Style:       discordgo.TextInputParagraph,
+					Required:    true,
+					Placeholder: "Paste provider key",
+					MaxLength:   4000,
+				},
+			}},
+		},
+	}
+}
+
+func recordLLMCredentialModal(ctx context.Context, recorder AuditRecorder, interaction ModalInteraction, pending llmPendingCredential, status audit.Status, err error) error {
+	if recorder == nil || strings.TrimSpace(interaction.UserID) == "" {
+		return nil
+	}
+	reason := ""
+	if err != nil {
+		reason = "llm_action_failed"
+	}
+	metadata := map[string]string{
+		"command": "llm",
+		"group":   "provider",
+		"action":  pending.Action,
+	}
+	if pending.ProviderID != "" {
+		metadata["provider_id"] = string(pending.ProviderID)
+	}
+	return recorder.Record(ctx, audit.Event{
+		Kind:     "discord.llm.change",
+		GuildID:  interaction.GuildID,
+		ActorID:  interaction.UserID,
+		Status:   status,
+		Reason:   reason,
+		Metadata: metadata,
+	})
+}
+
+func looksSensitive(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return false
+	}
+	for _, marker := range []string{
+		"api_key",
+		"apikey",
+		"authorization",
+		"bearer ",
+		"client_secret",
+		"private_key",
+		"refresh_token",
+		"secret",
+		"sk-",
+		"token",
+		"x-api-key",
+	} {
+		if strings.Contains(value, marker) {
+			return true
+		}
+	}
+	return false
 }

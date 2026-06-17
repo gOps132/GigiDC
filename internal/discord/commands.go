@@ -11,19 +11,41 @@ import (
 )
 
 type Command struct {
-	Name                  string
-	Description           string
-	RequiredCapability    capability.Capability
-	RequiredCapabilityFor func(Interaction) capability.Capability
-	Options               []*discordgo.ApplicationCommandOption
-	Handle                CommandHandler
+	Name                       string
+	Description                string
+	RequiredCapability         capability.Capability
+	RequiredCapabilityFor      func(Interaction) capability.Capability
+	RequiredCapabilityForModal func(ModalInteraction) capability.Capability
+	ModalCustomIDPrefixes      []string
+	Options                    []*discordgo.ApplicationCommandOption
+	Handle                     CommandHandler
+	HandleModal                CommandModalHandler
 }
 
 type CommandHandler func(context.Context, Interaction) (CommandResponse, error)
+type CommandModalHandler func(context.Context, ModalInteraction) (CommandResponse, error)
 
 type CommandResponse struct {
 	Content   string
 	Ephemeral bool
+	Modal     *ModalResponse
+}
+
+type ModalResponse struct {
+	CustomID   string
+	Title      string
+	Components []discordgo.MessageComponent
+}
+
+type ModalInteraction struct {
+	GuildID          string
+	ChannelID        string
+	UserID           string
+	RoleIDs          []string
+	HasAdministrator bool
+	Name             string
+	CustomID         string
+	Values           map[string]string
 }
 
 type CommandRouter struct {
@@ -101,6 +123,9 @@ func (r *CommandRouter) HandleInteraction(ctx context.Context, responder interac
 	if event == nil || event.Interaction == nil {
 		return nil
 	}
+	if event.Type == discordgo.InteractionModalSubmit {
+		return r.handleModalInteraction(ctx, responder, event)
+	}
 	if event.Type != discordgo.InteractionApplicationCommand {
 		return nil
 	}
@@ -155,7 +180,87 @@ func (r *CommandRouter) HandleInteraction(ctx context.Context, responder interac
 	return respond(responder, event.Interaction, response)
 }
 
+func (r *CommandRouter) handleModalInteraction(ctx context.Context, responder interactionResponder, event *discordgo.InteractionCreate) error {
+	data := event.ModalSubmitData()
+	command, ok := r.commandForModal(data.CustomID)
+	if !ok {
+		return respond(responder, event.Interaction, CommandResponse{Content: "Interaction not supported yet.", Ephemeral: true})
+	}
+
+	interaction := ModalInteraction{
+		GuildID:          event.GuildID,
+		ChannelID:        event.ChannelID,
+		UserID:           interactionUserID(event.Interaction),
+		RoleIDs:          interactionRoleIDs(event.Interaction),
+		HasAdministrator: interactionHasAdministrator(event.Interaction),
+		Name:             command.Name,
+		CustomID:         data.CustomID,
+		Values:           modalValues(data.Components),
+	}
+	requiredCapability := command.RequiredCapability
+	if command.RequiredCapabilityForModal != nil {
+		dynamicCapability := command.RequiredCapabilityForModal(interaction)
+		if dynamicCapability != "" {
+			requiredCapability = dynamicCapability
+		} else if requiredCapability == "" {
+			return respond(responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
+		}
+	}
+	if requiredCapability != "" {
+		if r.authorizer == nil {
+			return respond(responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
+		}
+		decision, err := r.authorizer.Check(ctx, Interaction{
+			GuildID:          interaction.GuildID,
+			ChannelID:        interaction.ChannelID,
+			UserID:           interaction.UserID,
+			RoleIDs:          interaction.RoleIDs,
+			HasAdministrator: interaction.HasAdministrator,
+			Name:             interaction.Name,
+		}, requiredCapability)
+		if err != nil {
+			return respond(responder, event.Interaction, CommandResponse{Content: "Permission check failed.", Ephemeral: true})
+		}
+		if !decision.Allowed {
+			return respond(responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
+		}
+	}
+
+	response, err := command.HandleModal(ctx, interaction)
+	if err != nil {
+		return respond(responder, event.Interaction, CommandResponse{Content: "Command failed.", Ephemeral: requiredCapability != ""})
+	}
+	if strings.TrimSpace(response.Content) == "" {
+		response.Content = "ok"
+	}
+	return respond(responder, event.Interaction, response)
+}
+
+func (r *CommandRouter) commandForModal(customID string) (Command, bool) {
+	for _, command := range r.commands {
+		if command.HandleModal == nil {
+			continue
+		}
+		for _, prefix := range command.ModalCustomIDPrefixes {
+			if strings.HasPrefix(customID, prefix) {
+				return command, true
+			}
+		}
+	}
+	return Command{}, false
+}
+
 func respond(responder interactionResponder, interaction *discordgo.Interaction, response CommandResponse) error {
+	if response.Modal != nil {
+		return responder.InteractionRespond(interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseModal,
+			Data: &discordgo.InteractionResponseData{
+				CustomID:   response.Modal.CustomID,
+				Title:      response.Modal.Title,
+				Components: response.Modal.Components,
+			},
+		})
+	}
 	data := &discordgo.InteractionResponseData{Content: response.Content}
 	if response.Ephemeral {
 		data.Flags = discordgo.MessageFlagsEphemeral
@@ -232,6 +337,24 @@ func interactionAttachments(resolved *discordgo.ApplicationCommandInteractionDat
 		}
 	}
 	return attachments
+}
+
+func modalValues(components []discordgo.MessageComponent) map[string]string {
+	values := make(map[string]string)
+	for _, component := range components {
+		row, ok := component.(*discordgo.ActionsRow)
+		if !ok {
+			continue
+		}
+		for _, nested := range row.Components {
+			input, ok := nested.(*discordgo.TextInput)
+			if !ok {
+				continue
+			}
+			values[input.CustomID] = strings.TrimSpace(input.Value)
+		}
+	}
+	return values
 }
 
 func optionValue(option *discordgo.ApplicationCommandInteractionDataOption) string {

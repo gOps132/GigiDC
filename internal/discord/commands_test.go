@@ -132,6 +132,134 @@ func TestCommandRouterHandlesCommandError(t *testing.T) {
 	}
 }
 
+func TestCommandRouterSendsModalResponse(t *testing.T) {
+	router, err := NewCommandRouter(Command{
+		Name:        "llm",
+		Description: "llm command",
+		Handle: func(context.Context, Interaction) (CommandResponse, error) {
+			return CommandResponse{Modal: &ModalResponse{
+				CustomID: "gigi:llmcred:v1:nonce",
+				Title:    "Add LLM Credential",
+				Components: []discordgo.MessageComponent{
+					discordgo.ActionsRow{Components: []discordgo.MessageComponent{
+						discordgo.TextInput{CustomID: "credential", Label: "API key", Style: discordgo.TextInputParagraph, Required: true},
+					}},
+				},
+			}}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	responder := &fakeResponder{}
+
+	err = router.HandleInteraction(context.Background(), responder, applicationCommand("llm"))
+	if err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if responder.response.Type != discordgo.InteractionResponseModal {
+		t.Fatalf("response type = %v, want modal", responder.response.Type)
+	}
+	if responder.response.Data.CustomID != "gigi:llmcred:v1:nonce" || responder.response.Data.Title != "Add LLM Credential" {
+		t.Fatalf("modal data = %+v, want custom id/title", responder.response.Data)
+	}
+	if len(responder.response.Data.Components) != 1 {
+		t.Fatalf("components = %+v, want text input row", responder.response.Data.Components)
+	}
+}
+
+func TestCommandRouterRoutesModalSubmitAndExtractsValues(t *testing.T) {
+	var got ModalInteraction
+	router, err := NewCommandRouter(Command{
+		Name:                  "llm",
+		Description:           "llm command",
+		ModalCustomIDPrefixes: []string{"gigi:llmcred:v1:"},
+		Handle:                okHandler,
+		HandleModal: func(ctx context.Context, interaction ModalInteraction) (CommandResponse, error) {
+			got = interaction
+			return CommandResponse{Content: "stored", Ephemeral: true}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	responder := &fakeResponder{}
+
+	err = router.HandleInteraction(context.Background(), responder, modalSubmit("gigi:llmcred:v1:nonce", "sk-test"))
+	if err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if got.CustomID != "gigi:llmcred:v1:nonce" || got.GuildID != "guild-id" || got.UserID != "user-id" || got.Values["credential"] != "sk-test" {
+		t.Fatalf("modal interaction = %+v, want parsed modal context and value", got)
+	}
+	if responder.content() != "stored" || responder.flags() != discordgo.MessageFlagsEphemeral {
+		t.Fatalf("response = %q flags = %v, want ephemeral stored", responder.content(), responder.flags())
+	}
+}
+
+func TestCommandRouterAuthorizesModalSubmit(t *testing.T) {
+	calls := 0
+	var gotRequired capability.Capability
+	router, err := NewCommandRouter(Command{
+		Name:                  "llm",
+		Description:           "llm command",
+		ModalCustomIDPrefixes: []string{"gigi:llmcred:v1:"},
+		RequiredCapabilityForModal: func(ModalInteraction) capability.Capability {
+			return "llm.provider.write"
+		},
+		Handle: okHandler,
+		HandleModal: func(context.Context, ModalInteraction) (CommandResponse, error) {
+			calls++
+			return CommandResponse{Content: "unexpected"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	router.SetAuthorizer(fakeCommandAuthorizer{
+		decision: capability.Decision{Allowed: false, Reason: capability.ReasonMissingCapability},
+		capability: func(required capability.Capability) {
+			gotRequired = required
+		},
+	})
+	responder := &fakeResponder{}
+
+	err = router.HandleInteraction(context.Background(), responder, modalSubmit("gigi:llmcred:v1:nonce", "sk-test"))
+	if err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if calls != 0 {
+		t.Fatalf("modal calls = %d, want denied before handler", calls)
+	}
+	if gotRequired != "llm.provider.write" || responder.content() != "Permission denied." || responder.flags() != discordgo.MessageFlagsEphemeral {
+		t.Fatalf("required = %q response = %q flags = %v, want denied write", gotRequired, responder.content(), responder.flags())
+	}
+}
+
+func TestCommandRouterHandlesUnknownModal(t *testing.T) {
+	router, err := NewCommandRouter(Command{
+		Name:                  "llm",
+		Description:           "llm command",
+		ModalCustomIDPrefixes: []string{"gigi:llmcred:v1:"},
+		Handle:                okHandler,
+		HandleModal: func(context.Context, ModalInteraction) (CommandResponse, error) {
+			return CommandResponse{Content: "unexpected"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	responder := &fakeResponder{}
+
+	err = router.HandleInteraction(context.Background(), responder, modalSubmit("other:modal", "sk-test"))
+	if err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if responder.content() != "Interaction not supported yet." || responder.flags() != discordgo.MessageFlagsEphemeral {
+		t.Fatalf("response = %q flags = %v, want unsupported modal", responder.content(), responder.flags())
+	}
+}
+
 func TestCommandRouterIgnoresNilAndNonCommandInteractions(t *testing.T) {
 	router, err := NewCommandRouter(CoreCommands()...)
 	if err != nil {
@@ -612,6 +740,24 @@ func applicationCommand(name string) *discordgo.InteractionCreate {
 		Interaction: &discordgo.Interaction{
 			Type: discordgo.InteractionApplicationCommand,
 			Data: discordgo.ApplicationCommandInteractionData{Name: name},
+		},
+	}
+}
+
+func modalSubmit(customID string, credential string) *discordgo.InteractionCreate {
+	return &discordgo.InteractionCreate{
+		Interaction: &discordgo.Interaction{
+			Type:    discordgo.InteractionModalSubmit,
+			GuildID: "guild-id",
+			Member:  &discordgo.Member{User: &discordgo.User{ID: "user-id"}},
+			Data: discordgo.ModalSubmitInteractionData{
+				CustomID: customID,
+				Components: []discordgo.MessageComponent{
+					&discordgo.ActionsRow{Components: []discordgo.MessageComponent{
+						&discordgo.TextInput{CustomID: "credential", Value: credential},
+					}},
+				},
+			},
 		},
 	}
 }
