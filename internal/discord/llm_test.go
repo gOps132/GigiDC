@@ -48,6 +48,14 @@ func TestLLMCommandsExposeGuildProviderSurface(t *testing.T) {
 	if option := findOption(show.Options, "purpose"); option == nil || !hasChoice(option, string(provider.PurposeChat)) || !hasChoice(option, string(provider.PurposeEmbedding)) {
 		t.Fatalf("purpose option = %+v, want purpose choices", option)
 	}
+
+	usageGroup := findOption(command.Options, "usage")
+	if usageGroup == nil || usageGroup.Type != discordgo.ApplicationCommandOptionSubCommandGroup {
+		t.Fatalf("usage group = %+v, want subcommand group", usageGroup)
+	}
+	if findOption(usageGroup.Options, "guild") == nil {
+		t.Fatalf("usage group missing guild")
+	}
 }
 
 func TestLLMCommandDynamicCapabilities(t *testing.T) {
@@ -64,6 +72,7 @@ func TestLLMCommandDynamicCapabilities(t *testing.T) {
 		{name: "provider test", i: llmInteraction("provider", "test", []InteractionOption{{Name: "label", Value: "main"}}), want: "llm.provider.test"},
 		{name: "model show", i: llmInteraction("model", "show", []InteractionOption{{Name: "purpose", Value: "chat"}}), want: "llm.provider.select"},
 		{name: "model set", i: llmInteraction("model", "set", []InteractionOption{{Name: "purpose", Value: "chat"}, {Name: "label", Value: "main"}, {Name: "model", Value: "gpt-4o-mini"}}), want: "llm.provider.select"},
+		{name: "usage guild", i: llmInteraction("usage", "guild", nil), want: "llm.provider.select"},
 		{name: "bad path", i: llmInteraction("provider", "wat", nil), want: ""},
 	}
 
@@ -134,6 +143,54 @@ func TestLLMCommandProviderAddRotateDisabledWithoutCredentialEntry(t *testing.T)
 	}
 	if addResponse.Content != "LLM credential entry is not configured." || !addResponse.Ephemeral {
 		t.Fatalf("response = %+v, want disabled credential entry message", addResponse)
+	}
+}
+
+func TestLLMCommandShowsGuildUsage(t *testing.T) {
+	usage := &fakeLLMUsageReporter{summary: provider.UsageSummary{
+		BillingOwnerType: provider.OwnerGuild,
+		BillingOwnerID:   "guild-id",
+		InputTokens:      12,
+		OutputTokens:     34,
+		TotalEvents:      3,
+		FailedEvents:     1,
+	}}
+	handler := LLMCommands(&fakeLLMProviderManager{}, nil, LLMCommandConfig{UsageReporter: usage})[0].Handle
+
+	response, err := handler(context.Background(), llmInteraction("usage", "guild", nil))
+	if err != nil {
+		t.Fatalf("usage returned error: %v", err)
+	}
+	if usage.guildID != "guild-id" {
+		t.Fatalf("usage guild ID = %q, want guild-id", usage.guildID)
+	}
+	if response.Content != "LLM usage for this server: 46 tokens (12 input, 34 output) across 3 requests; 1 failed." || !response.Ephemeral {
+		t.Fatalf("response = %+v, want usage summary", response)
+	}
+}
+
+func TestLLMCommandShowsZeroGuildUsage(t *testing.T) {
+	usage := &fakeLLMUsageReporter{}
+	handler := LLMCommands(&fakeLLMProviderManager{}, nil, LLMCommandConfig{UsageReporter: usage})[0].Handle
+
+	response, err := handler(context.Background(), llmInteraction("usage", "guild", nil))
+	if err != nil {
+		t.Fatalf("usage returned error: %v", err)
+	}
+	if response.Content != "LLM usage for this server: no recorded usage." || !response.Ephemeral {
+		t.Fatalf("response = %+v, want zero usage summary", response)
+	}
+}
+
+func TestLLMCommandUsageReporterDisabled(t *testing.T) {
+	handler := LLMCommands(&fakeLLMProviderManager{}, nil)[0].Handle
+
+	response, err := handler(context.Background(), llmInteraction("usage", "guild", nil))
+	if err != nil {
+		t.Fatalf("usage returned error: %v", err)
+	}
+	if response.Content != "LLM usage reporting is not configured." || !response.Ephemeral {
+		t.Fatalf("response = %+v, want disabled usage message", response)
 	}
 }
 
@@ -515,4 +572,15 @@ func (m *fakeLLMProviderManager) SelectModelProfile(_ context.Context, req provi
 func (m *fakeLLMProviderManager) ActiveModelProfile(_ context.Context, owner provider.Scope, purpose provider.Purpose) (provider.ModelProfile, error) {
 	m.method, m.owner, m.purpose = "ActiveModelProfile", owner, purpose
 	return m.profile, m.err
+}
+
+type fakeLLMUsageReporter struct {
+	guildID string
+	summary provider.UsageSummary
+	err     error
+}
+
+func (r *fakeLLMUsageReporter) GuildUsageSummary(_ context.Context, guildID string) (provider.UsageSummary, error) {
+	r.guildID = guildID
+	return r.summary, r.err
 }

@@ -25,9 +25,14 @@ type LLMProviderManager interface {
 	ActiveModelProfile(ctx context.Context, owner provider.Scope, purpose provider.Purpose) (provider.ModelProfile, error)
 }
 
+type LLMUsageReporter interface {
+	GuildUsageSummary(ctx context.Context, guildID string) (provider.UsageSummary, error)
+}
+
 type LLMCommandConfig struct {
 	CredentialEntryEnabled bool
 	ModalTTL               time.Duration
+	UsageReporter          LLMUsageReporter
 }
 
 func LLMCommands(manager LLMProviderManager, recorder AuditRecorder, configs ...LLMCommandConfig) []Command {
@@ -48,6 +53,7 @@ func LLMCommands(manager LLMProviderManager, recorder AuditRecorder, configs ...
 		Options: []*discordgo.ApplicationCommandOption{
 			llmProviderGroup(),
 			llmModelGroup(),
+			llmUsageGroup(),
 		},
 		Handle:      llmHandler(manager, recorder, modals, cfg),
 		HandleModal: llmModalHandler(manager, recorder, modals),
@@ -131,6 +137,21 @@ func llmModelGroup() *discordgo.ApplicationCommandOption {
 	}
 }
 
+func llmUsageGroup() *discordgo.ApplicationCommandOption {
+	return &discordgo.ApplicationCommandOption{
+		Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
+		Name:        "usage",
+		Description: "Show guild LLM usage.",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "guild",
+				Description: "Show this server's LLM usage.",
+			},
+		},
+	}
+}
+
 func boolOption(name string, description string) *discordgo.ApplicationCommandOption {
 	return &discordgo.ApplicationCommandOption{
 		Type:        discordgo.ApplicationCommandOptionBoolean,
@@ -169,6 +190,8 @@ func llmRequiredCapability(interaction Interaction) capability.Capability {
 	case group == "provider" && action == "test":
 		return capability.Capability("llm.provider.test")
 	case group == "model" && (action == "show" || action == "set"):
+		return capability.Capability("llm.provider.select")
+	case group == "usage" && action == "guild":
 		return capability.Capability("llm.provider.select")
 	default:
 		return ""
@@ -248,6 +271,8 @@ func parseLLMRequest(interaction Interaction) (llmRequest, error) {
 		return parseLLMProviderRequest(request, action.Options)
 	case "model":
 		return parseLLMModelRequest(request, action.Options)
+	case "usage":
+		return parseLLMUsageRequest(request)
 	default:
 		return request, fmt.Errorf("Unsupported llm group.")
 	}
@@ -303,6 +328,15 @@ func parseLLMModelRequest(request llmRequest, options []InteractionOption) (llmR
 		return request, nil
 	default:
 		return request, fmt.Errorf("Unsupported llm model action.")
+	}
+}
+
+func parseLLMUsageRequest(request llmRequest) (llmRequest, error) {
+	switch request.Action {
+	case "guild":
+		return request, nil
+	default:
+		return request, fmt.Errorf("Unsupported llm usage action.")
 	}
 }
 
@@ -402,6 +436,15 @@ func executeLLMRequest(ctx context.Context, manager LLMProviderManager, interact
 			return CommandResponse{}, err
 		}
 		return CommandResponse{Content: fmt.Sprintf("Selected `%s` for `%s` using credential `%s`.", safeInline(request.ModelID), request.Purpose, safeInline(request.Label))}, nil
+	case request.Group == "usage" && request.Action == "guild":
+		if cfg.UsageReporter == nil {
+			return CommandResponse{Content: "LLM usage reporting is not configured."}, nil
+		}
+		summary, err := cfg.UsageReporter.GuildUsageSummary(ctx, interaction.GuildID)
+		if err != nil {
+			return CommandResponse{}, err
+		}
+		return CommandResponse{Content: formatLLMUsageSummary(summary)}, nil
 	default:
 		return CommandResponse{}, fmt.Errorf("unsupported llm action")
 	}
@@ -488,6 +531,29 @@ func formatLLMCredentialList(records []provider.CredentialRecord) string {
 		lines = append(lines, fmt.Sprintf("...and %d more.", len(records)-limit))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func formatLLMUsageSummary(summary provider.UsageSummary) string {
+	if summary.TotalEvents == 0 {
+		return "LLM usage for this server: no recorded usage."
+	}
+	totalTokens := summary.InputTokens + summary.OutputTokens
+	requestWord := "requests"
+	if summary.TotalEvents == 1 {
+		requestWord = "request"
+	}
+	failedPart := ""
+	if summary.FailedEvents > 0 {
+		failedPart = fmt.Sprintf("; %d failed", summary.FailedEvents)
+	}
+	return fmt.Sprintf("LLM usage for this server: %d tokens (%d input, %d output) across %d %s%s.",
+		totalTokens,
+		summary.InputTokens,
+		summary.OutputTokens,
+		summary.TotalEvents,
+		requestWord,
+		failedPart,
+	)
 }
 
 func boolByName(options []InteractionOption, name string) bool {

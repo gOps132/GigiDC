@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -185,6 +186,50 @@ func TestSQLUsageRecorderRecordsFailedStatusWithErrorClass(t *testing.T) {
 	}
 }
 
+func TestSQLUsageRecorderSummarizesGuildUsage(t *testing.T) {
+	db := &fakeUsageExecDB{row: fakeUsageRow{scan: func(dest ...any) error {
+		*(dest[0].(*int)) = 12
+		*(dest[1].(*int)) = 34
+		*(dest[2].(*int)) = 3
+		*(dest[3].(*int)) = 1
+		return nil
+	}}}
+	recorder := NewSQLUsageRecorder(db, nil)
+
+	got, err := recorder.GuildUsageSummary(context.Background(), "guild-id")
+	if err != nil {
+		t.Fatalf("GuildUsageSummary returned error: %v", err)
+	}
+	if got.BillingOwnerType != OwnerGuild || got.BillingOwnerID != "guild-id" || got.InputTokens != 12 || got.OutputTokens != 34 || got.TotalEvents != 3 || got.FailedEvents != 1 {
+		t.Fatalf("summary = %+v, want guild totals", got)
+	}
+	if !strings.Contains(db.query, "llm_usage_events") || !strings.Contains(db.query, "count(*) filter") || strings.Contains(db.query, "group by") {
+		t.Fatalf("query = %q, want usage summary query", db.query)
+	}
+}
+
+func TestSQLUsageRecorderGuildUsageSummaryReturnsZeroForNoRows(t *testing.T) {
+	db := &fakeUsageExecDB{row: fakeUsageRow{err: sql.ErrNoRows}}
+	recorder := NewSQLUsageRecorder(db, nil)
+
+	got, err := recorder.GuildUsageSummary(context.Background(), "guild-id")
+	if err != nil {
+		t.Fatalf("GuildUsageSummary returned error: %v", err)
+	}
+	if got.BillingOwnerType != OwnerGuild || got.BillingOwnerID != "guild-id" || got.InputTokens != 0 || got.TotalEvents != 0 {
+		t.Fatalf("summary = %+v, want zero guild summary", got)
+	}
+}
+
+func TestSQLUsageRecorderGuildUsageSummaryRejectsMissingGuild(t *testing.T) {
+	recorder := NewSQLUsageRecorder(&fakeUsageExecDB{}, nil)
+
+	_, err := recorder.GuildUsageSummary(context.Background(), " ")
+	if err == nil || !strings.Contains(err.Error(), "guild ID is required") {
+		t.Fatalf("error = %v, want guild ID validation", err)
+	}
+}
+
 func validUsageEvent() UsageEvent {
 	return UsageEvent{
 		RequestID:        "request-id",
@@ -213,6 +258,7 @@ type fakeUsageExecDB struct {
 	query string
 	args  []any
 	calls int
+	row   fakeUsageRow
 }
 
 func (db *fakeUsageExecDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
@@ -220,6 +266,27 @@ func (db *fakeUsageExecDB) ExecContext(_ context.Context, query string, args ...
 	db.query = query
 	db.args = args
 	return fakeUsageResult(1), nil
+}
+
+func (db *fakeUsageExecDB) QueryRowContext(_ context.Context, query string, args ...any) usageRow {
+	db.query = query
+	db.args = args
+	return db.row
+}
+
+type fakeUsageRow struct {
+	scan func(...any) error
+	err  error
+}
+
+func (r fakeUsageRow) Scan(dest ...any) error {
+	if r.err != nil {
+		return r.err
+	}
+	if r.scan == nil {
+		return errors.New("missing scan")
+	}
+	return r.scan(dest...)
 }
 
 type fakeUsageResult int64

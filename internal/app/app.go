@@ -84,10 +84,14 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		pluginStore := plugins.NewSQLCatalogStore(db, func() string { return storage.NewID("plugin") })
 		providerStore := llmprovider.NewSQLStore(db, func() string { return storage.NewID("llm") })
 		providerService := llmprovider.NewServiceWithTester(providerStore, secretSealer, llmprovider.DefaultRegistry(), llmprovider.NewHTTPTester(nil))
+		usageRecorder := llmprovider.NewSQLUsageRecorder(db, func() string { return storage.NewID("llmusage") })
 		commands := discord.CoreCommands()
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
-		commands = append(commands, discord.LLMCommands(providerService, auditStore, discord.LLMCommandConfig{CredentialEntryEnabled: secretSealer != nil})...)
+		commands = append(commands, discord.LLMCommands(providerService, auditStore, discord.LLMCommandConfig{
+			CredentialEntryEnabled: secretSealer != nil,
+			UsageReporter:          usageRecorder,
+		})...)
 
 		router, err := discord.NewCommandRouter(commands...)
 		if err != nil {
