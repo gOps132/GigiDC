@@ -52,6 +52,10 @@ type usageQueryDB interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) usageRow
 }
 
+type sqlUsageQueryDB interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
 type usageRow interface {
 	Scan(dest ...any) error
 }
@@ -127,20 +131,20 @@ func (r SQLUsageRecorder) GuildUsageSummary(ctx context.Context, guildID string)
 	if guildID == "" {
 		return UsageSummary{}, fmt.Errorf("guild ID is required")
 	}
-	queryDB, ok := r.db.(usageQueryDB)
-	if r.db == nil || !ok {
-		return UsageSummary{}, fmt.Errorf("usage query database is required")
-	}
 	summary := UsageSummary{BillingOwnerType: OwnerGuild, BillingOwnerID: guildID}
-	if err := queryDB.QueryRowContext(ctx, `
+	row, err := r.queryRow(ctx, `
 select
   coalesce(sum(input_tokens), 0),
   coalesce(sum(output_tokens), 0),
   count(*),
-  count(*) filter (where status = 'failed')
+  coalesce(sum(case when status = 'failed' then 1 else 0 end), 0)
 from llm_usage_events
 where guild_id = $1
-`, guildID).Scan(
+`, guildID)
+	if err != nil {
+		return UsageSummary{}, err
+	}
+	if err := row.Scan(
 		&summary.InputTokens,
 		&summary.OutputTokens,
 		&summary.TotalEvents,
@@ -152,6 +156,19 @@ where guild_id = $1
 		return UsageSummary{}, fmt.Errorf("query guild usage summary: %w", err)
 	}
 	return summary, nil
+}
+
+func (r SQLUsageRecorder) queryRow(ctx context.Context, query string, args ...any) (usageRow, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("usage query database is required")
+	}
+	if queryDB, ok := r.db.(usageQueryDB); ok {
+		return queryDB.QueryRowContext(ctx, query, args...), nil
+	}
+	if queryDB, ok := r.db.(sqlUsageQueryDB); ok {
+		return queryDB.QueryRowContext(ctx, query, args...), nil
+	}
+	return nil, fmt.Errorf("usage query database is required")
 }
 
 func normalizeUsageEvent(event UsageEvent) UsageEvent {

@@ -35,6 +35,11 @@ func (p SemanticPluginPlanner) Plan(ctx context.Context, input SemanticPluginInp
 	if input.GuildID == "" || input.ActorUserID == "" || input.Text == "" || len(input.Manifests) == 0 {
 		return plugins.CommandPlan{}, false, nil
 	}
+	for _, candidate := range semanticTextCandidates(input.Text) {
+		if plan, ok := plugins.PlanCommand(input.Manifests, "guild_text", candidate); ok {
+			return plan, true, nil
+		}
+	}
 	if p.Runtime == nil {
 		return plugins.CommandPlan{}, false, fmt.Errorf("semantic plugin runtime is required")
 	}
@@ -103,6 +108,41 @@ func semanticPluginPrompt(input SemanticPluginInput) string {
 		}
 	}
 	return b.String()
+}
+
+func semanticTextCandidates(text string) []string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+	candidates := []string{text}
+	lower := strings.ToLower(text)
+	for _, prefix := range []string{
+		"please ",
+		"pls ",
+		"can you ",
+		"could you ",
+		"would you ",
+		"gigi please ",
+		"gigi ",
+	} {
+		if strings.HasPrefix(lower, prefix) {
+			trimmed := strings.TrimSpace(text[len(prefix):])
+			if trimmed != "" && !containsString(candidates, trimmed) {
+				candidates = append(candidates, trimmed)
+			}
+		}
+	}
+	return candidates
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func parseSemanticPluginProposal(value string) (semanticPluginProposal, bool) {

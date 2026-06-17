@@ -34,6 +34,10 @@ type policyQueryDB interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) usageRow
 }
 
+type sqlPolicyQueryDB interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
 type SQLPolicyStore struct {
 	db any
 }
@@ -60,16 +64,16 @@ func (s SQLPolicyStore) GuildPolicy(ctx context.Context, guildID string) (GuildP
 	if guildID == "" {
 		return GuildPolicy{}, fmt.Errorf("guild ID is required")
 	}
-	queryDB, ok := s.db.(policyQueryDB)
-	if s.db == nil || !ok {
-		return GuildPolicy{}, fmt.Errorf("policy query database is required")
-	}
 	policy := DefaultGuildPolicy(guildID)
-	if err := queryDB.QueryRowContext(ctx, `
+	row, err := s.queryRow(ctx, `
 select personal_keys_mode
 from llm_guild_policies
 where guild_id = $1
-`, guildID).Scan(&policy.PersonalKeysMode); err != nil {
+`, guildID)
+	if err != nil {
+		return GuildPolicy{}, err
+	}
+	if err := row.Scan(&policy.PersonalKeysMode); err != nil {
 		if err == sql.ErrNoRows {
 			return policy, nil
 		}
@@ -114,4 +118,17 @@ on conflict (guild_id) do update set
 		return fmt.Errorf("upsert guild llm policy: %w", err)
 	}
 	return nil
+}
+
+func (s SQLPolicyStore) queryRow(ctx context.Context, query string, args ...any) (usageRow, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("policy query database is required")
+	}
+	if queryDB, ok := s.db.(policyQueryDB); ok {
+		return queryDB.QueryRowContext(ctx, query, args...), nil
+	}
+	if queryDB, ok := s.db.(sqlPolicyQueryDB); ok {
+		return queryDB.QueryRowContext(ctx, query, args...), nil
+	}
+	return nil, fmt.Errorf("policy query database is required")
 }
