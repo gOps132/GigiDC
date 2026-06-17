@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -18,6 +19,8 @@ type Config struct {
 	DiscordToken        string
 	DiscordClientID     string
 	OpenAIAPIKey        string
+	LLMSecretKeyBase64  string
+	LLMSecretKeyID      string
 }
 
 func Load() (Config, error) {
@@ -32,6 +35,8 @@ func Load() (Config, error) {
 		DiscordToken:        strings.TrimSpace(os.Getenv("DISCORD_TOKEN")),
 		DiscordClientID:     strings.TrimSpace(os.Getenv("DISCORD_CLIENT_ID")),
 		OpenAIAPIKey:        strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
+		LLMSecretKeyBase64:  strings.TrimSpace(os.Getenv("GIGI_LLM_SECRET_KEY_BASE64")),
+		LLMSecretKeyID:      envOrDefault("GIGI_LLM_SECRET_KEY_ID", "local-v1"),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -52,6 +57,23 @@ func Load() (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func (cfg Config) DecodedLLMSecretKey() ([]byte, error) {
+	value := strings.TrimSpace(cfg.LLMSecretKeyBase64)
+	if value == "" {
+		return nil, nil
+	}
+
+	key, err := base64.StdEncoding.DecodeString(value)
+	if err != nil {
+		return nil, fmt.Errorf("GIGI_LLM_SECRET_KEY_BASE64 must be standard base64: %w", err)
+	}
+	if len(key) != 32 {
+		return nil, fmt.Errorf("GIGI_LLM_SECRET_KEY_BASE64 must decode to exactly 32 bytes, got %d", len(key))
+	}
+
+	return key, nil
 }
 
 func envOrDefault(key, fallback string) string {

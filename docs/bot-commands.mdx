@@ -365,9 +365,246 @@ Revoked `job.admin` for user @person.
 | `relay.receive` | Receive mediated messages from Gigi |
 | `llm.provider.write` | Set, rotate, or delete guild-scoped provider credentials |
 | `llm.provider.test` | Test a guild-scoped provider credential without viewing it |
-| `llm.provider.select` | Choose active guild provider/model |
+| `llm.provider.select` | Choose active guild provider/model and view guild usage |
 
 Dynamic external app capabilities such as `plugin.run.<id>` are future work and should appear only after plugin install/enable flow exists.
+
+## LLM Commands
+
+The guild-scoped provider, model, and usage commands below are live. Personal BYOK and policy commands remain planned.
+
+Surface: slash command.
+
+Responses: ephemeral.
+
+Credential entry uses a private modal flow, not a normal slash command string option. Gigi never echoes raw provider keys. Audits for provider mutation, provider tests, and model selection include safe metadata only.
+
+### `/llm provider list`
+
+Status: live.
+
+Required Gigi capability: `llm.provider.write`.
+
+Syntax:
+
+```text
+/llm provider list
+```
+
+Expected response:
+
+```text
+LLM provider credentials:
+- `main` - `openai` (active, test: succeeded)
+```
+
+Failure cases:
+
+- requester lacks `llm.provider.write`
+- provider store is unavailable
+
+Privacy and audit: lists metadata only; does not show secrets, ciphertext, nonce, or fingerprints.
+
+### `/llm provider add`
+
+Status: live when `GIGI_LLM_SECRET_KEY_BASE64` is configured.
+
+Required Gigi capability: `llm.provider.write`.
+
+Syntax:
+
+```text
+/llm provider add provider:<openai|anthropic|gemini|custom> label:<label>
+```
+
+Expected response: private modal titled `Add LLM Credential`.
+
+Failure cases:
+
+- requester lacks `llm.provider.write`
+- credential entry is not configured
+- provider is unknown
+- label is missing, too long, or looks sensitive
+
+Privacy and audit: submitted credential value is sealed before storage. Audit metadata records action and provider only.
+
+### `/llm provider test`
+
+Status: live.
+
+Required Gigi capability: `llm.provider.test`.
+
+Syntax:
+
+```text
+/llm provider test label:<label>
+```
+
+Expected response:
+
+```text
+Tested `openai` credential `main`: succeeded.
+```
+
+Failure cases:
+
+- requester lacks `llm.provider.test`
+- credential label is missing or unknown
+- provider probe fails
+
+Privacy and audit: response and audit omit raw secrets and provider responses. Last test status is stored on credential metadata.
+
+### `/llm provider rotate`
+
+Status: live when `GIGI_LLM_SECRET_KEY_BASE64` is configured.
+
+Required Gigi capability: `llm.provider.write`.
+
+Syntax:
+
+```text
+/llm provider rotate label:<label>
+```
+
+Expected response: private modal titled `Rotate LLM Credential`.
+
+Failure cases:
+
+- requester lacks `llm.provider.write`
+- credential entry is not configured
+- active credential label is unknown
+
+Privacy and audit: same private modal and safe audit rules as `/llm provider add`.
+
+### `/llm provider delete`
+
+Status: live.
+
+Required Gigi capability: `llm.provider.write`.
+
+Syntax:
+
+```text
+/llm provider delete label:<label> confirm:true
+```
+
+Expected response:
+
+```text
+Revoked LLM credential `main`.
+```
+
+Failure cases:
+
+- requester lacks `llm.provider.write`
+- `confirm` is not true
+- credential label is unknown
+
+Privacy and audit: audits safe deletion metadata only.
+
+### `/llm model show`
+
+Status: live.
+
+Required Gigi capability: `llm.provider.select`.
+
+Syntax:
+
+```text
+/llm model show purpose:<chat|reasoning|embedding|routing>
+```
+
+Expected response:
+
+```text
+Active `chat` model: `gpt-4o-mini` via `openai` (`credential-id`).
+```
+
+Failure cases:
+
+- requester lacks `llm.provider.select`
+- purpose is unknown
+- no active profile exists for that purpose
+
+Privacy and audit: metadata only; no raw secret access is shown.
+
+### `/llm model set`
+
+Status: live.
+
+Required Gigi capability: `llm.provider.select`.
+
+Syntax:
+
+```text
+/llm model set purpose:<chat|reasoning|embedding|routing> label:<label> model:<model-id>
+```
+
+Expected response:
+
+```text
+Selected `gpt-4o-mini` for `chat` using credential `main`.
+```
+
+Failure cases:
+
+- requester lacks `llm.provider.select`
+- purpose, label, or model is invalid
+- selected provider does not support that purpose
+
+Privacy and audit: audits provider, purpose, and model metadata only.
+
+### `/llm usage guild`
+
+Status: live.
+
+Required Gigi capability: `llm.provider.select`.
+
+Syntax:
+
+```text
+/llm usage guild
+```
+
+Expected response:
+
+```text
+LLM usage for this server: 46 tokens (12 input, 34 output) across 3 requests; 1 failed.
+```
+
+Failure cases:
+
+- requester lacks `llm.provider.select`
+- usage store is unavailable
+
+Privacy and audit: reads aggregate token and request counts only. Usage events do not store raw prompts, completions, provider responses, or secrets.
+
+## Planned LLM Commands
+
+These commands are not implemented yet.
+
+### `/llm policy set`
+
+Status: planned.
+
+Required Gigi capability: `llm.provider.write`.
+
+Planned syntax:
+
+```text
+/llm policy set personal-keys:<off|dm-only|guild-allowed>
+```
+
+V1 personal BYOK command direction:
+
+```text
+/llm key add provider:<openai|anthropic|gemini|custom> label:<label>
+/llm key test label:<label>
+/llm key prefer surface:<dm|guild> label:<label>
+/llm key remove label:<label>
+```
+
+Credential entry should use a private modal or private flow, not a normal slash command string option. Gigi should never echo, log, or audit raw provider keys. Personal BYOK pays for reasoning but does not grant Gigi action capabilities.
 
 ## External App Mention Actions
 

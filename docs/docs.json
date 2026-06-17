@@ -20,7 +20,8 @@
         "pages": [
           "index",
           "architecture",
-          "roadmap"
+          "roadmap",
+          "llm-cognitive-plan"
         ]
       },
       {

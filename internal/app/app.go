@@ -7,11 +7,14 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gOps132/GigiDC/internal/assistant"
 	"github.com/gOps132/GigiDC/internal/audit"
 	"github.com/gOps132/GigiDC/internal/buildinfo"
 	"github.com/gOps132/GigiDC/internal/capability"
 	"github.com/gOps132/GigiDC/internal/config"
 	"github.com/gOps132/GigiDC/internal/discord"
+	"github.com/gOps132/GigiDC/internal/llm"
+	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
 	"github.com/gOps132/GigiDC/internal/plugins"
 	"github.com/gOps132/GigiDC/internal/storage"
 	"github.com/gOps132/GigiDC/internal/web"
@@ -53,6 +56,18 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 	}
 
 	if cfg.DiscordEnabled && application.discordClient == nil {
+		var secretSealer llmprovider.SecretSealer
+		llmSecretKey, err := cfg.DecodedLLMSecretKey()
+		if err != nil {
+			return nil, err
+		}
+		if llmSecretKey != nil {
+			secretSealer, err = llmprovider.NewAESGCMSealer(llmSecretKey, cfg.LLMSecretKeyID)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		db, err := storage.OpenDB(dbCtx, cfg.DatabaseURL)
@@ -69,9 +84,26 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		grantManager := capability.NewSQLGrantManager(db, func() string { return storage.NewID("capgrant") })
 		auditStore := audit.NewStore(db, func() string { return storage.NewID("audit") })
 		pluginStore := plugins.NewSQLCatalogStore(db, func() string { return storage.NewID("plugin") })
+		providerStore := llmprovider.NewSQLStore(db, func() string { return storage.NewID("llm") })
+		providerService := llmprovider.NewServiceWithTester(providerStore, secretSealer, llmprovider.DefaultRegistry(), llmprovider.NewHTTPTester(nil))
+		usageRecorder := llmprovider.NewSQLUsageRecorder(db, func() string { return storage.NewID("llmusage") })
+		conversationStore := assistant.NewSQLConversationStore(db, func() string { return storage.NewID("asstturn") })
+		llmRuntime := llm.Runtime{
+			Resolver:     providerService,
+			Client:       llm.NewHTTPProviderClient(nil),
+			Usage:        usageRecorder,
+			NewRequestID: func() string { return storage.NewID("llmreq") },
+		}
+		assistantHandler := assistant.NewHandler(llmRuntime)
+		assistantHandler.Recorder = conversationStore
+		semanticPlanner := assistant.SemanticPluginPlanner{Runtime: llmRuntime}
 		commands := discord.CoreCommands()
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
+		commands = append(commands, discord.LLMCommands(providerService, auditStore, discord.LLMCommandConfig{
+			CredentialEntryEnabled: secretSealer != nil,
+			UsageReporter:          usageRecorder,
+		})...)
 
 		router, err := discord.NewCommandRouter(commands...)
 		if err != nil {
@@ -81,7 +113,13 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		evaluator := capability.NewEvaluator(grantStore)
 		router.SetAuthorizer(discord.NewCapabilityAuthorizer(evaluator, auditStore))
 
-		messageHandler := discord.ExternalAppDryRunHandler(pluginStore, evaluator, auditStore, discord.CoreMessageHandler())
+		messageHandler := discord.ExternalAppDryRunHandlerWithSemantic(
+			pluginStore,
+			evaluator,
+			auditStore,
+			discord.AssistantFallbackHandler(assistantHandler, discord.CoreMessageHandler()),
+			semanticPlanner,
+		)
 		messageRouter, err := discord.NewMessageRouter(cfg.DiscordClientID, messageHandler, nil)
 		if err != nil {
 			_ = db.Close()

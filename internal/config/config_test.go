@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"encoding/base64"
+	"strings"
+	"testing"
+)
 
 func TestLoadRequiresDatabaseURL(t *testing.T) {
 	t.Setenv("GIGI_DATABASE_URL", "")
@@ -17,6 +21,8 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("GIGI_ENV", "")
 	t.Setenv("GIGI_DISCORD_ENABLED", "")
 	t.Setenv("GIGI_DISCORD_SYNC_COMMANDS", "")
+	t.Setenv("GIGI_LLM_SECRET_KEY_BASE64", "")
+	t.Setenv("GIGI_LLM_SECRET_KEY_ID", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -36,6 +42,12 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.DiscordSyncCommands {
 		t.Fatal("DiscordSyncCommands = true, want false")
+	}
+	if cfg.LLMSecretKeyBase64 != "" {
+		t.Fatalf("LLMSecretKeyBase64 = %q, want blank", cfg.LLMSecretKeyBase64)
+	}
+	if cfg.LLMSecretKeyID != "local-v1" {
+		t.Fatalf("LLMSecretKeyID = %q, want local-v1", cfg.LLMSecretKeyID)
 	}
 }
 
@@ -108,5 +120,71 @@ func TestLoadDiscordCommandSyncSettings(t *testing.T) {
 	}
 	if cfg.DiscordGuildID != "guild-id" {
 		t.Fatalf("DiscordGuildID = %q, want guild-id", cfg.DiscordGuildID)
+	}
+}
+
+func TestLoadLLMSecretKeySettings(t *testing.T) {
+	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_LLM_SECRET_KEY_BASE64", "  c2VjcmV0  ")
+	t.Setenv("GIGI_LLM_SECRET_KEY_ID", "  prod-v2  ")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMSecretKeyBase64 != "c2VjcmV0" {
+		t.Fatalf("LLMSecretKeyBase64 = %q, want c2VjcmV0", cfg.LLMSecretKeyBase64)
+	}
+	if cfg.LLMSecretKeyID != "prod-v2" {
+		t.Fatalf("LLMSecretKeyID = %q, want prod-v2", cfg.LLMSecretKeyID)
+	}
+}
+
+func TestDecodedLLMSecretKeyReturnsNilWhenBlank(t *testing.T) {
+	cfg := Config{}
+
+	key, err := cfg.DecodedLLMSecretKey()
+	if err != nil {
+		t.Fatalf("DecodedLLMSecretKey returned error: %v", err)
+	}
+	if key != nil {
+		t.Fatalf("DecodedLLMSecretKey = %v, want nil", key)
+	}
+}
+
+func TestDecodedLLMSecretKeyDecodesValid32ByteKey(t *testing.T) {
+	want := []byte(strings.Repeat("a", 32))
+	cfg := Config{LLMSecretKeyBase64: base64.StdEncoding.EncodeToString(want)}
+
+	got, err := cfg.DecodedLLMSecretKey()
+	if err != nil {
+		t.Fatalf("DecodedLLMSecretKey returned error: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("DecodedLLMSecretKey = %q, want %q", got, want)
+	}
+}
+
+func TestDecodedLLMSecretKeyErrorsOnInvalidBase64(t *testing.T) {
+	cfg := Config{LLMSecretKeyBase64: "not base64"}
+
+	_, err := cfg.DecodedLLMSecretKey()
+	if err == nil {
+		t.Fatal("expected invalid base64 error")
+	}
+	if !strings.Contains(err.Error(), "GIGI_LLM_SECRET_KEY_BASE64 must be standard base64") {
+		t.Fatalf("error = %q, want helpful base64 error", err.Error())
+	}
+}
+
+func TestDecodedLLMSecretKeyErrorsOnWrongLength(t *testing.T) {
+	cfg := Config{LLMSecretKeyBase64: base64.StdEncoding.EncodeToString([]byte("too-short"))}
+
+	_, err := cfg.DecodedLLMSecretKey()
+	if err == nil {
+		t.Fatal("expected wrong length error")
+	}
+	if !strings.Contains(err.Error(), "must decode to exactly 32 bytes") {
+		t.Fatalf("error = %q, want helpful length error", err.Error())
 	}
 }

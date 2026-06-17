@@ -1,0 +1,221 @@
+---
+title: LLM And Cognitive Layer Plan
+description: Planned provider registry, credential ownership, memory, and reasoning layers.
+---
+
+# LLM And Cognitive Layer Plan
+
+This page is planning material. It describes how Gigi should grow from the current foundation into an LLM-backed Discord assistant without weakening the existing permission, audit, and plugin safety model.
+
+## Design Principles
+
+- Keep Discord as an adapter. The cognitive layer should not depend on `discordgo`.
+- Keep `internal/llm` as the low-level provider port for text and embedding calls.
+- Add orchestration as a separate package, such as `internal/assistant` or `internal/cognitive`.
+- Keep deterministic plugin prefix matching before LLM planning.
+- Treat LLM output and plugin descriptions as untrusted hints, never executable authority.
+- Build final action plans from stored manifests, capability checks, confirmation policy, and audit rules.
+- Never store raw prompts, completions, provider responses, planned commands, or secrets in audit metadata.
+
+## Provider Registry Direction
+
+Gigi should support a provider registry with first-class entries for:
+
+- OpenAI
+- Anthropic
+- Gemini
+- future custom or compatible providers
+
+Provider support should be purpose-aware instead of hard-coded to one chat model. Planned purposes:
+
+| Purpose | Use |
+| --- | --- |
+| `chat` | Normal DM or mention conversation |
+| `reasoning` | Higher-effort planning and tool proposal |
+| `embedding` | Message history and retrieval vectors |
+| `routing` | Lightweight intent and plugin candidate selection |
+
+Model IDs should remain flexible strings validated by the provider service. Provider model catalogs change faster than Discord command definitions, so slash commands should not require a fixed model enum for every provider model.
+
+## Credential Ownership Model
+
+The storage and resolver should support multiple credential owners from the start:
+
+| Owner type | Meaning | v0 behavior |
+| --- | --- | --- |
+| `guild` | A Discord server owns the credential and model profiles. | Active UX |
+| `user` | A Discord user owns a personal BYOK credential. | Schema/resolver-ready only |
+| `tenant` | The deployment/operator owns a fallback credential. | Optional single-tenant fallback only |
+
+V0 should be multi-owner architecture with guild-only product behavior. That means the schema, usage events, and resolver should understand `guild`, `user`, and `tenant`, but the first shipped commands should only let authorized guild admins configure guild credentials.
+
+## Revised V0
+
+Current V0 LLM and cognitive slice includes:
+
+- `internal/llm/provider` registry, credential store, secret sealing, model profile selection, provider testing, and credential resolution.
+- Provider-backed text clients for OpenAI, Anthropic, and Gemini using resolved model credentials.
+- Runtime generation wrapper that resolves active models and records token usage.
+- Guild-scoped provider credentials configured by users with `llm.provider.write`.
+- Guild-scoped model profiles selected by users with `llm.provider.select`.
+- Provider test commands gated by `llm.provider.test`.
+- Encrypted write-only secrets using a swappable `SecretSealer`.
+- Usage events that record actor, guild, provider, model, purpose, billing owner type, billing owner ID, token counts, status, and classified error.
+- `/llm usage guild` aggregate reporting with no raw prompt, completion, provider response, or secret storage.
+- Guild-mention cognitive fallback chat after deterministic external app matching fails.
+- Metadata-only conversation turn storage with no raw prompt or completion columns.
+- Semantic plugin routing that treats LLM output as a proposal, validates it against enabled manifests, applies capability checks, and returns dry-run plans only.
+- Guild policy storage that defaults personal keys to `off`.
+- No per-user BYOK for guild mentions, shared memory, embeddings, or semantic routing.
+- No silent fallback between billing owners.
+
+Deferred beyond V0:
+
+- Raw memory and retrieval policy.
+- `/llm key` personal BYOK behavior.
+- Tenant/operator fallback credentials.
+- Persistent confirmation records.
+- Restricted dispatch and multi-step external app actions.
+
+The important product rule: an admin can personally pay for a provider key, but if that key powers shared server behavior, Gigi treats it as a guild credential governed by guild policy and audit.
+
+## Revised V1
+
+V1 can enable controlled personal BYOK:
+
+- `/llm key add`, `test`, `prefer`, and `remove` for personal credentials.
+- Personal keys allowed in DMs that do not use guild memory or guild actions.
+- Guild policy for personal keys: `off`, `dm-only`, or `guild-allowed`.
+- Explicit per-request billing choice where appropriate: `server` or `me`.
+- Clear disclosure before a personal key can process guild context.
+- No personal-key usage for shared guild embeddings by default.
+- No automatic fallback from a failed personal key to a guild key, or from a failed guild key to a personal key.
+- BYOK pays for reasoning but does not grant capabilities. The existing capability engine still decides whether actions can run.
+
+## Later Extensions
+
+Later slices can add:
+
+- tenant/operator hosted credentials for single-tenant deployments
+- per-channel and per-role model policies
+- per-user, per-guild, and per-provider budgets
+- provider failover policies
+- provider-specific model discovery
+- persistent confirmation records
+- Discord buttons and modals for confirmation and credential entry
+- webhook dispatch and multi-step plugin pipelines
+
+## Planned Data Shape
+
+The exact SQL can evolve during implementation, but the first schema should preserve these ownership concepts:
+
+```sql
+llm_credentials (
+  id text primary key,
+  owner_type text not null,
+  guild_id text,
+  user_id text,
+  provider_id text not null,
+  label text not null,
+  credential_ciphertext bytea not null,
+  credential_nonce bytea not null,
+  credential_key_id text not null,
+  credential_fingerprint text not null,
+  status text not null,
+  last_test_status text,
+  last_tested_at timestamptz,
+  last_error_code text,
+  created_by_user_id text,
+  updated_by_user_id text,
+  revoked_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (id, provider_id)
+);
+
+Active credential labels should be unique per owner. A label should identify one active credential in a guild, user, or tenant scope, not one credential per provider, so command UX can safely address credentials by label.
+
+llm_model_profiles (
+  id text primary key,
+  owner_type text not null,
+  guild_id text,
+  user_id text,
+  purpose text not null,
+  credential_id text not null,
+  provider_id text not null,
+  model_id text not null,
+  params jsonb not null default '{}'::jsonb,
+  enabled boolean not null default true,
+  selected_by_user_id text,
+  updated_at timestamptz not null default now(),
+  foreign key (credential_id, provider_id) references llm_credentials(id, provider_id)
+);
+
+llm_usage_events (
+  id text primary key,
+  request_id text not null,
+  guild_id text,
+  channel_id text,
+  actor_user_id text not null,
+  billing_owner_type text not null,
+  billing_owner_id text not null,
+  provider_id text not null,
+  model_id text not null,
+  purpose text not null,
+  input_tokens integer,
+  output_tokens integer,
+  status text not null,
+  error_class text,
+  created_at timestamptz not null default now()
+);
+```
+
+## Command Shape
+
+Live guild/admin commands:
+
+```text
+/llm provider list
+/llm provider add provider:<openai|anthropic|gemini|custom> label:<label>
+/llm provider test label:<label>
+/llm provider rotate label:<label>
+/llm provider delete label:<label> confirm:true
+/llm model show purpose:<chat|reasoning|embedding|routing>
+/llm model set purpose:<chat|reasoning|embedding|routing> label:<label> model:<model-id>
+/llm usage guild
+```
+
+Planned guild/admin policy command:
+
+```text
+/llm policy set personal-keys:<off|dm-only|guild-allowed>
+```
+
+Personal BYOK commands are V1:
+
+```text
+/llm key add provider:<openai|anthropic|gemini|custom> label:<label>
+/llm key test label:<label>
+/llm key prefer surface:<dm|guild> label:<label>
+/llm key remove label:<label>
+```
+
+Credential entry should use a Discord modal or private flow, not a normal slash command string option. Gigi should never echo, log, or audit raw key material.
+
+## Cognitive Layer Direction
+
+The first cognitive handler should be a fallback behind deterministic external app matching:
+
+```text
+Discord MessageRouter
+  -> ExternalAppDryRunHandler
+     -> Cognitive fallback handler
+        -> provider resolver
+        -> conversation store
+        -> retriever
+        -> planner
+        -> capability evaluator
+        -> audit recorder
+```
+
+V0 cognitive behavior should focus on rich DM and mention conversation after a provider is configured. Semantic plugin routing should initially produce dry-run or confirmation-required plans only. Restricted dispatch and multi-step actions should wait until confirmation records, durable jobs, and tighter action schemas exist.

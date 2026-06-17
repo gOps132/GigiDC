@@ -69,6 +69,28 @@ func TestPlanCommandTreatsEmptyPermissionsAsPublic(t *testing.T) {
 	}
 }
 
+func TestPlanCommandFromTriggerBuildsManifestGroundedPlan(t *testing.T) {
+	plan, ok := PlanCommandFromTrigger([]Manifest{musicManifest()}, "guild_text", "jockie-music", "!play", "never gonna give you up")
+	if !ok {
+		t.Fatal("expected manifest-grounded trigger plan")
+	}
+	if plan.Command != "!play never gonna give you up" || plan.Arguments != "never gonna give you up" || plan.Trigger.Value != "!play" {
+		t.Fatalf("plan = %+v, want grounded command", plan)
+	}
+	if len(plan.RequiredCapabilities) != 1 || plan.RequiredCapabilities[0] != capability.Capability("plugin.install") {
+		t.Fatalf("required capabilities = %+v, want plugin.install", plan.RequiredCapabilities)
+	}
+}
+
+func TestPlanCommandFromTriggerRejectsUnknownPluginOrTrigger(t *testing.T) {
+	if _, ok := PlanCommandFromTrigger([]Manifest{musicManifest()}, "guild_text", "missing", "!play", "args"); ok {
+		t.Fatal("must not accept unknown plugin")
+	}
+	if _, ok := PlanCommandFromTrigger([]Manifest{musicManifest()}, "guild_text", "jockie-music", "!missing", "args"); ok {
+		t.Fatal("must not accept unknown trigger")
+	}
+}
+
 func musicManifest() Manifest {
 	manifest := validManifest()
 	manifest.ID = "jockie-music"
