@@ -92,6 +92,121 @@ V1 can enable controlled personal BYOK:
 - No automatic fallback from a failed personal key to a guild key, or from a failed guild key to a personal key.
 - BYOK pays for reasoning but does not grant capabilities. The existing capability engine still decides whether actions can run.
 
+## Guild Memory Retrieval Plan
+
+Guild memory should be explicit, bounded, and asynchronous. New guilds start with memory off. A guild admin must enable memory per channel before Gigi indexes messages from that channel. No DM, private thread, or group DM content should enter guild memory.
+
+The target behavior has two retrieval paths:
+
+- deterministic aggregate queries for questions such as `@Gigi how many times did @sam mention "postgres"?`
+- semantic recall for questions that need similar-message retrieval and citations
+
+Count questions should not depend on an LLM answer. Gigi should resolve the mentioned user, normalize the requested text, apply guild/channel/retention/deletion filters, and answer from SQL counts. Semantic recall can use embeddings after deterministic filters and capability checks.
+
+Efficient ingestion should never block Discord event handling:
+
+```text
+Discord MESSAGE_CREATE
+  -> policy gate
+  -> lightweight message upsert
+  -> enqueue ingest job
+  -> return
+
+Memory worker
+  -> redact
+  -> chunk
+  -> batch embed
+  -> write segments and vectors
+  -> checkpoint
+```
+
+Backfill should use `/memory sync` to queue a resumable job. The worker fetches Discord history page by page with rate limits, saves checkpoints, batch-inserts messages, and processes embeddings later. If the worker lags or fails, the bot should keep serving HTTP and Discord interactions.
+
+Planned data model:
+
+```sql
+guild_memory_policies (
+  guild_id text primary key,
+  default_retention_days integer not null,
+  raw_storage_mode text not null,
+  embeddings_enabled boolean not null,
+  updated_by_user_id text,
+  updated_at timestamptz not null default now()
+);
+
+guild_memory_channels (
+  guild_id text not null,
+  channel_id text not null,
+  mode text not null,
+  retention_days integer,
+  updated_by_user_id text,
+  updated_at timestamptz not null default now(),
+  primary key (guild_id, channel_id)
+);
+
+guild_memory_messages (
+  message_id text primary key,
+  guild_id text not null,
+  channel_id text not null,
+  author_user_id text not null,
+  normalized_text text,
+  content_ciphertext bytea,
+  content_hash text,
+  created_at timestamptz not null,
+  edited_at timestamptz,
+  deleted_at timestamptz,
+  retention_until timestamptz not null
+);
+
+guild_memory_segments (
+  id text primary key,
+  message_id text not null,
+  guild_id text not null,
+  channel_id text not null,
+  token_count integer not null,
+  search_text text,
+  created_at timestamptz not null default now()
+);
+
+guild_memory_embeddings (
+  segment_id text primary key,
+  provider_id text not null,
+  model_id text not null,
+  embedding vector,
+  embedded_at timestamptz not null default now()
+);
+```
+
+The exact schema can change during implementation, but these boundaries should stay:
+
+- message ledger for exact count and audit-safe source metadata
+- segment table for search units
+- vector table for embeddings
+- policy table for guild and channel opt-in
+- queue/checkpoint tables for live ingest, backfill, retries, edits, deletes, and retention purge
+
+Memory policy:
+
+- default off
+- per-channel opt-in
+- ignore bot messages by default
+- no shared-memory embeddings from personal BYOK
+- raw content encrypted if retained
+- retention required before ingest
+- edit events supersede old segments
+- delete events tombstone messages and purge segments/vectors
+- audit events store metadata only, never raw message text, raw query text, snippets, embeddings, prompts, completions, provider responses, or secrets
+
+Planned capabilities:
+
+| Capability | Use |
+| --- | --- |
+| `memory.read.guild` | Count, search, and ask over permitted guild memory |
+| `memory.manage.guild` | Enable channels, set retention, queue sync, purge memory |
+| `memory.export.guild` | Future bulk export path, if allowed by policy |
+
+Channel visibility should be enforced in addition to Gigi capabilities. A user should not retrieve memory from channels they cannot normally see.
+
 ## Later Extensions
 
 Later slices can add:
@@ -103,6 +218,7 @@ Later slices can add:
 - provider-specific model discovery
 - persistent confirmation records
 - Discord buttons and modals for confirmation and credential entry
+- memory export and user deletion workflows
 - webhook dispatch and multi-step plugin pipelines
 
 ## Planned Data Shape
@@ -201,6 +317,20 @@ Personal BYOK commands are V1:
 ```
 
 Credential entry should use a Discord modal or private flow, not a normal slash command string option. Gigi should never echo, log, or audit raw key material.
+
+Planned memory commands:
+
+```text
+/memory count user:<user> text:<string> scope:<this-channel|server> since:<date?> until:<date?> visibility:<private|channel>
+/memory search query:<string> user:<user?> channel:<channel?> since:<date?> limit:<5|10|25>
+/memory ask question:<string> scope:<this-channel|server> since:<date?> include-sources:<true|false>
+/memory status
+/memory sync channel:<channel?> since:<date?> confirm:true
+/memory settings show
+/memory settings set channel:<channel> mode:<off|metadata|full> retention-days:<number?>
+```
+
+Slash responses should default to ephemeral. If `visibility:channel` is supported, it should post only safe summaries, not raw hidden/private content.
 
 ## Cognitive Layer Direction
 

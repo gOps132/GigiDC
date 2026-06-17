@@ -347,10 +347,11 @@ Revoked `job.admin` for user @person.
 
 | Preset | Capabilities |
 | --- | --- |
-| `gigi-admin` | `capability.manage`, `plugin.install`, `job.admin`, `llm.provider.write`, `llm.provider.test`, `llm.provider.select` |
+| `gigi-admin` | `capability.manage`, `plugin.install`, `job.admin`, `llm.provider.write`, `llm.provider.test`, `llm.provider.select`, `memory.read.guild`, `memory.manage.guild` |
 | `plugin-manager` | `plugin.install` |
 | `llm-manager` | `llm.provider.write`, `llm.provider.test`, `llm.provider.select` |
 | `memory-reader` | `memory.read.guild` |
+| `memory-manager` | `memory.read.guild`, `memory.manage.guild` |
 | `relay-user` | `relay.dispatch`, `relay.receive` |
 
 ## Capabilities
@@ -361,6 +362,7 @@ Revoked `job.admin` for user @person.
 | `plugin.install` | Install or configure guild external app integrations |
 | `job.admin` | Inspect, retry, or cancel durable jobs |
 | `memory.read.guild` | Read permitted guild memory scope |
+| `memory.manage.guild` | Enable guild memory channels, configure retention, queue sync, and purge memory |
 | `relay.dispatch` | Ask Gigi to send a mediated message |
 | `relay.receive` | Receive mediated messages from Gigi |
 | `llm.provider.write` | Set, rotate, or delete guild-scoped provider credentials |
@@ -606,6 +608,124 @@ V1 personal BYOK command direction:
 
 Credential entry should use a private modal or private flow, not a normal slash command string option. Gigi should never echo, log, or audit raw provider keys. Personal BYOK pays for reasoning but does not grant Gigi action capabilities.
 
+## Planned Memory Commands
+
+These commands are not implemented yet. Guild memory should start off, require explicit per-channel opt-in, and run ingestion asynchronously so Discord message handling stays responsive.
+
+### Guild mention memory questions
+
+Status: planned.
+
+Required Gigi capability: `memory.read.guild`.
+
+Example:
+
+```text
+@Gigi how many times did @sam mention "postgres"?
+```
+
+Expected response:
+
+```text
+@sam mentioned "postgres" 14 times in indexed channels since Jan 1, 2026.
+Top channels: #backend 11, #infra 3.
+```
+
+Count answers should use deterministic SQL over indexed messages. Gigi should not ask an LLM to guess aggregate counts.
+
+Failure cases:
+
+- requester lacks `memory.read.guild`
+- memory is not enabled for the guild or channel
+- target user or text is ambiguous
+- indexed data is not ready yet
+- requester cannot view channels that contain matching messages
+
+### `/memory count`
+
+Status: planned.
+
+Required Gigi capability: `memory.read.guild`.
+
+Syntax:
+
+```text
+/memory count user:<user> text:<string> scope:<this-channel|server> since:<date?> until:<date?> visibility:<private|channel>
+```
+
+Use this for exact or normalized aggregate questions. The default response should be ephemeral. `visibility:channel` may post a safe summary only.
+
+### `/memory search`
+
+Status: planned.
+
+Required Gigi capability: `memory.read.guild`.
+
+Syntax:
+
+```text
+/memory search query:<string> user:<user?> channel:<channel?> since:<date?> limit:<5|10|25>
+```
+
+Returns matching snippets with safe source metadata such as channel, author, timestamp, and message link when allowed by channel visibility.
+
+### `/memory ask`
+
+Status: planned.
+
+Required Gigi capability: `memory.read.guild`.
+
+Syntax:
+
+```text
+/memory ask question:<string> scope:<this-channel|server> since:<date?> include-sources:<true|false>
+```
+
+Uses retrieval plus a configured guild `chat` model to answer with citations. Semantic retrieval also needs a guild `embedding` model profile.
+
+### `/memory status`
+
+Status: planned.
+
+Required Gigi capability: `memory.read.guild`.
+
+Syntax:
+
+```text
+/memory status
+```
+
+Shows enabled channels, last sync, backlog, retention, and configured embedding model. Response should be ephemeral.
+
+### `/memory sync`
+
+Status: planned.
+
+Required Gigi capability: `memory.manage.guild`.
+
+Syntax:
+
+```text
+/memory sync channel:<channel?> since:<date?> confirm:true
+```
+
+Queues a resumable backfill job and returns immediately. Workers should fetch Discord history page by page, checkpoint progress, batch inserts, and batch embeddings without blocking the bot.
+
+### `/memory settings`
+
+Status: planned.
+
+Required Gigi capability: `memory.manage.guild`.
+
+Syntax:
+
+```text
+/memory settings show
+/memory settings set channel:<channel> mode:<off|metadata|full> retention-days:<number?>
+```
+
+`metadata` mode can support exact counts without retaining raw searchable content. `full` mode permits search segments and embeddings after redaction. Retention is required before ingest.
+
 ## External App Mention Actions
 
 External app matching is live for guild mentions. Deterministic prefix matching runs first. If no prefix trigger matches, semantic routing can call the configured `routing` model, validate the proposal against enabled manifests, apply capability checks, and return a dry-run plan only. It does not call LangChain, run harnesses, or use LLM output as dispatch authority.
@@ -842,7 +962,7 @@ Failure cases:
 ## Not Implemented Yet
 
 - rich DM chat
-- memory retrieval
+- memory retrieval commands
 - tasks
 - relay actions
 - LLM-driven external app dispatch
