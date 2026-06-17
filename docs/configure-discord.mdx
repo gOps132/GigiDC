@@ -1,0 +1,72 @@
+---
+title: Configure Discord
+description: Set up Gigi's Discord gateway, command sync, and role permissions.
+---
+
+# Configure Discord
+
+Use this flow after local health checks or a Coolify deploy pass.
+
+## Environment
+
+Set Discord off until `/healthz` and `/readyz` pass.
+
+```env
+GIGI_DISCORD_ENABLED=false
+GIGI_DISCORD_SYNC_COMMANDS=false
+GIGI_DISCORD_GUILD_ID=
+DISCORD_TOKEN=
+DISCORD_CLIENT_ID=
+```
+
+When the service is healthy, set the bot token and application client ID, then enable Discord.
+
+```env
+GIGI_DISCORD_ENABLED=true
+DISCORD_TOKEN=<bot-token>
+DISCORD_CLIENT_ID=<application-client-id>
+```
+
+Use a test guild while changing slash commands.
+
+```env
+GIGI_DISCORD_SYNC_COMMANDS=true
+GIGI_DISCORD_GUILD_ID=<test-guild-id>
+```
+
+Leaving `GIGI_DISCORD_GUILD_ID` blank targets global application commands.
+
+## Bot role permissions
+
+Gigi can answer commands without `Manage Roles`, but role create, assign, and unassign need Discord server role authority.
+
+Give Gigi's bot role:
+
+- `Manage Roles`
+- a role position above any role Gigi should create, assign, remove, or manage
+
+Channel admin status is not enough. Discord checks server role permissions and hierarchy.
+
+## Smoke tests
+
+Run these after Discord starts:
+
+```text
+/ping
+```
+
+```text
+@Gigi ping
+```
+
+```text
+/permissions role create name:Gigi LLM Managers preset:llm-manager
+```
+
+If role creation fails with a role hierarchy error, move Gigi's bot role higher in Discord server settings.
+
+## Next steps
+
+- [Configure LLM Providers](/configure-llm-providers)
+- [Configure External App Plugins](/configure-plugins)
+- [Bot Commands](/bot-commands)

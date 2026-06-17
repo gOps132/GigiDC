@@ -21,7 +21,7 @@ description: Planned evolution of the Go foundation rebuild.
 - DM handling
 - permission model
 
-Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, capability evaluator, identity resolver contract, DB-backed role-first `/permissions` command, startup migration runner, and durable audit-log seam are started. Rich conversation, usage/ingestion/assignment/task commands, and action execution remain.
+Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, capability evaluator, identity resolver contract, DB-backed role-first `/permissions` command, guild-scoped `/llm` provider and model controls, guild mention chat fallback, startup migration runner, and durable audit-log seam are started. Rich DM conversation, retrieval, assignment/task commands, and restricted action execution remain.
 
 ## v0 Memory And Actions Slice
 
@@ -55,4 +55,4 @@ Current LLM direction: build the data model and resolver for `guild`, `user`, an
 - external app permissions and audit logs
 - external app behavior through approved manifests
 
-Current status: manifest validation, exact Discord application/bot identity lookup, manifest source metadata, approved-manifest storage, enabled-guild manifest loading, Discord `/plugins` admin commands, deterministic guild mention dry-run matching, and public `send_message` prefix dispatch are started. Command publishing, restricted dispatch, confirmed per-message approval, and richer external app execution remain future slices. Any domain behavior only exists if an approved installed external app manifest declares it and the external app supports it.
+Current status: manifest validation, exact Discord application/bot identity lookup, manifest source metadata, approved-manifest storage, enabled-guild manifest loading, Discord `/plugins` admin commands, deterministic guild mention dry-run matching, semantic dry-run routing, and public `send_message` prefix dispatch are started. Command publishing, restricted dispatch, confirmed per-message approval, and richer external app execution remain future slices. Any domain behavior only exists if an approved installed external app manifest declares it and the external app supports it.

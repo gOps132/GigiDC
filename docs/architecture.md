@@ -15,7 +15,7 @@ Gigi is in a foundation rebuild. The old Node/Supabase runtime is gone. The curr
 - config loading through `internal/config`
 - database reachability through `internal/storage`
 
-Discord login is disabled by default through `GIGI_DISCORD_ENABLED=false`. When enabled, the gateway can publish `/ping`, `/permissions`, and `/plugins`, answer `/ping`, route DMs, route guild mentions, ignore ordinary unmentioned guild messages, and ignore bot-authored messages. External app manifest validation, storage, import, enable, disable, deterministic dry-run matching, and public `send_message` prefix dispatch have started, but restricted dispatch, retrieval, and LLM calls are intentionally not active yet.
+Discord login is disabled by default through `GIGI_DISCORD_ENABLED=false`. When enabled, the gateway can publish `/ping`, `/permissions`, `/llm`, and `/plugins`, answer `/ping`, route DMs, route guild mentions, ignore ordinary unmentioned guild messages, and ignore bot-authored messages. External app manifest validation, storage, import, enable, disable, deterministic dry-run matching, semantic dry-run routing, guild mention chat fallback, and public `send_message` prefix dispatch have started. Provider HTTP text calls are live when a guild credential, model profile, and `GIGI_LLM_SECRET_KEY_BASE64` are configured. Restricted dispatch, retrieval, memory, and rich DM chat remain unavailable.
 
 Capability and identity foundations now exist as internal gates for privileged actions. Role and user capability grants are keyed by Discord IDs, not role names, and admin override is modeled separately from role grants.
 
@@ -46,7 +46,7 @@ Discord Gateway
 - `internal/plugins`: approved external app manifest validation, exact Discord identity catalog lookup, and SQL-backed enabled-manifest loading.
 - `internal/jobs`: durable job contracts.
 - `internal/discord`: Discord gateway adapter, slash command router, DM/guild-mention router, and audit seam.
-- `internal/llm`: LLM client contracts for later slices.
+- `internal/llm`: provider-backed text client contracts and HTTP callers for OpenAI, Anthropic, Gemini, and custom-compatible providers.
 - `internal/llm/provider`: provider registry, encrypted credentials, model profiles, usage records, provider testing, and credential resolution for OpenAI, Anthropic, Gemini, and future providers.
 - `internal/assistant`: surface-independent orchestration for guild-mention chat, metadata-only conversation turns, and semantic plugin dry-run routing.
 
@@ -56,28 +56,28 @@ Local PostgreSQL is the new source of truth. The first migration creates foundat
 
 LLM provider storage supports multiple credential owners from the first schema: `guild`, `user`, and `tenant`. V0 exposes only guild/admin-scoped provider configuration, model selection, credential tests, credential resolution, and aggregate guild usage. User-owned BYOK and tenant/operator fallback credentials remain policy-controlled later behavior. Usage records preserve billing owner type, billing owner ID, actor, provider, model, purpose, token counts, status, and classified error without storing raw prompts, completions, provider responses, or secrets.
 
-## LLM And Cognitive Direction
+## LLM And Cognitive Layer
 
-Gigi should use a provider registry with first-class OpenAI, Anthropic, and Gemini entries plus room for future custom providers. Model profiles should be selected by purpose: `chat`, `reasoning`, `embedding`, and `routing`.
+Gigi uses a provider registry with first-class OpenAI, Anthropic, and Gemini entries plus room for custom providers. Model profiles are selected by purpose: `chat`, `reasoning`, `embedding`, and `routing`.
 
-The cognitive layer sits behind deterministic external app matching. Exact enabled plugin prefix triggers remain first; if none match, semantic plugin routing can propose a manifest-grounded dry-run plan, or the chat fallback can answer guild mentions. LLM output is only a proposal. Gigi builds final action plans from stored manifests, capability checks, confirmation policy, and audit rules.
+The cognitive layer sits behind deterministic external app matching. Exact enabled plugin prefix triggers remain first; if none match, semantic plugin routing can call the configured routing model and propose a manifest-grounded dry-run plan. If plugin routing still fails, the chat fallback can call the configured chat model and answer guild mentions. LLM output is only a proposal for routing; Gigi builds final action plans from stored manifests, capability checks, confirmation policy, and audit rules.
 
 Personal BYOK should not be required for v0. A guild admin may provide a provider key, but once it powers shared server behavior, Gigi treats it as a guild credential governed by guild policy and audit. V1 can add optional user-owned keys for DMs and explicit guild-approved personal billing, but personal keys must not grant capabilities or silently process guild context.
 
 ## External App Direction
 
-Gigi will understand approved external Discord apps and bots from manifests. During v0, discovery is exact-match only: a known manifest must match a Discord application ID or bot user ID, or an operator/admin must provide an approved HTTPS manifest URL or uploaded JSON manifest. A guild admin can enable an approved integration, then Gigi can match guild mention text against declared prefix triggers. Public actions use empty `permissions`; restricted actions still require capability checks. If the manifest explicitly declares `dispatch: "send_message"` and the matched action is public, Gigi sends the planned prefix command into the channel as Gigi. Later slices can handle restricted dispatch, slash commands, buttons, mentions, DMs, or natural-language requests to that external app after config checks.
+Gigi understands approved external Discord apps and bots from manifests. During v0, discovery is exact-match only: a known manifest must match a Discord application ID or bot user ID, or an operator/admin must provide an approved HTTPS manifest URL or uploaded JSON manifest. A guild admin can enable an approved integration, then Gigi can match guild mention text against declared prefix triggers. If deterministic matching fails, semantic routing can propose a manifest-grounded dry-run plan. Public actions use empty `permissions`; restricted actions still require capability checks. If the manifest explicitly declares `dispatch: "send_message"` and the matched action is public, Gigi sends the planned prefix command into the channel as Gigi. Later slices can handle restricted dispatch, slash commands, buttons, DMs, richer natural-language execution, or direct webhook dispatch after config checks.
 
 ## Known Limits
 
 - No Discord gateway connection unless `GIGI_DISCORD_ENABLED=true`.
 - No slash command publishing unless `GIGI_DISCORD_SYNC_COMMANDS=true`.
-- DM routing only has `ping` plus placeholder replies. Guild mentions can also dry-run enabled external app prefix triggers or dispatch public `send_message` triggers.
+- DM routing only has `ping` plus a response that rich chat needs a server LLM profile first. Guild mentions can dry-run enabled external app prefix triggers, dispatch public `send_message` triggers, propose semantic dry-run plans, or answer through a configured chat model.
 - `/permissions` can create/assign Discord roles, grant/revoke role capabilities and presets, and manage direct user exceptions.
 - `/plugins` can list approved manifests, import HTTPS manifests or uploaded JSON manifests, enable approved external app versions for a guild, disable guild integrations, and list enabled guild integrations.
 - Durable audit store is used for permission checks and permission changes, but current Discord liveness replies do not depend on it yet.
 - External app command dispatch is limited to public `send_message` prefix actions declared by approved enabled manifests. Restricted actions stay dry-run only.
 - External apps may ignore bot-authored messages after Gigi sends the planned command.
-- No LLM calls yet.
+- Provider text calls require sealed guild credentials, active model profiles, and `GIGI_LLM_SECRET_KEY_BASE64`; personal BYOK, retrieval, memory, and rich DM chat are not live.
 - No retrieval or memory behavior yet.
 - Readiness checks database reachability; startup applies idempotent SQL migration files before Discord command wiring.

@@ -367,7 +367,7 @@ Revoked `job.admin` for user @person.
 | `llm.provider.test` | Test a guild-scoped provider credential without viewing it |
 | `llm.provider.select` | Choose active guild provider/model and view guild usage |
 
-Dynamic external app capabilities such as `plugin.run.<id>` are future work and should appear only after plugin install/enable flow exists.
+Dynamic external app capabilities such as `plugin.run.<id>` are future work and should appear only after restricted plugin authorization exists.
 
 ## LLM Commands
 
@@ -608,7 +608,7 @@ Credential entry should use a private modal or private flow, not a normal slash 
 
 ## External App Mention Actions
 
-External app matching is live for guild mentions. It does not use an LLM, does not call LangChain, and does not run harnesses.
+External app matching is live for guild mentions. Deterministic prefix matching runs first. If no prefix trigger matches, semantic routing can call the configured `routing` model, validate the proposal against enabled manifests, apply capability checks, and return a dry-run plan only. It does not call LangChain, run harnesses, or use LLM output as dispatch authority.
 
 Dispatch is opt-in per manifest. If a matched enabled manifest has `dispatch: "send_message"` and empty `permissions`, Gigi sends the planned prefix command into the channel as Gigi. If the manifest omits that dispatch mode, or if the matched action has non-empty `permissions`, Gigi returns a dry-run response instead.
 
@@ -645,10 +645,11 @@ Expected response when the enabled manifest opts into public `send_message` disp
 
 Failure cases:
 
-- no enabled external app manifest matches the text, so Gigi falls back to normal mention behavior
+- no enabled external app manifest matches the text and semantic routing cannot produce a valid dry-run plan, so Gigi falls back to normal mention behavior
 - requester lacks the matched manifest permission and has no Discord administrator override; public actions with empty `permissions` do not require this check
 - database is unavailable
 - manifest trigger or surface does not match the message
+- routing model profile or sealed guild credential is missing for semantic routing
 - external app ignores bot-authored messages after Gigi sends the command
 
 If mention routing is silent, use `/plugins dry-run` to test the same enabled manifest matcher through slash commands. This avoids Discord message-content delivery issues and proves whether import, enable, and trigger matching work.
@@ -844,6 +845,6 @@ Failure cases:
 - memory retrieval
 - tasks
 - relay actions
-- LLM provider management commands
+- LLM-driven external app dispatch
 - restricted external app command dispatch
 - confirmed per-message dispatch approval

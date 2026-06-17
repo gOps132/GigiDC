@@ -17,7 +17,7 @@ GitHub Actions runs:
 
 Workflow file:
 
-- [.github/workflows/ci.yml](/Users/giancedrick/dev/projects/gigi/.github/workflows/ci.yml)
+- `.github/workflows/ci.yml`
 
 ## Build
 

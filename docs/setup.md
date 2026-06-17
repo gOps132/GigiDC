@@ -18,11 +18,28 @@ cp .env.example .env
 
 The default runtime requires `GIGI_DATABASE_URL` and can use `GIGI_MIGRATIONS_DIR` when migrations are not under `db/migrations`.
 
-Set `GIGI_DISCORD_ENABLED=true` only when `DISCORD_TOKEN` and `DISCORD_CLIENT_ID` are configured. Discord starts with `/ping`, DM/mention liveness routing, `/permissions`, `/plugins`, external app dry-run matching, and opt-in public `send_message` prefix dispatch; rich chat and restricted external app dispatch land in later slices.
+Set `GIGI_DISCORD_ENABLED=true` only when `DISCORD_TOKEN` and `DISCORD_CLIENT_ID` are configured. Discord starts with `/ping`, DM/mention liveness routing, `/permissions`, `/llm`, `/plugins`, deterministic external app matching, semantic external app dry-run routing, guild mention chat fallback, and opt-in public `send_message` prefix dispatch. Guild mention LLM behavior needs a configured guild provider credential and model profile. Rich DM chat and restricted external app dispatch are not live.
 
 Set `GIGI_DISCORD_SYNC_COMMANDS=true` only when you want Gigi to bulk-overwrite its current slash command set. Use `GIGI_DISCORD_GUILD_ID` for a test server during development; leaving it blank targets global application commands.
 
+Use [Configure Discord](/configure-discord) for the Discord application, bot role, command sync, and smoke-test sequence.
+
 LLM provider add/rotate commands require `GIGI_LLM_SECRET_KEY_BASE64`; when blank, `/llm provider add` and `rotate` stay disabled while list/delete/model commands remain available. The key must be standard base64 for exactly 32 bytes. `GIGI_LLM_SECRET_KEY_ID` defaults to `local-v1`.
+
+```bash
+openssl rand -base64 32
+```
+
+Provider API keys are entered through `/llm provider add` or `/llm provider rotate` private modals and sealed as guild credentials. Do not set provider keys in `OPENAI_API_KEY`; that environment variable is reserved and unused for provider calls.
+
+After adding a guild credential, select model profiles for live guild mention behavior:
+
+```text
+/llm model set purpose:chat label:<label> model:<model-id>
+/llm model set purpose:routing label:<label> model:<model-id>
+```
+
+Use [Configure LLM Providers](/configure-llm-providers) for the full Discord command flow.
 
 ## Run Checks
 

@@ -10,12 +10,15 @@ GigiDC is being rebuilt in small, reviewable slices. Contributions should keep s
 ## Contribution Rules
 
 - Keep pull requests focused and reviewable.
-- Update user-facing docs when commands, Discord behavior, permissions, deployment, or setup changes.
-- Update architecture docs when runtime boundaries, storage, permissions, memory, or external app integration behavior changes.
+- When code behavior, commands, config, environment variables, migrations, deployment, Discord behavior, permissions, plugin behavior, or setup steps change, update the matching Mintlify docs in `docs/`.
+- Keep docs aligned with code truth. Do not document planned behavior as shipped behavior.
+- If a docs page is added, removed, renamed, or moved, update `docs/docs.json` navigation in the same pull request.
+- Update architecture docs when runtime boundaries, storage, permissions, memory, LLM, or external app integration behavior changes.
 - Attribute external resources, libraries, APIs, examples, generated assets, and source material in docs or the relevant deliverable.
 - Review code, docs, configs, logs, tests, fixtures, and generated output for secrets or private Discord content before commit.
-- Keep agent artifacts in local ignored `.agents/` only. This includes superpowers plans, agent planning notes, agent reports, and scratch artifacts.
-- Do not commit agent artifacts, superpowers plans, private planning notes, local harnesses, tokens, `.env` files, or raw exported private data.
+- Keep agent artifacts only in ignored local `.agents/`.
+- Do not track superpowers artifacts, agent plans, agent reports, scratch notes, private planning files, local harnesses, tokens, `.env` files, or raw exported private data.
+- Before commit, verify docs commands, paths, environment variables, examples, and migration notes against the current repository state.
 
 ## Plugin Manifest Contributions
 
@@ -53,6 +56,6 @@ Discord application IDs, bot user IDs, and application command behavior are base
 
 ## Current Limits
 
-Gigi can validate and store approved manifests and can dispatch public `send_message` prefix actions when a guild enables an approved manifest. Restricted dispatch, richer command surfaces, and LLM routing are still future work. Contributor manifests prepare that catalog one known external app at a time.
+Gigi can validate and store approved manifests, dispatch public `send_message` prefix actions when a guild enables an approved manifest, and use configured semantic routing to propose validated dry-run plans. Restricted dispatch, richer command surfaces, and LLM-driven dispatch are still future work. Contributor manifests prepare that catalog one known external app at a time.
 
 Do not document an external app integration as usable until the runtime can import, enable, authorize, audit, and drive that external app behavior.

@@ -7,7 +7,7 @@ description: Current user-facing status for Gigi.
 
 Gigi is in a foundation rebuild.
 
-The current runtime can log in to Discord when enabled, sync `/ping`, answer simple DM or guild-mention `ping` messages, let authorized admins manage role/user capability grants through `/permissions`, dry-run match enabled external app prefix triggers, and dispatch public `send_message` prefix triggers declared by approved manifests. LLM chat, memory, restricted external app dispatch, tasks, and relay actions are not live yet.
+The current runtime can log in to Discord when enabled, sync `/ping`, answer DM or guild-mention `ping` messages, let authorized admins manage role/user capability grants through `/permissions`, manage guild-scoped LLM credentials and model profiles through `/llm`, dry-run match enabled external app prefix triggers, propose semantic external app dry-run plans through a configured routing model, answer unmatched guild mentions through a configured chat model, and dispatch public `send_message` prefix triggers declared by approved manifests. Retrieval, memory, rich DM chat, reasoning chat, restricted external app dispatch, tasks, and relay actions are not live yet.
 
 ## Current Live Checks
 
@@ -15,8 +15,12 @@ The current runtime can log in to Discord when enabled, sync `/ping`, answer sim
 - `GET /readyz`: process is configured and can reach PostgreSQL.
 - `/ping`: replies `pong` in Discord when command sync is enabled.
 - `/permissions`: creates/assigns Discord roles and grants or revokes role/user capabilities for authorized admins.
+- `/llm`: lists, adds, tests, rotates, deletes, and selects guild-scoped provider credentials and model profiles when `GIGI_LLM_SECRET_KEY_BASE64` is configured for credential entry.
 - Guild mention external app matching: replies with a dry-run plan, or sends the planned command when an enabled public manifest declares `dispatch: "send_message"`.
+- Guild mention semantic routing: after deterministic matching fails, a configured routing model can propose a validated manifest-grounded dry-run plan.
+- Guild mention chat fallback: after plugin routing fails, a configured chat model can answer the mention.
 - DM `ping`: replies `pong`.
+- Other DM text: replies that rich chat needs a server LLM profile first; rich DM chat is not live.
 - Guild mention `@Gigi ping`: replies `pong`.
 
 ## Planned Discord Behavior
@@ -24,7 +28,7 @@ The current runtime can log in to Discord when enabled, sync `/ping`, answer sim
 Future Discord slices are expected to restore and expand:
 
 - rich DM conversation
-- rich channel mentions
+- richer reasoning chat
 - more structured commands
 - restricted or confirmed external app command dispatch declared by approved installed manifests
 - admin-installed external app capabilities
@@ -35,6 +39,12 @@ These richer behaviors are not current shipped behavior in this foundation slice
 ## Next Pages
 
 - [Bot Commands](./bot-commands)
+- [Using Gigi In Discord](./discord-usage)
+- [Permissions](./permissions)
+- [Plugin Catalog](./plugin-catalog)
+- [Configure Discord](./configure-discord)
+- [Configure LLM Providers](./configure-llm-providers)
+- [Configure External App Plugins](./configure-plugins)
 - [Architecture](./architecture)
 - [Roadmap](./roadmap)
 - [Setup](./setup)
