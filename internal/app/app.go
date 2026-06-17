@@ -12,6 +12,7 @@ import (
 	"github.com/gOps132/GigiDC/internal/capability"
 	"github.com/gOps132/GigiDC/internal/config"
 	"github.com/gOps132/GigiDC/internal/discord"
+	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
 	"github.com/gOps132/GigiDC/internal/plugins"
 	"github.com/gOps132/GigiDC/internal/storage"
 	"github.com/gOps132/GigiDC/internal/web"
@@ -53,6 +54,18 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 	}
 
 	if cfg.DiscordEnabled && application.discordClient == nil {
+		var secretSealer llmprovider.SecretSealer
+		llmSecretKey, err := cfg.DecodedLLMSecretKey()
+		if err != nil {
+			return nil, err
+		}
+		if llmSecretKey != nil {
+			secretSealer, err = llmprovider.NewAESGCMSealer(llmSecretKey, cfg.LLMSecretKeyID)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		db, err := storage.OpenDB(dbCtx, cfg.DatabaseURL)
@@ -69,9 +82,12 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		grantManager := capability.NewSQLGrantManager(db, func() string { return storage.NewID("capgrant") })
 		auditStore := audit.NewStore(db, func() string { return storage.NewID("audit") })
 		pluginStore := plugins.NewSQLCatalogStore(db, func() string { return storage.NewID("plugin") })
+		providerStore := llmprovider.NewSQLStore(db, func() string { return storage.NewID("llm") })
+		providerService := llmprovider.NewService(providerStore, secretSealer, llmprovider.DefaultRegistry())
 		commands := discord.CoreCommands()
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
+		commands = append(commands, discord.LLMCommands(providerService, auditStore)...)
 
 		router, err := discord.NewCommandRouter(commands...)
 		if err != nil {
