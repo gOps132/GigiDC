@@ -43,12 +43,12 @@ func TestPermissionCommandUsesCapabilityAndPresetChoices(t *testing.T) {
 	roleGroup := findOption(commands[0].Options, "role")
 	grant := findOption(roleGroup.Options, "grant")
 	capabilityOption := findOption(grant.Options, "capability")
-	if !hasChoice(capabilityOption, "plugin.install") || !hasChoice(capabilityOption, "capability.manage") {
+	if !hasChoice(capabilityOption, "plugin.install") || !hasChoice(capabilityOption, "capability.manage") || !hasChoice(capabilityOption, "memory.manage.guild") {
 		t.Fatalf("capability choices = %+v, want known capabilities", capabilityOption.Choices)
 	}
 	create := findOption(roleGroup.Options, "create")
 	presetOption := findOption(create.Options, "preset")
-	if !hasChoice(presetOption, "gigi-admin") || !hasChoice(presetOption, "plugin-manager") {
+	if !hasChoice(presetOption, "gigi-admin") || !hasChoice(presetOption, "plugin-manager") || !hasChoice(presetOption, "memory-manager") {
 		t.Fatalf("preset choices = %+v, want known presets", presetOption.Choices)
 	}
 }

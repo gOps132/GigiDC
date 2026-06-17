@@ -153,3 +153,33 @@ func TestLLMGuildPoliciesMigrationDefaultsPersonalKeysOff(t *testing.T) {
 		}
 	}
 }
+
+func TestGuildMemoryMigrationDefinesPolicyAndRetrievalSchema(t *testing.T) {
+	sqlBytes, err := os.ReadFile("../../db/migrations/000006_guild_memory.sql")
+	if err != nil {
+		t.Fatalf("ReadFile returned error: %v", err)
+	}
+	sql := string(sqlBytes)
+
+	for _, want := range []string{
+		"create table if not exists guild_memory_policies",
+		"default_retention_days integer not null default 90",
+		"raw_storage_mode text not null default 'metadata'",
+		"check (raw_storage_mode in ('off', 'metadata', 'full'))",
+		"create table if not exists guild_memory_channels",
+		"primary key (guild_id, channel_id)",
+		"check (mode in ('off', 'metadata', 'full'))",
+		"create table if not exists guild_memory_messages",
+		"content_ciphertext bytea",
+		"content_hash text",
+		"retention_until timestamptz not null",
+		"create table if not exists guild_memory_segments",
+		"search_text text not null",
+		"create table if not exists guild_memory_embeddings",
+		"embedding vector",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("guild memory migration missing %q", want)
+		}
+	}
+}

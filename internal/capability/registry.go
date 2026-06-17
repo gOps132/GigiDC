@@ -11,6 +11,7 @@ func KnownCapabilities() []Capability {
 		"plugin.install",
 		"job.admin",
 		"memory.read.guild",
+		"memory.manage.guild",
 		"relay.dispatch",
 		"relay.receive",
 		"llm.provider.write",
@@ -27,12 +28,15 @@ func KnownPresets() []Preset {
 				CapabilityManage,
 				"plugin.install",
 				"job.admin",
+				"memory.read.guild",
+				"memory.manage.guild",
 				"llm.provider.write",
 				"llm.provider.test",
 				"llm.provider.select",
 			},
 		},
 		{Name: "plugin-manager", Capabilities: []Capability{"plugin.install"}},
+		{Name: "memory-manager", Capabilities: []Capability{"memory.read.guild", "memory.manage.guild"}},
 		{
 			Name: "llm-manager",
 			Capabilities: []Capability{

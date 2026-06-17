@@ -1,0 +1,309 @@
+package discord
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/bwmarrin/discordgo"
+	"github.com/gOps132/GigiDC/internal/audit"
+	"github.com/gOps132/GigiDC/internal/capability"
+	"github.com/gOps132/GigiDC/internal/memory"
+)
+
+type MemoryManager interface {
+	GuildStatus(ctx context.Context, guildID string) (memory.Status, error)
+	UpsertChannelPolicy(ctx context.Context, req memory.UpsertChannelPolicyRequest) (memory.ChannelPolicy, error)
+}
+
+func MemoryCommands(manager MemoryManager, recorder AuditRecorder) []Command {
+	return []Command{{
+		Name:                  "memory",
+		Description:           "Manage Gigi guild memory settings.",
+		RequiredCapabilityFor: memoryRequiredCapability,
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "status",
+				Description: "Show guild memory status.",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
+				Name:        "settings",
+				Description: "Manage guild memory settings.",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionSubCommand,
+						Name:        "show",
+						Description: "Show guild memory settings.",
+					},
+					{
+						Type:        discordgo.ApplicationCommandOptionSubCommand,
+						Name:        "set",
+						Description: "Set channel memory mode.",
+						Options: []*discordgo.ApplicationCommandOption{
+							channelOption("channel", "Discord channel."),
+							memoryModeOption(),
+							integerOption("retention-days", "Retention days, 1-365. Omit to use default.", false),
+						},
+					},
+				},
+			},
+		},
+		Handle: memoryHandler(manager, recorder),
+	}}
+}
+
+func memoryRequiredCapability(interaction Interaction) capability.Capability {
+	group, action, ok := memoryPath(interaction)
+	if !ok {
+		return ""
+	}
+	switch {
+	case group == "status":
+		return capability.Capability("memory.read.guild")
+	case group == "settings" && (action == "show" || action == "set"):
+		return capability.Capability("memory.manage.guild")
+	default:
+		return ""
+	}
+}
+
+func memoryPath(interaction Interaction) (string, string, bool) {
+	if len(interaction.Options) != 1 {
+		return "", "", false
+	}
+	first := interaction.Options[0]
+	if first.Name == "status" {
+		return "status", "", true
+	}
+	if len(first.Options) != 1 {
+		return first.Name, "", false
+	}
+	return first.Name, first.Options[0].Name, true
+}
+
+type memoryRequest struct {
+	Group         string
+	Action        string
+	ChannelID     string
+	Mode          memory.Mode
+	RetentionDays int
+}
+
+func memoryHandler(manager MemoryManager, recorder AuditRecorder) CommandHandler {
+	return func(ctx context.Context, interaction Interaction) (CommandResponse, error) {
+		if manager == nil {
+			return CommandResponse{}, fmt.Errorf("memory manager is required")
+		}
+		request, err := parseMemoryRequest(interaction)
+		if err != nil {
+			_ = recordMemoryAction(ctx, recorder, interaction, request, audit.StatusFailed, err)
+			return CommandResponse{Content: err.Error(), Ephemeral: true}, nil
+		}
+
+		response, err := executeMemoryRequest(ctx, manager, interaction, &request)
+		if err != nil {
+			_ = recordMemoryAction(ctx, recorder, interaction, request, audit.StatusFailed, err)
+			return CommandResponse{Content: "Memory command failed.", Ephemeral: true}, nil
+		}
+		if shouldAuditMemoryAction(request) {
+			if err := recordMemoryAction(ctx, recorder, interaction, request, audit.StatusSucceeded, nil); err != nil {
+				return CommandResponse{}, err
+			}
+		}
+		return CommandResponse{Content: response, Ephemeral: true}, nil
+	}
+}
+
+func parseMemoryRequest(interaction Interaction) (memoryRequest, error) {
+	if strings.TrimSpace(interaction.GuildID) == "" {
+		return memoryRequest{}, fmt.Errorf("Memory can only be managed inside a Discord server.")
+	}
+	if len(interaction.Options) != 1 {
+		return memoryRequest{}, fmt.Errorf("Choose one memory action.")
+	}
+	first := interaction.Options[0]
+	if first.Name == "status" {
+		return memoryRequest{Group: "status"}, nil
+	}
+	if len(first.Options) != 1 {
+		return memoryRequest{Group: first.Name}, fmt.Errorf("Choose one memory settings action.")
+	}
+	action := first.Options[0]
+	request := memoryRequest{Group: first.Name, Action: action.Name}
+	if request.Group != "settings" {
+		return request, fmt.Errorf("Unsupported memory action.")
+	}
+	switch request.Action {
+	case "show":
+		return request, nil
+	case "set":
+		return parseMemorySettingsSet(request, action.Options)
+	default:
+		return request, fmt.Errorf("Unsupported memory settings action.")
+	}
+}
+
+func parseMemorySettingsSet(request memoryRequest, options []InteractionOption) (memoryRequest, error) {
+	request.ChannelID = optionByName(options, "channel")
+	if request.ChannelID == "" {
+		return request, fmt.Errorf("Channel is required.")
+	}
+	request.Mode = memory.Mode(optionByName(options, "mode"))
+	if err := memory.ValidateMode(request.Mode); err != nil {
+		return request, err
+	}
+	retentionValue := optionByName(options, "retention-days")
+	if retentionValue == "" {
+		return request, nil
+	}
+	retentionDays, err := strconv.Atoi(retentionValue)
+	if err != nil {
+		return request, fmt.Errorf("Retention days must be a whole number.")
+	}
+	if retentionDays < 1 || retentionDays > 365 {
+		return request, fmt.Errorf("Retention days must be between 1 and 365.")
+	}
+	request.RetentionDays = retentionDays
+	return request, nil
+}
+
+func executeMemoryRequest(ctx context.Context, manager MemoryManager, interaction Interaction, request *memoryRequest) (string, error) {
+	switch {
+	case request.Group == "status":
+		status, err := manager.GuildStatus(ctx, interaction.GuildID)
+		if err != nil {
+			return "", err
+		}
+		return formatMemoryStatus(status), nil
+	case request.Group == "settings" && request.Action == "show":
+		status, err := manager.GuildStatus(ctx, interaction.GuildID)
+		if err != nil {
+			return "", err
+		}
+		return formatMemoryStatus(status), nil
+	case request.Group == "settings" && request.Action == "set":
+		channel, err := manager.UpsertChannelPolicy(ctx, memory.UpsertChannelPolicyRequest{
+			GuildID:       interaction.GuildID,
+			ChannelID:     request.ChannelID,
+			Mode:          request.Mode,
+			RetentionDays: request.RetentionDays,
+			ActorID:       interaction.UserID,
+		})
+		if err != nil {
+			return "", err
+		}
+		return formatMemoryChannelSet(channel), nil
+	default:
+		return "", fmt.Errorf("unsupported memory action")
+	}
+}
+
+func formatMemoryStatus(status memory.Status) string {
+	lines := []string{
+		fmt.Sprintf("Guild memory: default `%s`, retention %d days, embeddings %s.",
+			safeInline(string(status.Policy.RawStorageMode)),
+			status.Policy.DefaultRetentionDays,
+			formatEnabled(status.Policy.EmbeddingsEnabled),
+		),
+	}
+	if len(status.Channels) == 0 {
+		lines = append(lines, "Configured channels: none.")
+		return strings.Join(lines, "\n")
+	}
+	limit := len(status.Channels)
+	if limit > 10 {
+		limit = 10
+	}
+	lines = append(lines, "Configured channels:")
+	for _, channel := range status.Channels[:limit] {
+		retention := "default"
+		if channel.RetentionDays > 0 {
+			retention = fmt.Sprintf("%d days", channel.RetentionDays)
+		}
+		lines = append(lines, fmt.Sprintf("- <#%s> - `%s` (retention: %s)", safeInline(channel.ChannelID), safeInline(string(channel.Mode)), retention))
+	}
+	if len(status.Channels) > limit {
+		lines = append(lines, fmt.Sprintf("...and %d more.", len(status.Channels)-limit))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatMemoryChannelSet(channel memory.ChannelPolicy) string {
+	retention := "default"
+	if channel.RetentionDays > 0 {
+		retention = fmt.Sprintf("%d days", channel.RetentionDays)
+	}
+	return fmt.Sprintf("Set memory for <#%s> to `%s` (retention: %s).", safeInline(channel.ChannelID), safeInline(string(channel.Mode)), retention)
+}
+
+func formatEnabled(value bool) string {
+	if value {
+		return "on"
+	}
+	return "off"
+}
+
+func shouldAuditMemoryAction(request memoryRequest) bool {
+	return request.Group == "settings" && request.Action == "set"
+}
+
+func recordMemoryAction(ctx context.Context, recorder AuditRecorder, interaction Interaction, request memoryRequest, status audit.Status, err error) error {
+	if recorder == nil || strings.TrimSpace(interaction.UserID) == "" || !shouldAuditMemoryAction(request) {
+		return nil
+	}
+	reason := ""
+	if err != nil {
+		reason = "memory_action_failed"
+	}
+	metadata := map[string]string{
+		"command": interaction.Name,
+		"group":   request.Group,
+		"action":  request.Action,
+	}
+	if request.ChannelID != "" {
+		metadata["channel_id"] = request.ChannelID
+	}
+	if request.Mode != "" {
+		metadata["mode"] = string(request.Mode)
+	}
+	if request.RetentionDays > 0 {
+		metadata["retention_days"] = strconv.Itoa(request.RetentionDays)
+	}
+	return recorder.Record(ctx, audit.Event{
+		Kind:     "discord.memory.settings.change",
+		GuildID:  interaction.GuildID,
+		ActorID:  interaction.UserID,
+		Status:   status,
+		Reason:   reason,
+		Metadata: metadata,
+	})
+}
+
+func channelOption(name string, description string) *discordgo.ApplicationCommandOption {
+	return &discordgo.ApplicationCommandOption{
+		Type:        discordgo.ApplicationCommandOptionChannel,
+		Name:        name,
+		Description: description,
+		Required:    true,
+	}
+}
+
+func integerOption(name string, description string, required bool) *discordgo.ApplicationCommandOption {
+	return &discordgo.ApplicationCommandOption{
+		Type:        discordgo.ApplicationCommandOptionInteger,
+		Name:        name,
+		Description: description,
+		Required:    required,
+	}
+}
+
+func memoryModeOption() *discordgo.ApplicationCommandOption {
+	return stringOption("mode", "Memory mode.", []*discordgo.ApplicationCommandOptionChoice{
+		{Name: "off", Value: string(memory.ModeOff)},
+		{Name: "metadata", Value: string(memory.ModeMetadata)},
+		{Name: "full", Value: string(memory.ModeFull)},
+	})
+}

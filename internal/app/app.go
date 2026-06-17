@@ -15,6 +15,7 @@ import (
 	"github.com/gOps132/GigiDC/internal/discord"
 	"github.com/gOps132/GigiDC/internal/llm"
 	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
+	"github.com/gOps132/GigiDC/internal/memory"
 	"github.com/gOps132/GigiDC/internal/plugins"
 	"github.com/gOps132/GigiDC/internal/storage"
 	"github.com/gOps132/GigiDC/internal/web"
@@ -87,6 +88,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		providerStore := llmprovider.NewSQLStore(db, func() string { return storage.NewID("llm") })
 		providerService := llmprovider.NewServiceWithTester(providerStore, secretSealer, llmprovider.DefaultRegistry(), llmprovider.NewHTTPTester(nil))
 		usageRecorder := llmprovider.NewSQLUsageRecorder(db, func() string { return storage.NewID("llmusage") })
+		memoryStore := memory.NewSQLStore(db)
 		conversationStore := assistant.NewSQLConversationStore(db, func() string { return storage.NewID("asstturn") })
 		llmRuntime := llm.Runtime{
 			Resolver:     providerService,
@@ -104,6 +106,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			CredentialEntryEnabled: secretSealer != nil,
 			UsageReporter:          usageRecorder,
 		})...)
+		commands = append(commands, discord.MemoryCommands(memoryStore, auditStore)...)
 
 		router, err := discord.NewCommandRouter(commands...)
 		if err != nil {
