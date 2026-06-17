@@ -5,8 +5,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gOps132/GigiDC/internal/assistant"
 	"github.com/gOps132/GigiDC/internal/audit"
 	"github.com/gOps132/GigiDC/internal/capability"
+	"github.com/gOps132/GigiDC/internal/llm"
 	"github.com/gOps132/GigiDC/internal/plugins"
 )
 
@@ -193,10 +195,79 @@ func TestExternalAppDryRunHandlerFallsBackWhenNoManifestMatches(t *testing.T) {
 	}
 }
 
+func TestExternalAppDryRunHandlerUsesSemanticDryRunWhenNoPrefixMatches(t *testing.T) {
+	recorder := &fakeAuditRecorder{}
+	handler := ExternalAppDryRunHandlerWithSemantic(
+		&fakeExternalAppRegistry{manifests: []plugins.Manifest{dryRunManifest()}},
+		&fakeCapabilityChecker{decision: capability.Decision{Allowed: true, Capability: "plugin.install", Reason: capability.ReasonRoleGrant}},
+		recorder,
+		CoreMessageHandler(),
+		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"plugin_id":"jockie-music","trigger":"!play","arguments":"never gonna give you up"}`}}},
+	)
+
+	response, err := handler.HandleMessage(context.Background(), Message{
+		Surface: MessageSurfaceGuildMention,
+		GuildID: "guild-id",
+		UserID:  "user-id",
+		Text:    "please play never gonna give you up",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if !strings.Contains(response.Content, "Matched external app: `Jockie Music`.") ||
+		!strings.Contains(response.Content, "Planned command: `!play never gonna give you up`.") ||
+		!strings.Contains(response.Content, "Dry-run only; no command sent.") {
+		t.Fatalf("response = %q, want semantic dry-run plan", response.Content)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Kind != "discord.external_app.semantic_dry_run" || recorder.events[0].Status != audit.StatusSucceeded {
+		t.Fatalf("audit events = %+v, want semantic dry-run audit", recorder.events)
+	}
+	if _, ok := recorder.events[0].Metadata["command"]; ok {
+		t.Fatalf("audit metadata = %+v, must not store raw planned command", recorder.events[0].Metadata)
+	}
+}
+
+func TestExternalAppSemanticDryRunNeverDispatchesPublicManifest(t *testing.T) {
+	manifest := dryRunManifest()
+	manifest.Permissions = nil
+	manifest.Dispatch = plugins.DispatchModeSendMessage
+	handler := ExternalAppDryRunHandlerWithSemantic(
+		&fakeExternalAppRegistry{manifests: []plugins.Manifest{manifest}},
+		nil,
+		nil,
+		CoreMessageHandler(),
+		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"plugin_id":"jockie-music","trigger":"!play","arguments":"song"}`}}},
+	)
+
+	response, err := handler.HandleMessage(context.Background(), Message{
+		Surface: MessageSurfaceGuildMention,
+		GuildID: "guild-id",
+		UserID:  "user-id",
+		Text:    "could you play song",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if response.Content == "!play song" || !strings.Contains(response.Content, "Dry-run only; no command sent.") {
+		t.Fatalf("response = %q, want dry-run not dispatch", response.Content)
+	}
+}
+
 type fakeExternalAppRegistry struct {
 	guildID   string
 	manifests []plugins.Manifest
 	err       error
+}
+
+type fakeSemanticRuntime struct {
+	req      llm.GenerateTextRequest
+	response llm.TextResponse
+	err      error
+}
+
+func (r *fakeSemanticRuntime) GenerateText(_ context.Context, req llm.GenerateTextRequest) (llm.TextResponse, error) {
+	r.req = req
+	return r.response, r.err
 }
 
 func (r *fakeExternalAppRegistry) EnabledForGuild(_ context.Context, guildID string) ([]plugins.Manifest, error) {

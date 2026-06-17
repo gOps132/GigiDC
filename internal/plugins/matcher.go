@@ -46,6 +46,34 @@ func PlanCommand(manifests []Manifest, surface string, text string) (CommandPlan
 	return CommandPlan{}, false
 }
 
+func PlanCommandFromTrigger(manifests []Manifest, surface string, pluginID string, triggerValue string, arguments string) (CommandPlan, bool) {
+	surface = strings.TrimSpace(surface)
+	pluginID = strings.TrimSpace(pluginID)
+	triggerValue = strings.TrimSpace(triggerValue)
+	if surface == "" || pluginID == "" || triggerValue == "" {
+		return CommandPlan{}, false
+	}
+	for _, manifest := range manifests {
+		if strings.TrimSpace(manifest.ID) != pluginID || !supportsSurface(manifest, surface) {
+			continue
+		}
+		for _, trigger := range manifest.Triggers {
+			if strings.TrimSpace(trigger.Kind) != "prefix" || strings.TrimSpace(trigger.Value) != triggerValue {
+				continue
+			}
+			args := strings.TrimSpace(arguments)
+			return CommandPlan{
+				Manifest:             manifest,
+				Trigger:              trigger,
+				Command:              buildCommand(trigger.Value, args),
+				Arguments:            args,
+				RequiredCapabilities: requiredCapabilities(manifest),
+			}, true
+		}
+	}
+	return CommandPlan{}, false
+}
+
 func supportsSurface(manifest Manifest, surface string) bool {
 	for _, candidate := range manifest.Surfaces {
 		if strings.TrimSpace(candidate) == surface {

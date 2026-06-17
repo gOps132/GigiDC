@@ -96,6 +96,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		}
 		assistantHandler := assistant.NewHandler(llmRuntime)
 		assistantHandler.Recorder = conversationStore
+		semanticPlanner := assistant.SemanticPluginPlanner{Runtime: llmRuntime}
 		commands := discord.CoreCommands()
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
@@ -112,7 +113,13 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		evaluator := capability.NewEvaluator(grantStore)
 		router.SetAuthorizer(discord.NewCapabilityAuthorizer(evaluator, auditStore))
 
-		messageHandler := discord.ExternalAppDryRunHandler(pluginStore, evaluator, auditStore, discord.AssistantFallbackHandler(assistantHandler, discord.CoreMessageHandler()))
+		messageHandler := discord.ExternalAppDryRunHandlerWithSemantic(
+			pluginStore,
+			evaluator,
+			auditStore,
+			discord.AssistantFallbackHandler(assistantHandler, discord.CoreMessageHandler()),
+			semanticPlanner,
+		)
 		messageRouter, err := discord.NewMessageRouter(cfg.DiscordClientID, messageHandler, nil)
 		if err != nil {
 			_ = db.Close()
