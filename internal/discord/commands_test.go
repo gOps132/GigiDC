@@ -290,6 +290,211 @@ func TestCommandRouterPassesResolvedAttachments(t *testing.T) {
 	}
 }
 
+func TestCommandRouterAuthorizesDynamicCapabilityWithNestedOptions(t *testing.T) {
+	calls := 0
+	var callbackInteraction Interaction
+	var gotRequired capability.Capability
+	router, err := NewCommandRouter(Command{
+		Name:        "llm-admin",
+		Description: "llm admin command",
+		RequiredCapabilityFor: func(interaction Interaction) capability.Capability {
+			callbackInteraction = interaction
+			if len(interaction.Options) == 1 &&
+				interaction.Options[0].Name == "providers" &&
+				len(interaction.Options[0].Options) == 1 &&
+				interaction.Options[0].Options[0].Name == "set-default" {
+				return "llm.provider.select"
+			}
+			return ""
+		},
+		Handle: func(context.Context, Interaction) (CommandResponse, error) {
+			calls++
+			return CommandResponse{Content: "allowed"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	router.SetAuthorizer(fakeCommandAuthorizer{
+		decision: capability.Decision{Allowed: true, Reason: capability.ReasonUserGrant},
+		capability: func(required capability.Capability) {
+			gotRequired = required
+		},
+	})
+	responder := &fakeResponder{}
+
+	err = router.HandleInteraction(context.Background(), responder, &discordgo.InteractionCreate{
+		Interaction: &discordgo.Interaction{
+			Type:    discordgo.InteractionApplicationCommand,
+			GuildID: "guild-id",
+			Member:  &discordgo.Member{User: &discordgo.User{ID: "user-id"}},
+			Data: discordgo.ApplicationCommandInteractionData{
+				Name: "llm-admin",
+				Options: []*discordgo.ApplicationCommandInteractionDataOption{{
+					Name: "providers",
+					Type: discordgo.ApplicationCommandOptionSubCommandGroup,
+					Options: []*discordgo.ApplicationCommandInteractionDataOption{{
+						Name: "set-default",
+						Type: discordgo.ApplicationCommandOptionSubCommand,
+						Options: []*discordgo.ApplicationCommandInteractionDataOption{
+							{Name: "provider", Type: discordgo.ApplicationCommandOptionString, Value: "openai"},
+						},
+					}},
+				}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("handler calls = %d, want 1", calls)
+	}
+	if len(callbackInteraction.Options) != 1 || len(callbackInteraction.Options[0].Options) != 1 {
+		t.Fatalf("callback options = %+v, want parsed nested options", callbackInteraction.Options)
+	}
+	setDefault := callbackInteraction.Options[0].Options[0]
+	if setDefault.Name != "set-default" || len(setDefault.Options) != 1 || setDefault.Options[0].Value != "openai" {
+		t.Fatalf("callback nested option = %+v, want set-default provider openai", setDefault)
+	}
+	if gotRequired != "llm.provider.select" {
+		t.Fatalf("required capability = %q, want llm.provider.select", gotRequired)
+	}
+}
+
+func TestCommandRouterDeniesMissingAuthorizerForDynamicCapability(t *testing.T) {
+	calls := 0
+	router, err := NewCommandRouter(Command{
+		Name:        "llm-admin",
+		Description: "llm admin command",
+		RequiredCapabilityFor: func(Interaction) capability.Capability {
+			return "llm.provider.select"
+		},
+		Handle: func(context.Context, Interaction) (CommandResponse, error) {
+			calls++
+			return CommandResponse{Content: "unexpected"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	responder := &fakeResponder{}
+
+	err = router.HandleInteraction(context.Background(), responder, applicationCommand("llm-admin"))
+	if err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if calls != 0 {
+		t.Fatalf("handler calls = %d, want 0", calls)
+	}
+	if responder.content() != "Permission denied." {
+		t.Fatalf("response = %q, want permission denied", responder.content())
+	}
+	if responder.flags() != discordgo.MessageFlagsEphemeral {
+		t.Fatalf("flags = %v, want ephemeral", responder.flags())
+	}
+}
+
+func TestCommandRouterDynamicProtectedCommandErrorIsEphemeral(t *testing.T) {
+	router, err := NewCommandRouter(Command{
+		Name:        "llm-admin",
+		Description: "llm admin command",
+		RequiredCapabilityFor: func(Interaction) capability.Capability {
+			return "llm.provider.select"
+		},
+		Handle: func(context.Context, Interaction) (CommandResponse, error) {
+			return CommandResponse{}, errors.New("boom")
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	router.SetAuthorizer(fakeCommandAuthorizer{
+		decision: capability.Decision{Allowed: true, Reason: capability.ReasonUserGrant},
+	})
+	responder := &fakeResponder{}
+
+	err = router.HandleInteraction(context.Background(), responder, applicationCommand("llm-admin"))
+	if err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if responder.content() != "Command failed." {
+		t.Fatalf("response = %q, want failed command message", responder.content())
+	}
+	if responder.flags() != discordgo.MessageFlagsEphemeral {
+		t.Fatalf("flags = %v, want ephemeral", responder.flags())
+	}
+}
+
+func TestCommandRouterFallsBackToStaticCapabilityWhenDynamicReturnsEmpty(t *testing.T) {
+	var gotRequired capability.Capability
+	router, err := NewCommandRouter(Command{
+		Name:               "llm-admin",
+		Description:        "llm admin command",
+		RequiredCapability: "llm.provider.write",
+		RequiredCapabilityFor: func(Interaction) capability.Capability {
+			return ""
+		},
+		Handle: func(context.Context, Interaction) (CommandResponse, error) {
+			return CommandResponse{Content: "allowed"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	router.SetAuthorizer(fakeCommandAuthorizer{
+		decision: capability.Decision{Allowed: true, Reason: capability.ReasonUserGrant},
+		capability: func(required capability.Capability) {
+			gotRequired = required
+		},
+	})
+	responder := &fakeResponder{}
+
+	err = router.HandleInteraction(context.Background(), responder, applicationCommand("llm-admin"))
+	if err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if gotRequired != "llm.provider.write" {
+		t.Fatalf("required capability = %q, want static fallback", gotRequired)
+	}
+	if responder.content() != "allowed" {
+		t.Fatalf("response = %q, want allowed", responder.content())
+	}
+}
+
+func TestCommandRouterDeniesDynamicCommandWithoutResolvedCapability(t *testing.T) {
+	calls := 0
+	router, err := NewCommandRouter(Command{
+		Name:        "llm-admin",
+		Description: "llm admin command",
+		RequiredCapabilityFor: func(Interaction) capability.Capability {
+			return ""
+		},
+		Handle: func(context.Context, Interaction) (CommandResponse, error) {
+			calls++
+			return CommandResponse{Content: "unexpected"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	responder := &fakeResponder{}
+
+	err = router.HandleInteraction(context.Background(), responder, applicationCommand("llm-admin"))
+	if err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if calls != 0 {
+		t.Fatalf("handler calls = %d, want 0", calls)
+	}
+	if responder.content() != "Permission denied." {
+		t.Fatalf("response = %q, want permission denied", responder.content())
+	}
+	if responder.flags() != discordgo.MessageFlagsEphemeral {
+		t.Fatalf("flags = %v, want ephemeral", responder.flags())
+	}
+}
+
 func TestCommandRouterDeniesMissingCapability(t *testing.T) {
 	calls := 0
 	router, err := NewCommandRouter(Command{

@@ -369,6 +369,45 @@ Revoked `job.admin` for user @person.
 
 Dynamic external app capabilities such as `plugin.run.<id>` are future work and should appear only after plugin install/enable flow exists.
 
+LLM provider management is planned, not live. The provider registry should support OpenAI, Anthropic, Gemini, and future custom providers. V0 should expose guild-scoped provider credentials only, even though the internal credential model should reserve owner types for `guild`, `user`, and `tenant`. V1 can add personal BYOK commands for user-owned keys after policy, disclosure, and billing-owner rules exist.
+
+## Planned LLM Commands
+
+These commands are not implemented yet.
+
+Surface: slash command.
+
+Required Gigi capabilities:
+
+- `llm.provider.write` for provider add, rotate, delete, and policy changes
+- `llm.provider.test` for provider tests
+- `llm.provider.select` for model profile selection
+
+V0 guild/admin command direction:
+
+```text
+/llm provider list
+/llm provider add provider:<openai|anthropic|gemini|custom> label:<label>
+/llm provider test label:<label>
+/llm provider rotate label:<label>
+/llm provider delete label:<label> confirm:true
+/llm model show purpose:<chat|reasoning|embedding|routing>
+/llm model set purpose:<chat|reasoning|embedding|routing> label:<label> model:<model-id>
+/llm policy set personal-keys:<off|dm-only|guild-allowed>
+/llm usage guild
+```
+
+V1 personal BYOK command direction:
+
+```text
+/llm key add provider:<openai|anthropic|gemini|custom> label:<label>
+/llm key test label:<label>
+/llm key prefer surface:<dm|guild> label:<label>
+/llm key remove label:<label>
+```
+
+Credential entry should use a private modal or private flow, not a normal slash command string option. Gigi should never echo, log, or audit raw provider keys. Personal BYOK pays for reasoning but does not grant Gigi action capabilities.
+
 ## External App Mention Actions
 
 External app matching is live for guild mentions. It does not use an LLM, does not call LangChain, and does not run harnesses.

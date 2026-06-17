@@ -61,6 +61,8 @@ Future Discord slices should keep the earlier authority rule: surface is present
 | `llm.provider.test` | Test a guild-scoped provider credential without viewing it |
 | `llm.provider.select` | Choose active guild provider/model |
 
+The LLM provider store should be multi-owner internally, with `guild`, `user`, and `tenant` credential owners. V0 exposes only guild-scoped provider credentials through the capabilities above. V1 can add personal BYOK, but a personal key pays for reasoning only; it does not grant plugin, memory, relay, job, or capability-management authority.
+
 ## Presets
 
 | Preset | Capabilities |
@@ -82,3 +84,5 @@ Future Discord slices should keep the earlier authority rule: surface is present
 - Keep sensitive actions private or confirmation-gated.
 - Fail closed when identity or target resolution is ambiguous.
 - Never expose raw provider credentials; provider keys are write-only.
+- Do not silently fall back between guild, user, and tenant provider credentials.
+- Do not let personal BYOK process guild context unless guild policy and the user explicitly allow it.

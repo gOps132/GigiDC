@@ -25,12 +25,26 @@ Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing,
 
 ## v0 Memory And Actions Slice
 
+- multi-owner LLM provider registry foundation
+- guild-scoped provider credential UX
+- model profiles for chat, reasoning, embedding, and routing
 - durable jobs
 - message history
 - semantic retrieval
 - tasks
 - relays with confirmation
 - usage tracking
+
+Current LLM direction: build the data model and resolver for `guild`, `user`, and `tenant` credential owners from the start, but expose only guild/admin-scoped provider configuration in v0. Personal BYOK remains disabled in v0 product behavior. See [LLM And Cognitive Layer Plan](./llm-cognitive-plan).
+
+## v1 Personal BYOK Slice
+
+- optional user-owned provider credentials
+- personal-key usage in DMs without guild memory or guild actions
+- guild policy for personal keys: `off`, `dm-only`, or `guild-allowed`
+- explicit billing-owner choice when a guild permits personal keys
+- no automatic fallback between guild, user, or tenant billing owners
+- personal keys pay for reasoning but never grant Gigi capabilities
 
 ## v0 External App Integration Slice
 

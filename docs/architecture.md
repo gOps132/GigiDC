@@ -29,7 +29,8 @@ Discord Gateway
      -> external app integration catalog
      -> durable jobs and outbox
      -> PostgreSQL + pgvector
-     -> LLM adapters
+     -> LLM provider registry
+     -> cognitive orchestration layer
 ```
 
 ## Package Boundaries
@@ -46,10 +47,22 @@ Discord Gateway
 - `internal/jobs`: durable job contracts.
 - `internal/discord`: Discord gateway adapter, slash command router, DM/guild-mention router, and audit seam.
 - `internal/llm`: LLM client contracts for later slices.
+- `internal/llm/provider` (planned): provider registry, encrypted credentials, model profiles, usage records, and credential resolution for OpenAI, Anthropic, Gemini, and future providers.
+- `internal/assistant` or `internal/cognitive` (planned): surface-independent orchestration for rich chat, retrieval, action plans, and semantic routing.
 
 ## Data Boundary
 
 Local PostgreSQL is the new source of truth. The first migration creates foundation tables for runtime metadata, external app installs, role/user capability grants, jobs, outbox events, and audit logs. The plugin catalog migration adds exact Discord application/bot identity lookup, manifest source metadata, approval metadata, and enabled-install indexes. The app also runs the idempotent migration files on startup so existing Docker volumes can catch up. Supabase is not part of the live runtime and no backfill is planned.
+
+LLM provider storage should support multiple credential owners from the first schema: `guild`, `user`, and `tenant`. V0 should expose only guild/admin-scoped provider configuration, while leaving user-owned BYOK and tenant/operator fallback credentials as policy-controlled later behavior. Usage records should preserve billing owner type, billing owner ID, actor, provider, model, purpose, token counts, status, and classified error without storing raw prompts, completions, provider responses, or secrets.
+
+## LLM And Cognitive Direction
+
+Gigi should use a provider registry with first-class OpenAI, Anthropic, and Gemini entries plus room for future custom providers. Model profiles should be selected by purpose: `chat`, `reasoning`, `embedding`, and `routing`.
+
+The cognitive layer should sit behind deterministic external app matching. Exact enabled plugin prefix triggers remain first; if none match, a cognitive fallback can handle rich DM or guild-mention conversation. LLM output must only propose drafts or plans. Gigi builds final action plans from stored manifests, capability checks, confirmation policy, and audit rules.
+
+Personal BYOK should not be required for v0. A guild admin may provide a provider key, but once it powers shared server behavior, Gigi treats it as a guild credential governed by guild policy and audit. V1 can add optional user-owned keys for DMs and explicit guild-approved personal billing, but personal keys must not grant capabilities or silently process guild context.
 
 ## External App Direction
 

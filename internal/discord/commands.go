@@ -11,11 +11,12 @@ import (
 )
 
 type Command struct {
-	Name               string
-	Description        string
-	RequiredCapability capability.Capability
-	Options            []*discordgo.ApplicationCommandOption
-	Handle             CommandHandler
+	Name                  string
+	Description           string
+	RequiredCapability    capability.Capability
+	RequiredCapabilityFor func(Interaction) capability.Capability
+	Options               []*discordgo.ApplicationCommandOption
+	Handle                CommandHandler
 }
 
 type CommandHandler func(context.Context, Interaction) (CommandResponse, error)
@@ -122,11 +123,20 @@ func (r *CommandRouter) HandleInteraction(ctx context.Context, responder interac
 		Attachments:      interactionAttachments(data.Resolved),
 		RoleService:      interactionRoleService(responder),
 	}
-	if command.RequiredCapability != "" {
+	requiredCapability := command.RequiredCapability
+	if command.RequiredCapabilityFor != nil {
+		dynamicCapability := command.RequiredCapabilityFor(interaction)
+		if dynamicCapability != "" {
+			requiredCapability = dynamicCapability
+		} else if requiredCapability == "" {
+			return respond(responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
+		}
+	}
+	if requiredCapability != "" {
 		if r.authorizer == nil {
 			return respond(responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
 		}
-		decision, err := r.authorizer.Check(ctx, interaction, command.RequiredCapability)
+		decision, err := r.authorizer.Check(ctx, interaction, requiredCapability)
 		if err != nil {
 			return respond(responder, event.Interaction, CommandResponse{Content: "Permission check failed.", Ephemeral: true})
 		}
@@ -135,20 +145,9 @@ func (r *CommandRouter) HandleInteraction(ctx context.Context, responder interac
 		}
 	}
 
-	response, err := command.Handle(ctx, Interaction{
-		GuildID:          interaction.GuildID,
-		ChannelID:        interaction.ChannelID,
-		UserID:           interaction.UserID,
-		RoleIDs:          interaction.RoleIDs,
-		HasAdministrator: interaction.HasAdministrator,
-		Name:             interaction.Name,
-		Text:             interaction.Text,
-		Options:          interaction.Options,
-		Attachments:      interaction.Attachments,
-		RoleService:      interaction.RoleService,
-	})
+	response, err := command.Handle(ctx, interaction)
 	if err != nil {
-		return respond(responder, event.Interaction, CommandResponse{Content: "Command failed.", Ephemeral: command.RequiredCapability != ""})
+		return respond(responder, event.Interaction, CommandResponse{Content: "Command failed.", Ephemeral: requiredCapability != ""})
 	}
 	if strings.TrimSpace(response.Content) == "" {
 		response.Content = "ok"

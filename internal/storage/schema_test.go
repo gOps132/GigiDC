@@ -48,3 +48,51 @@ func TestPluginCatalogMigrationAddsDiscordIdentityLookup(t *testing.T) {
 		}
 	}
 }
+
+func TestLLMProviderCredentialsMigrationExists(t *testing.T) {
+	if _, err := os.Stat("../../db/migrations/000003_llm_provider_credentials.sql"); err != nil {
+		t.Fatalf("llm provider credentials migration must exist: %v", err)
+	}
+}
+
+func TestLLMProviderCredentialsMigrationDefinesEncryptedMultiOwnerSchema(t *testing.T) {
+	sqlBytes, err := os.ReadFile("../../db/migrations/000003_llm_provider_credentials.sql")
+	if err != nil {
+		t.Fatalf("ReadFile returned error: %v", err)
+	}
+	sql := string(sqlBytes)
+
+	for _, want := range []string{
+		"create table if not exists llm_credentials",
+		"create table if not exists llm_model_profiles",
+		"create table if not exists llm_usage_events",
+		"owner_type text not null",
+		"check (owner_type in ('guild', 'user', 'tenant'))",
+		"purpose text not null",
+		"check (purpose in ('chat', 'reasoning', 'embedding', 'routing'))",
+		"credential_ciphertext bytea not null",
+		"credential_nonce bytea not null",
+		"credential_fingerprint text not null",
+		"unique (id, provider_id)",
+		"foreign key (credential_id, provider_id) references llm_credentials(id, provider_id)",
+		"billing_owner_type text not null",
+		"billing_owner_id text not null",
+		"actor_user_id text not null",
+		"where revoked_at is null",
+		"where enabled",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("llm provider credentials migration missing %q", want)
+		}
+	}
+
+	for _, forbidden := range []string{
+		"api_key",
+		"provider_secret",
+		"plaintext",
+	} {
+		if strings.Contains(sql, forbidden) {
+			t.Fatalf("llm provider credentials migration must not include plaintext credential column %q", forbidden)
+		}
+	}
+}
