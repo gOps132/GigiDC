@@ -2,10 +2,13 @@ package memory
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 type Mode string
@@ -45,6 +48,37 @@ type UpsertChannelPolicyRequest struct {
 	Mode          Mode
 	RetentionDays int
 	ActorID       string
+}
+
+type MessageEvent struct {
+	MessageID    string
+	GuildID      string
+	ChannelID    string
+	AuthorUserID string
+	Content      string
+	CreatedAt    time.Time
+}
+
+type MessageRecord struct {
+	MessageID      string
+	GuildID        string
+	ChannelID      string
+	AuthorUserID   string
+	NormalizedText string
+	ContentHash    string
+	CreatedAt      time.Time
+	RetentionUntil time.Time
+}
+
+type CountRequest struct {
+	GuildID      string
+	ChannelID    string
+	AuthorUserID string
+	Text         string
+}
+
+type CountResult struct {
+	Count int
 }
 
 type memoryRows interface {
@@ -172,6 +206,43 @@ order by channel_id
 	return channels, nil
 }
 
+func (s SQLStore) ChannelPolicy(ctx context.Context, guildID string, channelID string) (ChannelPolicy, bool, error) {
+	guildID = strings.TrimSpace(guildID)
+	channelID = strings.TrimSpace(channelID)
+	if guildID == "" {
+		return ChannelPolicy{}, false, fmt.Errorf("guild ID is required")
+	}
+	if channelID == "" {
+		return ChannelPolicy{}, false, fmt.Errorf("channel ID is required")
+	}
+	if s.query == nil {
+		return ChannelPolicy{}, false, fmt.Errorf("memory query database is required")
+	}
+	rows, err := s.query(ctx, `
+select guild_id, channel_id, mode, coalesce(retention_days, 0), coalesce(updated_by_user_id, '')
+from guild_memory_channels
+where guild_id = $1 and channel_id = $2
+`, guildID, channelID)
+	if err != nil {
+		return ChannelPolicy{}, false, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return ChannelPolicy{}, false, err
+		}
+		return ChannelPolicy{}, false, nil
+	}
+	var channel ChannelPolicy
+	if err := rows.Scan(&channel.GuildID, &channel.ChannelID, &channel.Mode, &channel.RetentionDays, &channel.UpdatedByUserID); err != nil {
+		return ChannelPolicy{}, false, err
+	}
+	if err := rows.Err(); err != nil {
+		return ChannelPolicy{}, false, err
+	}
+	return channel, true, nil
+}
+
 func (s SQLStore) UpsertChannelPolicy(ctx context.Context, req UpsertChannelPolicyRequest) (ChannelPolicy, error) {
 	req, err := normalizeChannelPolicyRequest(req)
 	if err != nil {
@@ -205,6 +276,87 @@ on conflict (guild_id, channel_id) do update set
 		RetentionDays:   req.RetentionDays,
 		UpdatedByUserID: req.ActorID,
 	}, nil
+}
+
+func (s SQLStore) RecordMessage(ctx context.Context, record MessageRecord) error {
+	record, err := normalizeMessageRecord(record)
+	if err != nil {
+		return err
+	}
+	if s.exec == nil {
+		return fmt.Errorf("memory exec database is required")
+	}
+	_, err = s.exec(ctx, `
+insert into guild_memory_messages (
+  message_id,
+  guild_id,
+  channel_id,
+  author_user_id,
+  normalized_text,
+  content_hash,
+  created_at,
+  retention_until,
+  indexed_at
+)
+values ($1, $2, $3, $4, nullif($5, ''), $6, $7, $8, now())
+on conflict (message_id) do update set
+  guild_id = excluded.guild_id,
+  channel_id = excluded.channel_id,
+  author_user_id = excluded.author_user_id,
+  normalized_text = excluded.normalized_text,
+  content_hash = excluded.content_hash,
+  created_at = excluded.created_at,
+  retention_until = excluded.retention_until,
+  indexed_at = now()
+where guild_memory_messages.deleted_at is null
+`, record.MessageID, record.GuildID, record.ChannelID, record.AuthorUserID, record.NormalizedText, record.ContentHash, record.CreatedAt, record.RetentionUntil)
+	if err != nil {
+		return fmt.Errorf("record memory message: %w", err)
+	}
+	return nil
+}
+
+func (s SQLStore) CountMentions(ctx context.Context, req CountRequest) (CountResult, error) {
+	req = normalizeCountRequest(req)
+	if req.GuildID == "" {
+		return CountResult{}, fmt.Errorf("guild ID is required")
+	}
+	if req.Text == "" {
+		return CountResult{}, fmt.Errorf("Text is required.")
+	}
+	if s.query == nil {
+		return CountResult{}, fmt.Errorf("memory query database is required")
+	}
+	whereChannel := "and ($2 = '' or channel_id = $2)"
+	rows, err := s.query(ctx, `
+select coalesce(sum((length(normalized_text) - length(replace(normalized_text, $4, ''))) / length($4)), 0)
+from guild_memory_messages
+where guild_id = $1
+  `+whereChannel+`
+  and ($3 = '' or author_user_id = $3)
+  and normalized_text is not null
+  and deleted_at is null
+  and retention_until > now()
+  and position($4 in normalized_text) > 0
+`, req.GuildID, req.ChannelID, req.AuthorUserID, req.Text)
+	if err != nil {
+		return CountResult{}, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return CountResult{}, err
+		}
+		return CountResult{}, nil
+	}
+	var result CountResult
+	if err := rows.Scan(&result.Count); err != nil {
+		return CountResult{}, err
+	}
+	if err := rows.Err(); err != nil {
+		return CountResult{}, err
+	}
+	return result, nil
 }
 
 func DefaultPolicy(guildID string) Policy {
@@ -252,4 +404,52 @@ func ValidateMode(mode Mode) error {
 	default:
 		return fmt.Errorf("Unsupported memory mode.")
 	}
+}
+
+func normalizeMessageRecord(record MessageRecord) (MessageRecord, error) {
+	record.MessageID = strings.TrimSpace(record.MessageID)
+	record.GuildID = strings.TrimSpace(record.GuildID)
+	record.ChannelID = strings.TrimSpace(record.ChannelID)
+	record.AuthorUserID = strings.TrimSpace(record.AuthorUserID)
+	record.NormalizedText = NormalizeText(record.NormalizedText)
+	record.ContentHash = strings.TrimSpace(record.ContentHash)
+	if record.MessageID == "" {
+		return record, fmt.Errorf("message ID is required")
+	}
+	if record.GuildID == "" {
+		return record, fmt.Errorf("guild ID is required")
+	}
+	if record.ChannelID == "" {
+		return record, fmt.Errorf("channel ID is required")
+	}
+	if record.AuthorUserID == "" {
+		return record, fmt.Errorf("author user ID is required")
+	}
+	if record.CreatedAt.IsZero() {
+		return record, fmt.Errorf("message created time is required")
+	}
+	if record.RetentionUntil.IsZero() || !record.RetentionUntil.After(record.CreatedAt) {
+		return record, fmt.Errorf("retention time must be after message creation")
+	}
+	if record.ContentHash == "" {
+		record.ContentHash = HashText(record.NormalizedText)
+	}
+	return record, nil
+}
+
+func normalizeCountRequest(req CountRequest) CountRequest {
+	req.GuildID = strings.TrimSpace(req.GuildID)
+	req.ChannelID = strings.TrimSpace(req.ChannelID)
+	req.AuthorUserID = strings.TrimSpace(req.AuthorUserID)
+	req.Text = NormalizeText(req.Text)
+	return req
+}
+
+func NormalizeText(value string) string {
+	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(value))), " ")
+}
+
+func HashText(value string) string {
+	sum := sha256.Sum256([]byte(NormalizeText(value)))
+	return hex.EncodeToString(sum[:])
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSQLStoreGuildPolicyReturnsDefaultWhenMissing(t *testing.T) {
@@ -98,6 +99,99 @@ func TestSQLStoreReturnsQueryErrors(t *testing.T) {
 	}
 }
 
+func TestSQLStoreRecordsMessageWithoutRawTextWhenMetadataOnly(t *testing.T) {
+	db := &fakeMemoryDB{}
+	store := NewSQLStore(db)
+	createdAt := time.Date(2026, 6, 18, 1, 2, 3, 0, time.UTC)
+
+	err := store.RecordMessage(context.Background(), MessageRecord{
+		MessageID:      "message-id",
+		GuildID:        "guild-id",
+		ChannelID:      "channel-id",
+		AuthorUserID:   "user-id",
+		NormalizedText: "",
+		ContentHash:    HashText("hello postgres"),
+		CreatedAt:      createdAt,
+		RetentionUntil: createdAt.Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("RecordMessage returned error: %v", err)
+	}
+	if !strings.Contains(db.exec, "insert into guild_memory_messages") || !strings.Contains(db.exec, "on conflict (message_id)") {
+		t.Fatalf("exec = %q, want message upsert", db.exec)
+	}
+	if len(db.args) != 8 || db.args[4] != "" || db.args[5] == "" {
+		t.Fatalf("args = %+v, want no raw normalized text and hash present", db.args)
+	}
+}
+
+func TestSQLStoreCountMentionsUsesNormalizedText(t *testing.T) {
+	db := &fakeMemoryDB{rows: &fakeMemoryRows{values: [][]any{{3}}}}
+	store := NewSQLStore(db)
+
+	got, err := store.CountMentions(context.Background(), CountRequest{
+		GuildID:      "guild-id",
+		ChannelID:    "channel-id",
+		AuthorUserID: "user-id",
+		Text:         "Postgres",
+	})
+	if err != nil {
+		t.Fatalf("CountMentions returned error: %v", err)
+	}
+	if got.Count != 3 {
+		t.Fatalf("count = %d, want 3", got.Count)
+	}
+	if !strings.Contains(db.query, "normalized_text") || !strings.Contains(db.query, "retention_until > now()") {
+		t.Fatalf("query = %q, want exact retained text count", db.query)
+	}
+}
+
+func TestLiveIngestorStoresOnlyFullModeText(t *testing.T) {
+	store := &fakeIngestStore{
+		policy:  DefaultPolicy("guild-id"),
+		channel: ChannelPolicy{GuildID: "guild-id", ChannelID: "channel-id", Mode: ModeFull, RetentionDays: 7},
+		ok:      true,
+	}
+	ingestor := &LiveIngestor{store: store, now: func() time.Time { return time.Date(2026, 6, 18, 1, 0, 0, 0, time.UTC) }}
+
+	err := ingestor.ingest(context.Background(), MessageEvent{
+		MessageID:    "message-id",
+		GuildID:      "guild-id",
+		ChannelID:    "channel-id",
+		AuthorUserID: "user-id",
+		Content:      "Hello Postgres",
+	})
+	if err != nil {
+		t.Fatalf("ingest returned error: %v", err)
+	}
+	if store.record.NormalizedText != "hello postgres" || store.record.RetentionUntil.Sub(store.record.CreatedAt) != 7*24*time.Hour {
+		t.Fatalf("record = %+v, want full text and channel retention", store.record)
+	}
+}
+
+func TestLiveIngestorSkipsOffChannels(t *testing.T) {
+	store := &fakeIngestStore{
+		policy:  DefaultPolicy("guild-id"),
+		channel: ChannelPolicy{GuildID: "guild-id", ChannelID: "channel-id", Mode: ModeOff},
+		ok:      true,
+	}
+	ingestor := &LiveIngestor{store: store}
+
+	err := ingestor.ingest(context.Background(), MessageEvent{
+		MessageID:    "message-id",
+		GuildID:      "guild-id",
+		ChannelID:    "channel-id",
+		AuthorUserID: "user-id",
+		Content:      "hello",
+	})
+	if err != nil {
+		t.Fatalf("ingest returned error: %v", err)
+	}
+	if store.recorded {
+		t.Fatalf("recorded = true, want off channel skipped")
+	}
+}
+
 type fakeMemoryDB struct {
 	query       string
 	exec        string
@@ -174,3 +268,26 @@ type fakeMemoryResult int64
 
 func (r fakeMemoryResult) LastInsertId() (int64, error) { return 0, nil }
 func (r fakeMemoryResult) RowsAffected() (int64, error) { return int64(r), nil }
+
+type fakeIngestStore struct {
+	policy   Policy
+	channel  ChannelPolicy
+	ok       bool
+	record   MessageRecord
+	recorded bool
+	err      error
+}
+
+func (s *fakeIngestStore) GuildPolicy(ctx context.Context, guildID string) (Policy, error) {
+	return s.policy, s.err
+}
+
+func (s *fakeIngestStore) ChannelPolicy(ctx context.Context, guildID string, channelID string) (ChannelPolicy, bool, error) {
+	return s.channel, s.ok, s.err
+}
+
+func (s *fakeIngestStore) RecordMessage(ctx context.Context, record MessageRecord) error {
+	s.record = record
+	s.recorded = true
+	return s.err
+}

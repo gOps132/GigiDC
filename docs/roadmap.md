@@ -21,7 +21,7 @@ description: Planned evolution of the Go foundation rebuild.
 - DM handling
 - permission model
 
-Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, capability evaluator, identity resolver contract, DB-backed role-first `/permissions` command, guild-scoped `/llm` provider and model controls, guild mention chat fallback, startup migration runner, and durable audit-log seam are started. Rich DM conversation, retrieval, assignment/task commands, and restricted action execution remain.
+Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, capability evaluator, identity resolver contract, DB-backed role-first `/permissions` command, guild-scoped `/llm` provider and model controls, guild mention chat fallback, startup migration runner, guild memory settings/status/count scaffold, and durable audit-log seam are started. Rich DM conversation, semantic retrieval, assignment/task commands, and restricted action execution remain.
 
 ## v0 Memory And Actions Slice
 
@@ -39,7 +39,7 @@ Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing,
 
 Current LLM direction: build the data model and resolver for `guild`, `user`, and `tenant` credential owners from the start, but expose only guild/admin-scoped provider configuration in v0. Personal BYOK remains disabled in v0 product behavior. See [LLM And Cognitive Layer Plan](./llm-cognitive-plan).
 
-Current memory direction: memory starts off, is enabled per channel, ingests through asynchronous jobs, and separates exact count queries from semantic retrieval. Questions such as `@Gigi how many times did @sam mention "postgres"?` should use deterministic SQL over indexed, permitted messages rather than asking an LLM to guess. Embeddings are batched in workers and use the guild `embedding` profile, never personal BYOK for shared guild memory.
+Current memory direction: memory starts off, is enabled per channel, ingests through a bounded async live queue, and separates exact count queries from semantic retrieval. Questions such as `@Gigi how many times did @sam mention "postgres"?` should use deterministic SQL over indexed, permitted messages rather than asking an LLM to guess. Embeddings are batched in workers and use the guild `embedding` profile, never personal BYOK for shared guild memory.
 
 ## v1 Personal BYOK Slice
 

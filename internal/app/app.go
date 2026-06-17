@@ -89,6 +89,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		providerService := llmprovider.NewServiceWithTester(providerStore, secretSealer, llmprovider.DefaultRegistry(), llmprovider.NewHTTPTester(nil))
 		usageRecorder := llmprovider.NewSQLUsageRecorder(db, func() string { return storage.NewID("llmusage") })
 		memoryStore := memory.NewSQLStore(db)
+		memoryIngestor := memory.NewLiveIngestor(memoryStore, 512)
 		conversationStore := assistant.NewSQLConversationStore(db, func() string { return storage.NewID("asstturn") })
 		llmRuntime := llm.Runtime{
 			Resolver:     providerService,
@@ -123,7 +124,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			discord.AssistantFallbackHandler(assistantHandler, discord.CoreMessageHandler()),
 			semanticPlanner,
 		)
-		messageRouter, err := discord.NewMessageRouter(cfg.DiscordClientID, messageHandler, nil)
+		messageRouter, err := discord.NewMessageRouter(cfg.DiscordClientID, messageHandler, nil, memoryIngestor)
 		if err != nil {
 			_ = db.Close()
 			return nil, err

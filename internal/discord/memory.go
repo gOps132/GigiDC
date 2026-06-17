@@ -15,6 +15,7 @@ import (
 type MemoryManager interface {
 	GuildStatus(ctx context.Context, guildID string) (memory.Status, error)
 	UpsertChannelPolicy(ctx context.Context, req memory.UpsertChannelPolicyRequest) (memory.ChannelPolicy, error)
+	CountMentions(ctx context.Context, req memory.CountRequest) (memory.CountResult, error)
 }
 
 func MemoryCommands(manager MemoryManager, recorder AuditRecorder) []Command {
@@ -27,6 +28,21 @@ func MemoryCommands(manager MemoryManager, recorder AuditRecorder) []Command {
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        "status",
 				Description: "Show guild memory status.",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "count",
+				Description: "Count exact text mentions in readable memory.",
+				Options: []*discordgo.ApplicationCommandOption{
+					stringOption("text", "Text to count.", nil),
+					{
+						Type:        discordgo.ApplicationCommandOptionUser,
+						Name:        "user",
+						Description: "Discord user.",
+						Required:    false,
+					},
+					memoryScopeOption(),
+				},
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
@@ -63,6 +79,8 @@ func memoryRequiredCapability(interaction Interaction) capability.Capability {
 	switch {
 	case group == "status":
 		return capability.Capability("memory.read.guild")
+	case group == "count":
+		return capability.Capability("memory.read.guild")
 	case group == "settings" && (action == "show" || action == "set"):
 		return capability.Capability("memory.manage.guild")
 	default:
@@ -78,6 +96,9 @@ func memoryPath(interaction Interaction) (string, string, bool) {
 	if first.Name == "status" {
 		return "status", "", true
 	}
+	if first.Name == "count" {
+		return "count", "", true
+	}
 	if len(first.Options) != 1 {
 		return first.Name, "", false
 	}
@@ -90,6 +111,9 @@ type memoryRequest struct {
 	ChannelID     string
 	Mode          memory.Mode
 	RetentionDays int
+	UserID        string
+	Text          string
+	Scope         string
 }
 
 func memoryHandler(manager MemoryManager, recorder AuditRecorder) CommandHandler {
@@ -128,6 +152,9 @@ func parseMemoryRequest(interaction Interaction) (memoryRequest, error) {
 	if first.Name == "status" {
 		return memoryRequest{Group: "status"}, nil
 	}
+	if first.Name == "count" {
+		return parseMemoryCountRequest(memoryRequest{Group: "count"}, first.Options)
+	}
 	if len(first.Options) != 1 {
 		return memoryRequest{Group: first.Name}, fmt.Errorf("Choose one memory settings action.")
 	}
@@ -143,6 +170,24 @@ func parseMemoryRequest(interaction Interaction) (memoryRequest, error) {
 		return parseMemorySettingsSet(request, action.Options)
 	default:
 		return request, fmt.Errorf("Unsupported memory settings action.")
+	}
+}
+
+func parseMemoryCountRequest(request memoryRequest, options []InteractionOption) (memoryRequest, error) {
+	request.Text = strings.TrimSpace(optionByName(options, "text"))
+	if request.Text == "" {
+		return request, fmt.Errorf("Text is required.")
+	}
+	request.UserID = optionByName(options, "user")
+	request.Scope = optionByName(options, "scope")
+	if request.Scope == "" {
+		request.Scope = "this-channel"
+	}
+	switch request.Scope {
+	case "this-channel", "server":
+		return request, nil
+	default:
+		return request, fmt.Errorf("Unsupported memory scope.")
 	}
 }
 
@@ -178,6 +223,21 @@ func executeMemoryRequest(ctx context.Context, manager MemoryManager, interactio
 			return "", err
 		}
 		return formatMemoryStatus(status), nil
+	case request.Group == "count":
+		channelID := interaction.ChannelID
+		if request.Scope == "server" {
+			return "Server-wide memory counts are not available yet. Use `this-channel` scope.", nil
+		}
+		result, err := manager.CountMentions(ctx, memory.CountRequest{
+			GuildID:      interaction.GuildID,
+			ChannelID:    channelID,
+			AuthorUserID: request.UserID,
+			Text:         request.Text,
+		})
+		if err != nil {
+			return "", err
+		}
+		return formatMemoryCount(result, *request), nil
 	case request.Group == "settings" && request.Action == "show":
 		status, err := manager.GuildStatus(ctx, interaction.GuildID)
 		if err != nil {
@@ -199,6 +259,14 @@ func executeMemoryRequest(ctx context.Context, manager MemoryManager, interactio
 	default:
 		return "", fmt.Errorf("unsupported memory action")
 	}
+}
+
+func formatMemoryCount(result memory.CountResult, request memoryRequest) string {
+	who := "Messages"
+	if request.UserID != "" {
+		who = fmt.Sprintf("<@%s>", safeInline(request.UserID))
+	}
+	return fmt.Sprintf("%s mentioned `%s` %d times in this channel.", who, safeInline(memory.NormalizeText(request.Text)), result.Count)
 }
 
 func formatMemoryStatus(status memory.Status) string {
@@ -306,4 +374,21 @@ func memoryModeOption() *discordgo.ApplicationCommandOption {
 		{Name: "metadata", Value: string(memory.ModeMetadata)},
 		{Name: "full", Value: string(memory.ModeFull)},
 	})
+}
+
+func memoryScopeOption() *discordgo.ApplicationCommandOption {
+	return optionalStringOption("scope", "Memory scope.", []*discordgo.ApplicationCommandOptionChoice{
+		{Name: "this-channel", Value: "this-channel"},
+		{Name: "server", Value: "server"},
+	})
+}
+
+func optionalStringOption(name string, description string, choices []*discordgo.ApplicationCommandOptionChoice) *discordgo.ApplicationCommandOption {
+	return &discordgo.ApplicationCommandOption{
+		Type:        discordgo.ApplicationCommandOptionString,
+		Name:        name,
+		Description: description,
+		Required:    false,
+		Choices:     choices,
+	}
 }

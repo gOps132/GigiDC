@@ -20,7 +20,7 @@
 
 ## Current Foundation
 
-This branch intentionally removes the old Node/Supabase runtime. The current Go foundation exposes health/readiness endpoints plus Discord `/ping`, DM `ping`, guild mention `ping`, role-first admin-gated `/permissions` capability grants, `/llm` guild provider and model management, `/plugins` manifest management, deterministic external app matching, semantic external app dry-run routing, guild mention chat fallback through a configured chat model, and opt-in public `send_message` prefix dispatch. LLM-backed guild mention behavior is live only when a guild credential, model profile, and `GIGI_LLM_SECRET_KEY_BASE64` are configured. Retrieval, memory, rich DM chat, reasoning chat, restricted dispatch, tasks, and relay actions are not live yet.
+This branch intentionally removes the old Node/Supabase runtime. The current Go foundation exposes health/readiness endpoints plus Discord `/ping`, DM `ping`, guild mention `ping`, role-first admin-gated `/permissions` capability grants, `/llm` guild provider and model management, `/plugins` manifest management, deterministic external app matching, semantic external app dry-run routing, guild mention chat fallback through a configured chat model, opt-in public `send_message` prefix dispatch, and guild memory settings/status/current-channel count scaffolding. LLM-backed guild mention behavior is live only when a guild credential, model profile, and `GIGI_LLM_SECRET_KEY_BASE64` are configured. Semantic retrieval, rich DM chat, reasoning chat, restricted dispatch, tasks, and relay actions are not live yet.
 
 ```mermaid
 flowchart LR
