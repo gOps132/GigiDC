@@ -28,6 +28,13 @@ func TestMemoryCommandsExposeStatusAndSettingsSurface(t *testing.T) {
 	if option := findOption(count.Options, "text"); option == nil || option.Type != discordgo.ApplicationCommandOptionString || !option.Required {
 		t.Fatalf("count text option = %+v, want required string", option)
 	}
+	search := findOption(command.Options, "search")
+	if search == nil {
+		t.Fatal("memory command missing search")
+	}
+	if option := findOption(search.Options, "query"); option == nil || option.Type != discordgo.ApplicationCommandOptionString || !option.Required {
+		t.Fatalf("search query option = %+v, want required string", option)
+	}
 	settings := findOption(command.Options, "settings")
 	if settings == nil || settings.Type != discordgo.ApplicationCommandOptionSubCommandGroup {
 		t.Fatalf("settings = %+v, want subcommand group", settings)
@@ -57,6 +64,7 @@ func TestMemoryCommandDynamicCapabilities(t *testing.T) {
 	}{
 		{name: "status", i: memoryStatusInteraction(), want: "memory.read.guild"},
 		{name: "count", i: memoryCountInteraction([]InteractionOption{{Name: "text", Value: "postgres"}}), want: "memory.read.guild"},
+		{name: "search", i: memorySearchInteraction([]InteractionOption{{Name: "query", Value: "postgres"}}), want: "memory.read.guild"},
 		{name: "settings show", i: memorySettingsInteraction("show", nil), want: "memory.manage.guild"},
 		{name: "settings set", i: memorySettingsInteraction("set", []InteractionOption{{Name: "channel", Value: "channel-id"}, {Name: "mode", Value: "metadata"}}), want: "memory.manage.guild"},
 		{name: "bad path", i: memorySettingsInteraction("wat", nil), want: ""},
@@ -68,6 +76,26 @@ func TestMemoryCommandDynamicCapabilities(t *testing.T) {
 				t.Fatalf("capability = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestMemorySearchReturnsCurrentChannelResults(t *testing.T) {
+	manager := &fakeMemoryManager{searchResults: []memory.SearchResult{{MessageID: "message-id", ChannelID: "channel-id", AuthorUserID: "user-id", Text: "hello postgres"}}}
+	handler := MemoryCommands(manager, nil)[0].Handle
+
+	response, err := handler(context.Background(), memorySearchInteraction([]InteractionOption{
+		{Name: "query", Value: "Postgres"},
+		{Name: "user", Value: "user-id"},
+		{Name: "limit", Value: "10"},
+	}))
+	if err != nil {
+		t.Fatalf("search returned error: %v", err)
+	}
+	if manager.method != "SearchMessages" || manager.searchReq.GuildID != "guild-id" || manager.searchReq.ChannelID != "channel-id" || manager.searchReq.AuthorUserID != "user-id" || manager.searchReq.Query != "Postgres" || manager.searchReq.Limit != 10 {
+		t.Fatalf("manager = %+v, want search request", manager)
+	}
+	if !strings.Contains(response.Content, "Memory search for `postgres`:") || !strings.Contains(response.Content, "<@user-id>: hello postgres") || !response.Ephemeral {
+		t.Fatalf("response = %+v, want search response", response)
 	}
 }
 
@@ -219,14 +247,29 @@ func memoryCountInteraction(options []InteractionOption) Interaction {
 	}
 }
 
+func memorySearchInteraction(options []InteractionOption) Interaction {
+	return Interaction{
+		GuildID:   "guild-id",
+		ChannelID: "channel-id",
+		UserID:    "actor-id",
+		Name:      "memory",
+		Options: []InteractionOption{{
+			Name:    "search",
+			Options: options,
+		}},
+	}
+}
+
 type fakeMemoryManager struct {
-	method    string
-	guildID   string
-	status    memory.Status
-	upsertReq memory.UpsertChannelPolicyRequest
-	countReq  memory.CountRequest
-	count     memory.CountResult
-	err       error
+	method        string
+	guildID       string
+	status        memory.Status
+	upsertReq     memory.UpsertChannelPolicyRequest
+	countReq      memory.CountRequest
+	count         memory.CountResult
+	searchReq     memory.SearchRequest
+	searchResults []memory.SearchResult
+	err           error
 }
 
 func (m *fakeMemoryManager) GuildStatus(ctx context.Context, guildID string) (memory.Status, error) {
@@ -260,4 +303,10 @@ func (m *fakeMemoryManager) CountMentions(ctx context.Context, req memory.CountR
 	m.method = "CountMentions"
 	m.countReq = req
 	return m.count, m.err
+}
+
+func (m *fakeMemoryManager) SearchMessages(ctx context.Context, req memory.SearchRequest) ([]memory.SearchResult, error) {
+	m.method = "SearchMessages"
+	m.searchReq = req
+	return m.searchResults, m.err
 }

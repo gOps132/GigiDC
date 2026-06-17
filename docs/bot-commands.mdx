@@ -29,7 +29,7 @@ Do not document planned behavior as shipped behavior. If a command is planned, m
 
 ### `/ping`
 
-Status: live.
+Status: live for current-channel retained `full` memory messages.
 
 Surface: slash command.
 
@@ -663,10 +663,10 @@ Required Gigi capability: `memory.read.guild`.
 Syntax:
 
 ```text
-/memory search query:<string> user:<user?> channel:<channel?> since:<date?> limit:<5|10|25>
+/memory search query:<string> user:<user?> limit:<number?>
 ```
 
-Returns matching snippets with safe source metadata such as channel, author, timestamp, and message link when allowed by channel visibility.
+Returns matching normalized snippets for the current channel with safe author metadata. Cross-channel search waits for channel-visibility filtering.
 
 ### `/memory ask`
 

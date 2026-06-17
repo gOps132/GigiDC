@@ -146,6 +146,34 @@ func TestSQLStoreCountMentionsUsesNormalizedText(t *testing.T) {
 	}
 }
 
+func TestSQLStoreSearchMessagesUsesCurrentChannelAndLimit(t *testing.T) {
+	createdAt := time.Date(2026, 6, 18, 1, 2, 3, 0, time.UTC)
+	db := &fakeMemoryDB{rows: &fakeMemoryRows{values: [][]any{{"message-id", "channel-id", "user-id", "hello postgres", createdAt}}}}
+	store := NewSQLStore(db)
+
+	got, err := store.SearchMessages(context.Background(), SearchRequest{
+		GuildID:      "guild-id",
+		ChannelID:    "channel-id",
+		AuthorUserID: "user-id",
+		Query:        "Postgres",
+		Limit:        10,
+	})
+	if err != nil {
+		t.Fatalf("SearchMessages returned error: %v", err)
+	}
+	if len(got) != 1 || got[0].MessageID != "message-id" || got[0].Text != "hello postgres" {
+		t.Fatalf("results = %+v, want search result", got)
+	}
+	for _, want := range []string{"channel_id = $2", "position($4 in normalized_text) > 0", "limit $5"} {
+		if !strings.Contains(db.query, want) {
+			t.Fatalf("query = %q, want %q", db.query, want)
+		}
+	}
+	if db.args[4] != 10 {
+		t.Fatalf("args = %+v, want limit 10", db.args)
+	}
+}
+
 func TestLiveIngestorStoresOnlyFullModeText(t *testing.T) {
 	store := &fakeIngestStore{
 		policy:  DefaultPolicy("guild-id"),
@@ -203,6 +231,7 @@ type fakeMemoryDB struct {
 
 func (db *fakeMemoryDB) QueryContext(ctx context.Context, query string, args ...any) (memoryRows, error) {
 	db.query = query
+	db.args = append([]any(nil), args...)
 	if db.err != nil {
 		return nil, db.err
 	}
@@ -249,6 +278,8 @@ func (r *fakeMemoryRows) Scan(dest ...any) error {
 			*d = row[i].(Mode)
 		case *bool:
 			*d = row[i].(bool)
+		case *time.Time:
+			*d = row[i].(time.Time)
 		default:
 			return errors.New("unsupported scan dest")
 		}

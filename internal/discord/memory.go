@@ -16,6 +16,7 @@ type MemoryManager interface {
 	GuildStatus(ctx context.Context, guildID string) (memory.Status, error)
 	UpsertChannelPolicy(ctx context.Context, req memory.UpsertChannelPolicyRequest) (memory.ChannelPolicy, error)
 	CountMentions(ctx context.Context, req memory.CountRequest) (memory.CountResult, error)
+	SearchMessages(ctx context.Context, req memory.SearchRequest) ([]memory.SearchResult, error)
 }
 
 func MemoryCommands(manager MemoryManager, recorder AuditRecorder) []Command {
@@ -42,6 +43,21 @@ func MemoryCommands(manager MemoryManager, recorder AuditRecorder) []Command {
 						Required:    false,
 					},
 					memoryScopeOption(),
+				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "search",
+				Description: "Search retained memory in this channel.",
+				Options: []*discordgo.ApplicationCommandOption{
+					stringOption("query", "Search query.", nil),
+					{
+						Type:        discordgo.ApplicationCommandOptionUser,
+						Name:        "user",
+						Description: "Discord user.",
+						Required:    false,
+					},
+					integerOption("limit", "Result limit, 1-25.", false),
 				},
 			},
 			{
@@ -81,6 +97,8 @@ func memoryRequiredCapability(interaction Interaction) capability.Capability {
 		return capability.Capability("memory.read.guild")
 	case group == "count":
 		return capability.Capability("memory.read.guild")
+	case group == "search":
+		return capability.Capability("memory.read.guild")
 	case group == "settings" && (action == "show" || action == "set"):
 		return capability.Capability("memory.manage.guild")
 	default:
@@ -99,6 +117,9 @@ func memoryPath(interaction Interaction) (string, string, bool) {
 	if first.Name == "count" {
 		return "count", "", true
 	}
+	if first.Name == "search" {
+		return "search", "", true
+	}
 	if len(first.Options) != 1 {
 		return first.Name, "", false
 	}
@@ -114,6 +135,8 @@ type memoryRequest struct {
 	UserID        string
 	Text          string
 	Scope         string
+	Query         string
+	Limit         int
 }
 
 func memoryHandler(manager MemoryManager, recorder AuditRecorder) CommandHandler {
@@ -155,6 +178,9 @@ func parseMemoryRequest(interaction Interaction) (memoryRequest, error) {
 	if first.Name == "count" {
 		return parseMemoryCountRequest(memoryRequest{Group: "count"}, first.Options)
 	}
+	if first.Name == "search" {
+		return parseMemorySearchRequest(memoryRequest{Group: "search"}, first.Options)
+	}
 	if len(first.Options) != 1 {
 		return memoryRequest{Group: first.Name}, fmt.Errorf("Choose one memory settings action.")
 	}
@@ -171,6 +197,28 @@ func parseMemoryRequest(interaction Interaction) (memoryRequest, error) {
 	default:
 		return request, fmt.Errorf("Unsupported memory settings action.")
 	}
+}
+
+func parseMemorySearchRequest(request memoryRequest, options []InteractionOption) (memoryRequest, error) {
+	request.Query = strings.TrimSpace(optionByName(options, "query"))
+	if request.Query == "" {
+		return request, fmt.Errorf("Query is required.")
+	}
+	request.UserID = optionByName(options, "user")
+	limitValue := optionByName(options, "limit")
+	if limitValue == "" {
+		request.Limit = 5
+		return request, nil
+	}
+	limit, err := strconv.Atoi(limitValue)
+	if err != nil {
+		return request, fmt.Errorf("Limit must be a whole number.")
+	}
+	if limit < 1 || limit > 25 {
+		return request, fmt.Errorf("Limit must be between 1 and 25.")
+	}
+	request.Limit = limit
+	return request, nil
 }
 
 func parseMemoryCountRequest(request memoryRequest, options []InteractionOption) (memoryRequest, error) {
@@ -238,6 +286,18 @@ func executeMemoryRequest(ctx context.Context, manager MemoryManager, interactio
 			return "", err
 		}
 		return formatMemoryCount(result, *request), nil
+	case request.Group == "search":
+		results, err := manager.SearchMessages(ctx, memory.SearchRequest{
+			GuildID:      interaction.GuildID,
+			ChannelID:    interaction.ChannelID,
+			AuthorUserID: request.UserID,
+			Query:        request.Query,
+			Limit:        request.Limit,
+		})
+		if err != nil {
+			return "", err
+		}
+		return formatMemorySearch(results, *request), nil
 	case request.Group == "settings" && request.Action == "show":
 		status, err := manager.GuildStatus(ctx, interaction.GuildID)
 		if err != nil {
@@ -259,6 +319,17 @@ func executeMemoryRequest(ctx context.Context, manager MemoryManager, interactio
 	default:
 		return "", fmt.Errorf("unsupported memory action")
 	}
+}
+
+func formatMemorySearch(results []memory.SearchResult, request memoryRequest) string {
+	if len(results) == 0 {
+		return "Memory search found no retained full-mode matches in this channel."
+	}
+	lines := []string{fmt.Sprintf("Memory search for `%s`:", safeInline(memory.NormalizeText(request.Query)))}
+	for _, result := range results {
+		lines = append(lines, fmt.Sprintf("- <@%s>: %s", safeInline(result.AuthorUserID), safeInlineLimit(result.Text, 140)))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func formatMemoryCount(result memory.CountResult, request memoryRequest) string {
