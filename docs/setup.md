@@ -22,6 +22,8 @@ Set `GIGI_DISCORD_ENABLED=true` only when `DISCORD_TOKEN` and `DISCORD_CLIENT_ID
 
 Set `GIGI_DISCORD_SYNC_COMMANDS=true` only when you want Gigi to bulk-overwrite its current slash command set. Use `GIGI_DISCORD_GUILD_ID` for a test server during development; leaving it blank targets global application commands.
 
+LLM provider secret-key sealing is config-only for now. Leave `GIGI_LLM_SECRET_KEY_BASE64` blank until provider configuration is enabled; when set, it must be standard base64 for exactly 32 bytes. `GIGI_LLM_SECRET_KEY_ID` defaults to `local-v1`.
+
 ## Run Checks
 
 ```bash

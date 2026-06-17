@@ -31,12 +31,11 @@ create table if not exists llm_credentials (
   unique (id, provider_id)
 );
 
-create unique index if not exists llm_credentials_active_owner_provider_label_idx
+create unique index if not exists llm_credentials_active_owner_label_idx
   on llm_credentials (
     owner_type,
     coalesce(guild_id, ''),
     coalesce(user_id, ''),
-    provider_id,
     lower(label)
   )
   where revoked_at is null;

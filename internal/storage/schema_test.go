@@ -74,6 +74,7 @@ func TestLLMProviderCredentialsMigrationDefinesEncryptedMultiOwnerSchema(t *test
 		"credential_nonce bytea not null",
 		"credential_fingerprint text not null",
 		"unique (id, provider_id)",
+		"llm_credentials_active_owner_label_idx",
 		"foreign key (credential_id, provider_id) references llm_credentials(id, provider_id)",
 		"billing_owner_type text not null",
 		"billing_owner_id text not null",

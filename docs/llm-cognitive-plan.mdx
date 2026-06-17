@@ -119,6 +119,8 @@ llm_credentials (
   unique (id, provider_id)
 );
 
+Active credential labels should be unique per owner. A label should identify one active credential in a guild, user, or tenant scope, not one credential per provider, so command UX can safely address credentials by label.
+
 llm_model_profiles (
   id text primary key,
   owner_type text not null,
