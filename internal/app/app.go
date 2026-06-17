@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gOps132/GigiDC/internal/assistant"
 	"github.com/gOps132/GigiDC/internal/audit"
 	"github.com/gOps132/GigiDC/internal/buildinfo"
 	"github.com/gOps132/GigiDC/internal/capability"
 	"github.com/gOps132/GigiDC/internal/config"
 	"github.com/gOps132/GigiDC/internal/discord"
+	"github.com/gOps132/GigiDC/internal/llm"
 	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
 	"github.com/gOps132/GigiDC/internal/plugins"
 	"github.com/gOps132/GigiDC/internal/storage"
@@ -85,6 +87,13 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		providerStore := llmprovider.NewSQLStore(db, func() string { return storage.NewID("llm") })
 		providerService := llmprovider.NewServiceWithTester(providerStore, secretSealer, llmprovider.DefaultRegistry(), llmprovider.NewHTTPTester(nil))
 		usageRecorder := llmprovider.NewSQLUsageRecorder(db, func() string { return storage.NewID("llmusage") })
+		llmRuntime := llm.Runtime{
+			Resolver:     providerService,
+			Client:       llm.NewHTTPProviderClient(nil),
+			Usage:        usageRecorder,
+			NewRequestID: func() string { return storage.NewID("llmreq") },
+		}
+		assistantHandler := assistant.NewHandler(llmRuntime)
 		commands := discord.CoreCommands()
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
@@ -101,7 +110,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		evaluator := capability.NewEvaluator(grantStore)
 		router.SetAuthorizer(discord.NewCapabilityAuthorizer(evaluator, auditStore))
 
-		messageHandler := discord.ExternalAppDryRunHandler(pluginStore, evaluator, auditStore, discord.CoreMessageHandler())
+		messageHandler := discord.ExternalAppDryRunHandler(pluginStore, evaluator, auditStore, discord.AssistantFallbackHandler(assistantHandler, discord.CoreMessageHandler()))
 		messageRouter, err := discord.NewMessageRouter(cfg.DiscordClientID, messageHandler, nil)
 		if err != nil {
 			_ = db.Close()
