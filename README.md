@@ -20,7 +20,7 @@
 
 ## Current Foundation
 
-This branch intentionally removes the old Node/Supabase runtime. The current Go foundation exposes health/readiness endpoints plus a minimal Discord surface: `/ping`, DM `ping`, guild mention `ping`, role-first admin-gated `/permissions` capability grants, `/plugins` manifest management, deterministic external app dry-run matching, and opt-in public `send_message` prefix dispatch; other DM/mention text receives a placeholder while LLM, retrieval, and restricted action layers are rebuilt.
+This branch intentionally removes the old Node/Supabase runtime. The current Go foundation exposes health/readiness endpoints plus Discord `/ping`, DM `ping`, guild mention `ping`, role-first admin-gated `/permissions` capability grants, `/llm` guild provider and model management, `/plugins` manifest management, deterministic external app matching, semantic external app dry-run routing, guild mention chat fallback through a configured chat model, and opt-in public `send_message` prefix dispatch. LLM-backed guild mention behavior is live only when a guild credential, model profile, and `GIGI_LLM_SECRET_KEY_BASE64` are configured. Retrieval, memory, rich DM chat, reasoning chat, restricted dispatch, tasks, and relay actions are not live yet.
 
 ```mermaid
 flowchart LR
@@ -29,11 +29,9 @@ flowchart LR
     App --> Jobs["Durable Jobs"]
     App --> DB["PostgreSQL + pgvector"]
     App --> Health["/healthz + /readyz"]
-    classDef future fill:#eff6ff,stroke:#2563eb,color:#1e3a8a;
     classDef core fill:#ecfeff,stroke:#0891b2,color:#164e63;
     classDef state fill:#f0fdf4,stroke:#16a34a,color:#14532d;
-    class Plugins future;
-    class Discord,App,Health core;
+    class Discord,App,Health,Plugins core;
     class Jobs,DB state;
 ```
 
@@ -79,7 +77,7 @@ GIGI_DISCORD_ENABLED=false
 GIGI_DISCORD_SYNC_COMMANDS=false
 ```
 
-After health checks pass, enable Discord with `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, and `GIGI_DISCORD_GUILD_ID` to test `/ping`, DMs, and guild mentions.
+After health checks pass, enable Discord with `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, and `GIGI_DISCORD_GUILD_ID` to test `/ping`, DMs, guild mentions, `/permissions`, `/llm`, and `/plugins`.
 
 ## Docs
 

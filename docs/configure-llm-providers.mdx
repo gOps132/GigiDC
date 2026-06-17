@@ -1,0 +1,99 @@
+---
+title: Configure LLM Providers
+description: Add guild-scoped provider credentials and select Gigi's chat and routing models.
+---
+
+# Configure LLM Providers
+
+Guild LLM behavior is live when a server has a sealed provider credential and active model profiles.
+
+## Prerequisites
+
+- Discord gateway enabled
+- slash commands synced
+- `GIGI_LLM_SECRET_KEY_BASE64` configured
+- your Discord user has `llm.provider.write`, `llm.provider.test`, and `llm.provider.select`
+
+Generate the sealing key with:
+
+```bash
+openssl rand -base64 32
+```
+
+Set it as:
+
+```env
+GIGI_LLM_SECRET_KEY_BASE64=<base64-32-byte-key>
+GIGI_LLM_SECRET_KEY_ID=local-v1
+```
+
+Provider API keys are not environment variables. Enter them through `/llm provider add` or `/llm provider rotate` private modals.
+
+## Grant access
+
+Create and assign an LLM manager role:
+
+```text
+/permissions role create name:Gigi LLM Managers preset:llm-manager
+/permissions role assign role:@Gigi LLM Managers user:@person
+```
+
+## Add and test a provider
+
+Start credential entry:
+
+```text
+/llm provider add provider:openai label:main
+```
+
+Paste the provider key into the private modal.
+
+Then test it:
+
+```text
+/llm provider test label:main
+```
+
+## Select models
+
+Set the chat model for guild mention replies:
+
+```text
+/llm model set purpose:chat label:main model:gpt-4o-mini
+```
+
+Set the routing model for semantic external app dry-run routing:
+
+```text
+/llm model set purpose:routing label:main model:gpt-4o-mini
+```
+
+Confirm:
+
+```text
+/llm model show purpose:chat
+/llm model show purpose:routing
+```
+
+## Verify usage
+
+Ask Gigi a guild mention after the chat model is set:
+
+```text
+@Gigi explain recursion in one paragraph
+```
+
+Then check aggregate token usage:
+
+```text
+/llm usage guild
+```
+
+Usage events store actor, guild, provider, model, purpose, billing owner, status, and token counts. They do not store raw prompts, completions, provider responses, or secrets.
+
+## Current limits
+
+- Personal BYOK commands are not live.
+- Rich DM chat is not live.
+- Retrieval and memory are not live.
+- Provider fallback between guild, user, and tenant owners is not automatic.

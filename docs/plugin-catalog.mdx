@@ -7,7 +7,7 @@ description: Current external Discord app manifest catalog model for the Go rebu
 
 In Gigi docs, plugin means an approved external Discord app, bot, or service integration that Gigi can understand through a manifest. It does not mean arbitrary code loaded into Gigi, and Gigi does not run third-party app code.
 
-Plugin catalog work has started. This slice validates, imports, stores, lists, enables, disables, dry-run matches, and can dispatch public prefix commands for approved external app manifests that explicitly opt in with `dispatch: "send_message"`. It does not publish commands declared by manifests, scrape docs, or use LLM routing yet.
+Plugin catalog work has started. This slice validates, imports, stores, lists, enables, disables, dry-run matches, can propose semantic dry-run plans through a configured routing model, and can dispatch public prefix commands for approved external app manifests that explicitly opt in with `dispatch: "send_message"`. It does not publish commands declared by manifests, scrape docs, or use LLM-driven dispatch.
 
 ## Current Behavior
 
@@ -28,6 +28,7 @@ Plugin catalog work has started. This slice validates, imports, stores, lists, e
 - manifests without `dispatch: "send_message"` remain dry-run only
 - restricted actions with non-empty `permissions` remain dry-run only even when the manifest asks for `send_message`
 - trigger `aliases` can match friendlier Gigi mention text while dispatch still uses the trigger `value`
+- semantic routing runs only after deterministic prefix matching fails, uses the configured `routing` model, validates the LLM proposal against enabled manifests, and returns dry-run plans only
 - `/plugins dry-run` can test enabled manifest matching without depending on Discord message-content events
 
 v0 does not guess external app identity from fuzzy names, bot display names, domains, or docs pages. Fuzzy suggestions may come later, but exact admin approval remains required.
@@ -93,7 +94,7 @@ Manifest URL imports must use HTTPS and cannot include user info, query strings,
 - external app command publishing
 - restricted external app dispatch
 - native slash, button, DM, or rich external app dispatch
-- LLM tool routing to external app actions
+- LLM-driven dispatch to external app actions
 - confirmed per-message dispatch approval
 - docs scraping or browser-based discovery
 

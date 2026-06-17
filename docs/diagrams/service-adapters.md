@@ -5,7 +5,7 @@ description: Ports-and-adapters view of the Go foundation seams.
 
 # Service And Adapter Boundaries
 
-This diagram captures the current foundation seams. Discord liveness routing, permission grants, plugin catalog controls, external app dry-run matching, and opt-in public dispatch are live; capability, identity, audit, external app manifest, job, and LLM packages provide contracts or foundations for later privileged behavior.
+This diagram captures the current foundation seams. Discord liveness routing, permission grants, guild-scoped LLM controls, plugin catalog controls, external app dry-run matching, semantic dry-run routing, guild mention chat fallback, and opt-in public dispatch are live when configured; capability, identity, audit, external app manifest, job, retrieval, and memory packages provide contracts or foundations for later privileged behavior.
 
 ```mermaid
 flowchart LR
@@ -13,15 +13,15 @@ flowchart LR
   Web["internal/web"]
   Config["internal/config"]
   Storage["internal/storage"]
-  Discord["internal/discord<br/>gateway + liveness + permissions + plugins + dry-run + public dispatch"]
+  Discord["internal/discord<br/>gateway + liveness + permissions + llm + plugins + dry-run + public dispatch"]
   Capability["internal/capability<br/>role/user grants"]
   Identity["internal/identity<br/>sync resolver contract"]
   Audit["internal/audit<br/>event + store seam"]
   Plugins["internal/plugins<br/>external app manifest contract"]
   Jobs["internal/jobs<br/>queue contract"]
-  LLM["internal/llm<br/>text client contract"]
+  LLM["internal/llm<br/>provider-backed text runtime"]
   DB["PostgreSQL + pgvector"]
-  Providers["Future Providers<br/>Discord API + OpenAI-compatible APIs"]
+  Providers["External Providers<br/>Discord API + OpenAI + Anthropic + Gemini"]
 
   App --> Web
   App --> Config
@@ -48,5 +48,5 @@ flowchart LR
 - `internal/audit` validates audit events and provides a durable audit-log store seam.
 - `internal/plugins` defines external app manifest shape: capabilities, triggers, surfaces, permissions, config schema, and attribution.
 - `internal/jobs` defines durable work records before workers exist.
-- `internal/discord` has live `/ping`, DM `ping`, mention `ping`, `/permissions`, `/plugins`, external app dry-run planning, and public `send_message` prefix dispatch; rich chat and restricted dispatch are still future work.
-- `internal/llm` is a narrow contract only; no provider API call happens in this slice.
+- `internal/discord` has live `/ping`, DM `ping`, mention `ping`, `/permissions`, `/llm`, `/plugins`, external app dry-run planning, semantic dry-run routing, guild mention chat fallback, and public `send_message` prefix dispatch; rich DM chat and restricted dispatch are still future work.
+- `internal/llm` resolves guild model profiles, calls configured providers, and records usage without storing raw prompts or completions.

@@ -7,7 +7,7 @@ description: Discord status for the Go foundation rebuild.
 
 Discord usage is active in a narrow foundation slice.
 
-The current codebase has a disabled-by-default Discord gateway adapter, a minimal `/ping` slash-command handler, opt-in command sync, DM routing, guild-mention routing, admin-gated `/permissions` capability grants, `/plugins` catalog controls, deterministic external app dry-run matching, and limited public external app dispatch. It intentionally does not run LLM chat, memory retrieval, task actions, relay actions, or restricted external app dispatch yet.
+The current codebase has a disabled-by-default Discord gateway adapter, a `/ping` slash-command handler, opt-in command sync, DM routing, guild-mention routing, admin-gated `/permissions` capability grants, `/llm` guild provider controls, `/plugins` catalog controls, deterministic external app dry-run matching, semantic external app dry-run routing, guild mention chat fallback through a configured chat model, and limited public external app dispatch. Retrieval, memory, rich DM chat, reasoning chat, task actions, relay actions, and restricted external app dispatch are not live yet.
 
 For exact command syntax, required capabilities, responses, and failure cases, use [Bot Commands](/bot-commands) as the canonical command guide.
 
@@ -18,8 +18,10 @@ For exact command syntax, required capabilities, responses, and failure cases, u
 - `/permissions user grant|revoke` manages direct user capability exceptions.
 - DM `ping` replies `pong`.
 - Guild message `<@Gigi> ping` replies `pong`.
-- Guild mention text can match an enabled external app manifest prefix trigger. Dry-run manifests return the planned command. Public manifests with `dispatch: "send_message"` send the planned command as Gigi.
-- Other DMs or guild mentions reply with a placeholder so users know Gigi is online.
+- Guild mention text first checks enabled external app manifest prefix triggers. Dry-run manifests return the planned command. Public manifests with `dispatch: "send_message"` send the planned command as Gigi.
+- If deterministic external app matching fails, a configured routing model can propose a validated semantic dry-run plan against enabled manifests.
+- If plugin routing fails, a configured chat model can answer the guild mention.
+- Other DM text replies that rich chat needs a server LLM profile first; rich DM chat is not live.
 - Ordinary guild messages without a Gigi mention are ignored.
 - Bot-authored messages are ignored.
 
@@ -32,6 +34,7 @@ Future slices should support:
 - external app manifests that declare triggers, surfaces, permissions, exact Discord identity, and attribution
 - durable jobs for work that outlives one Discord interaction
 - fail-closed permissions for private, admin, and sensitive actions
+- rich DM chat after policy and profile support exists
 
 ## Permission Flow
 
@@ -48,7 +51,17 @@ Use direct user grants only when one person needs an exception without a Discord
 
 ## Plugin Status
 
-Approved external app manifest validation, storage, import, enable, disable, dry-run matching, and limited public `send_message` dispatch are started through `/plugins` plus guild mention routing. Discovery is exact-match only by Discord application ID or bot user ID, or by an explicitly approved HTTPS manifest URL or uploaded JSON manifest. Gigi does not scrape external app docs, guess behavior from names, or dispatch restricted external app commands yet. External apps may ignore bot-authored messages.
+Approved external app manifest validation, storage, import, enable, disable, dry-run matching, semantic dry-run routing, and limited public `send_message` dispatch are started through `/plugins` plus guild mention routing. Discovery is exact-match only by Discord application ID or bot user ID, or by an explicitly approved HTTPS manifest URL or uploaded JSON manifest. Gigi does not scrape external app docs, guess behavior from names, or dispatch restricted external app commands yet. External apps may ignore bot-authored messages.
+
+## LLM Provider Setup
+
+Guild LLM behavior is live only after all of these exist:
+
+- `GIGI_LLM_SECRET_KEY_BASE64` configured as standard base64 for exactly 32 bytes
+- guild provider credential added through `/llm provider add`
+- active model profile selected through `/llm model set` for `chat` or `routing`
+
+Provider API keys are entered through Discord modals and sealed in guild-scoped storage. Do not set provider keys as `OPENAI_API_KEY`; that environment variable is reserved and unused for provider calls.
 
 ## Current Verification
 

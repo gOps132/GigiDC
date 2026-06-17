@@ -23,7 +23,7 @@ description: External resources, platforms, and tooling used by GigiDC.
   - Use: Local app/Postgres orchestration and deployable Compose shape
   - Source: https://docs.docker.com/compose/
 - `Discord API`
-  - Use: Planned Discord gateway, slash commands, interactions, messages, and external app surfaces
+  - Use: Discord gateway, slash commands, interactions, messages, and external app surfaces
   - Source: https://discord.com/developers/docs/
 - `discordgo`
   - Use: Go client library for the Discord gateway adapter
@@ -32,10 +32,10 @@ description: External resources, platforms, and tooling used by GigiDC.
   - Use: Go PostgreSQL driver used by the local database-backed Discord permission grants
   - Source: https://github.com/jackc/pgx
 - `OpenAI API`
-  - Use: Planned LLM response, tool-planning, and embedding provider behind an adapter
+  - Use: LLM text provider behind the guild-scoped provider adapter
   - Source: https://platform.openai.com/docs/
 - `Coolify`
-  - Use: Planned simple Docker deployment target for the soft-deploy foundation
+  - Use: Docker deployment target for the soft-deploy foundation
   - Source: https://coolify.io/docs/
 - `Space.h`
   - Use: Local sibling project used as reference for Coolify Docker Compose environment-variable ergonomics and pull request template structure

@@ -5,7 +5,7 @@ description: High-level view of the Go foundation runtime.
 
 # System Overview
 
-This overview reflects the current Go foundation. Health/readiness, Discord liveness routing, permission grants, plugin catalog controls, external app dry-run matching, and opt-in public dispatch run today; LLM, retrieval, and restricted external app dispatch remain foundations for later privileged behavior.
+This overview reflects the current Go foundation. Health/readiness, Discord liveness routing, permission grants, guild-scoped LLM provider controls, plugin catalog controls, external app dry-run matching, semantic dry-run routing, guild mention chat fallback, aggregate LLM usage reporting, and opt-in public dispatch run today when configured. Retrieval, memory, rich DM chat, and restricted external app dispatch remain later behavior.
 
 ```mermaid
 flowchart LR
@@ -14,9 +14,9 @@ flowchart LR
   Web["internal/web<br/>/healthz + /readyz"]
   Ready["internal/storage<br/>DB readiness + migrations"]
   DB["Local PostgreSQL + pgvector"]
-  Discord["Discord Gateway<br/>/ping + DM/mention ping + /permissions + /plugins + dry-run + public dispatch"]
+  Discord["Discord Gateway<br/>/ping + DM/mention + /permissions + /llm + /plugins + dry-run + public dispatch"]
   Security["Capability + Identity + Audit<br/>permission gate"]
-  Seams["Future Seams<br/>external apps jobs retrieval llm"]
+  Seams["Future Seams<br/>jobs retrieval memory restricted dispatch"]
   Compose["Docker Compose"]
   CI["GitHub Actions<br/>Go + Compose smoke"]
   Deploy["Coolify / Docker Deploy"]
@@ -40,7 +40,7 @@ flowchart LR
 - `/healthz` reports process/build health.
 - `/readyz` fails closed unless required config exists and PostgreSQL is reachable.
 - Discord liveness behavior is active when Discord is enabled.
-- Capability, identity, and audit gate `/permissions`, external app dry-run planning, and public dispatch; job, retrieval, and LLM packages are foundations for later privileged behavior.
+- Capability, identity, and audit gate `/permissions`, `/llm`, external app dry-run planning, semantic routing, and public dispatch; job, retrieval, and memory packages are foundations for later privileged behavior.
 - Docker Compose is the local and production deployment shape.
 
 ## Keep This Updated When

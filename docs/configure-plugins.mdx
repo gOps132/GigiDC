@@ -1,0 +1,77 @@
+---
+title: Configure External App Plugins
+description: Import, enable, test, and use external app manifests through Gigi.
+---
+
+# Configure External App Plugins
+
+In Gigi docs, a plugin is an approved external Discord app, bot, or service integration described by a manifest. It is not arbitrary code loaded into Gigi.
+
+## Prerequisites
+
+- Discord gateway enabled
+- slash commands synced
+- your Discord user has `plugin.install`
+- an approved `gigi-plugin.json` manifest from a trusted source
+
+Create and assign a plugin manager role:
+
+```text
+/permissions role create name:Gigi Plugin Managers preset:plugin-manager
+/permissions role assign role:@Gigi Plugin Managers user:@person
+```
+
+## Import a manifest
+
+Import from HTTPS:
+
+```text
+/plugins import-manifest url:https://example.com/gigi-plugin.json
+```
+
+Or import an uploaded JSON file:
+
+```text
+/plugins import-file attachment:<json-file>
+```
+
+Manifests must declare an exact Discord application ID or bot user ID. Gigi does not scrape external app docs or guess behavior from bot names.
+
+## Enable and test
+
+Enable the approved manifest for the server:
+
+```text
+/plugins enable plugin:<plugin-id> version:<version>
+```
+
+List enabled plugins:
+
+```text
+/plugins enabled
+```
+
+Dry-run a trigger:
+
+```text
+/plugins dry-run text:play never gonna give you up
+```
+
+## Use a guild mention
+
+Mention Gigi with text that matches a declared trigger or alias:
+
+```text
+@Gigi play never gonna give you up
+```
+
+Gigi checks deterministic prefix triggers first. If no prefix trigger matches and a routing model is configured, semantic routing can propose a validated dry-run plan against enabled manifests.
+
+If a matched manifest declares `dispatch: "send_message"` and has empty `permissions`, Gigi can send the planned prefix command as Gigi. Restricted actions stay dry-run only.
+
+## Current limits
+
+- External apps may ignore bot-authored messages.
+- Gigi does not publish commands declared by manifests.
+- Gigi does not run restricted dispatch.
+- Gigi does not use LLM output as dispatch authority.
