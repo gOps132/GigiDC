@@ -51,7 +51,7 @@ V0 should be multi-owner architecture with guild-only product behavior. That mea
 
 ## Revised V0
 
-V0 should include:
+Current V0 provider foundation includes:
 
 - `internal/llm/provider` registry, credential store, secret sealing, model profile selection, provider testing, and credential resolution.
 - Guild-scoped provider credentials configured by users with `llm.provider.write`.
@@ -59,9 +59,17 @@ V0 should include:
 - Provider test commands gated by `llm.provider.test`.
 - Encrypted write-only secrets using a swappable `SecretSealer`.
 - Usage events that record actor, guild, provider, model, purpose, billing owner type, billing owner ID, token counts, status, and classified error.
-- Policy fields for personal keys defaulted to `off`.
+- `/llm usage guild` aggregate reporting with no raw prompt, completion, provider response, or secret storage.
 - No per-user BYOK for guild mentions, shared memory, embeddings, or semantic routing.
 - No silent fallback between billing owners.
+
+Remaining V0 work:
+
+- Provider-backed text client implementations that consume resolved model credentials.
+- Minimal cognitive fallback chat for DMs and guild mentions after deterministic plugin matching fails.
+- Conversation storage and retrieval-safe memory policy.
+- Semantic plugin routing in dry-run or confirmation-required mode only.
+- Policy fields for personal keys defaulted to `off`, or an explicit deferral before V1 personal BYOK.
 
 The important product rule: an admin can personally pay for a provider key, but if that key powers shared server behavior, Gigi treats it as a guild credential governed by guild policy and audit.
 
@@ -156,9 +164,9 @@ llm_usage_events (
 );
 ```
 
-## Planned Command Shape
+## Command Shape
 
-Guild/admin commands:
+Live guild/admin commands:
 
 ```text
 /llm provider list
@@ -168,8 +176,13 @@ Guild/admin commands:
 /llm provider delete label:<label> confirm:true
 /llm model show purpose:<chat|reasoning|embedding|routing>
 /llm model set purpose:<chat|reasoning|embedding|routing> label:<label> model:<model-id>
-/llm policy set personal-keys:<off|dm-only|guild-allowed>
 /llm usage guild
+```
+
+Planned guild/admin policy command:
+
+```text
+/llm policy set personal-keys:<off|dm-only|guild-allowed>
 ```
 
 Personal BYOK commands are V1:
