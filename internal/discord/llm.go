@@ -571,6 +571,8 @@ func cleanLLMError(err error) string {
 		return "LLM provider credential or model profile was not found."
 	case strings.Contains(message, "does not support purpose"):
 		return "Provider does not support that LLM purpose."
+	case strings.Contains(message, "usage"):
+		return "LLM usage reporting failed."
 	case strings.Contains(message, "model"):
 		return "Model selection is invalid."
 	default:

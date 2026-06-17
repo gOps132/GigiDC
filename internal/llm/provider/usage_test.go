@@ -9,6 +9,8 @@ import (
 	"testing"
 )
 
+var _ sqlUsageQueryDB = (*sql.DB)(nil)
+
 func TestSQLUsageRecorderRecordsValidUsageEvent(t *testing.T) {
 	db := &fakeUsageExecDB{}
 	recorder := NewSQLUsageRecorder(db, func() string { return "usage-id" })
@@ -203,7 +205,7 @@ func TestSQLUsageRecorderSummarizesGuildUsage(t *testing.T) {
 	if got.BillingOwnerType != OwnerGuild || got.BillingOwnerID != "guild-id" || got.InputTokens != 12 || got.OutputTokens != 34 || got.TotalEvents != 3 || got.FailedEvents != 1 {
 		t.Fatalf("summary = %+v, want guild totals", got)
 	}
-	if !strings.Contains(db.query, "llm_usage_events") || !strings.Contains(db.query, "count(*) filter") || strings.Contains(db.query, "group by") {
+	if !strings.Contains(db.query, "llm_usage_events") || !strings.Contains(db.query, "case when status = 'failed'") || strings.Contains(db.query, "group by") {
 		t.Fatalf("query = %q, want usage summary query", db.query)
 	}
 }

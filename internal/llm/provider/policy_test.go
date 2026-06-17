@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+var _ sqlPolicyQueryDB = (*sql.DB)(nil)
+
 func TestSQLPolicyStoreReturnsDefaultOffPolicyWhenMissing(t *testing.T) {
 	db := &fakePolicyDB{row: fakeUsageRow{err: sql.ErrNoRows}}
 	store := NewSQLPolicyStore(db)
