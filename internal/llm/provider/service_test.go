@@ -309,6 +309,112 @@ func TestServiceTestCredentialFailureUpdatesCleanErrorCode(t *testing.T) {
 	}
 }
 
+func TestServiceResolveActiveModelOpensActiveProfileCredential(t *testing.T) {
+	store := &fakeCredentialStore{
+		activeProfile: ModelProfile{
+			ID:           "profile-id",
+			OwnerType:    OwnerGuild,
+			GuildID:      "guild-id",
+			Purpose:      PurposeChat,
+			CredentialID: "credential-id",
+			ProviderID:   ProviderOpenAI,
+			ModelID:      "gpt-4o-mini",
+			ParamsJSON:   `{"temperature":0.2}`,
+			Enabled:      true,
+		},
+		resolutionCredential: CredentialRecord{
+			ID:         "credential-id",
+			OwnerType:  OwnerGuild,
+			GuildID:    "guild-id",
+			ProviderID: ProviderOpenAI,
+			Label:      "Main",
+			Ciphertext: []byte("sealed-secret"),
+			Nonce:      []byte("nonce"),
+			KeyID:      "key-id",
+			Status:     CredentialStatusActive,
+		},
+	}
+	sealer := &fakeSecretSealer{opened: []byte("sk-live-test-secret")}
+	service := NewService(store, sealer, DefaultRegistry())
+
+	got, err := service.ResolveActiveModel(context.Background(), ResolveModelRequest{
+		Owner:   Scope{OwnerType: OwnerGuild, GuildID: "guild-id"},
+		Purpose: PurposeChat,
+		ActorID: "actor-id",
+	})
+	if err != nil {
+		t.Fatalf("ResolveActiveModel returned error: %v", err)
+	}
+	if store.activeCalls != 1 || store.resolutionCalls != 1 {
+		t.Fatalf("store calls active/resolution = %d/%d, want 1/1", store.activeCalls, store.resolutionCalls)
+	}
+	if store.resolutionCredentialID != "credential-id" || store.resolutionProviderID != ProviderOpenAI {
+		t.Fatalf("resolution args = %q/%q, want profile credential/provider", store.resolutionCredentialID, store.resolutionProviderID)
+	}
+	if string(sealer.openAAD) != "owner_type=guild;guild_id=guild-id;user_id=;provider_id=openai;label=Main" {
+		t.Fatalf("open AAD = %q, want canonical credential AAD", sealer.openAAD)
+	}
+	if got.APIKey != "sk-live-test-secret" || got.ModelID != "gpt-4o-mini" || got.BillingOwnerType != OwnerGuild || got.BillingOwnerID != "guild-id" {
+		t.Fatalf("resolved model = %+v, want profile + key + billing owner", got)
+	}
+}
+
+func TestServiceResolveActiveModelDoesNotFallbackAcrossOwners(t *testing.T) {
+	store := &fakeCredentialStore{}
+	service := NewService(store, &fakeSecretSealer{}, DefaultRegistry())
+
+	_, err := service.ResolveActiveModel(context.Background(), ResolveModelRequest{
+		Owner:   Scope{OwnerType: OwnerGuild},
+		Purpose: PurposeChat,
+		ActorID: "actor-id",
+	})
+	if err == nil || !strings.Contains(err.Error(), "guild ID is required") {
+		t.Fatalf("error = %v, want guild scope rejection", err)
+	}
+	if store.activeCalls != 0 || store.resolutionCalls != 0 {
+		t.Fatalf("store calls active/resolution = %d/%d, want no fallback lookup", store.activeCalls, store.resolutionCalls)
+	}
+}
+
+func TestServiceResolveActiveModelReportsUserBillingOwner(t *testing.T) {
+	store := &fakeCredentialStore{
+		activeProfile: ModelProfile{
+			ID:           "profile-id",
+			OwnerType:    OwnerUser,
+			UserID:       "user-id",
+			Purpose:      PurposeChat,
+			CredentialID: "credential-id",
+			ProviderID:   ProviderOpenAI,
+			ModelID:      "gpt-4o-mini",
+			Enabled:      true,
+		},
+		resolutionCredential: CredentialRecord{
+			ID:         "credential-id",
+			OwnerType:  OwnerUser,
+			UserID:     "user-id",
+			ProviderID: ProviderOpenAI,
+			Label:      "personal",
+			Ciphertext: []byte("sealed-secret"),
+			Nonce:      []byte("nonce"),
+			KeyID:      "key-id",
+			Status:     CredentialStatusActive,
+		},
+	}
+	service := NewService(store, &fakeSecretSealer{opened: []byte("sk-user")}, DefaultRegistry())
+
+	got, err := service.ResolveActiveModel(context.Background(), ResolveModelRequest{
+		Owner:   Scope{OwnerType: OwnerUser, UserID: "user-id"},
+		Purpose: PurposeChat,
+		ActorID: "actor-id",
+	})
+	if err != nil {
+		t.Fatalf("ResolveActiveModel returned error: %v", err)
+	}
+	if got.BillingOwnerType != OwnerUser || got.BillingOwnerID != "user-id" {
+		t.Fatalf("billing owner = %q/%q, want user/user-id", got.BillingOwnerType, got.BillingOwnerID)
+	}
+}
+
 func validAddCredentialRequest() AddCredentialRequest {
 	return AddCredentialRequest{
 		Owner:      Scope{OwnerType: OwnerGuild, GuildID: "guild-id"},
@@ -332,24 +438,28 @@ func validSelectModelRequest() SelectModelRequest {
 }
 
 type fakeCredentialStore struct {
-	credentialInput    CredentialInput
-	profileInput       ModelProfileInput
-	credentials        []CredentialRecord
-	activeProfile      ModelProfile
-	testCredential     CredentialRecord
-	revokedScope       Scope
-	revokedLabel       string
-	revokedActorID     string
-	updateCredentialID string
-	updateTestStatus   TestStatus
-	updateErrorCode    TestErrorCode
-	upsertCalls        int
-	revokeCalls        int
-	listCalls          int
-	testCalls          int
-	updateTestCalls    int
-	selectCalls        int
-	activeCalls        int
+	credentialInput        CredentialInput
+	profileInput           ModelProfileInput
+	credentials            []CredentialRecord
+	activeProfile          ModelProfile
+	testCredential         CredentialRecord
+	resolutionCredential   CredentialRecord
+	revokedScope           Scope
+	revokedLabel           string
+	revokedActorID         string
+	updateCredentialID     string
+	updateTestStatus       TestStatus
+	updateErrorCode        TestErrorCode
+	resolutionCredentialID string
+	resolutionProviderID   ProviderID
+	upsertCalls            int
+	revokeCalls            int
+	listCalls              int
+	testCalls              int
+	updateTestCalls        int
+	resolutionCalls        int
+	selectCalls            int
+	activeCalls            int
 }
 
 func (s *fakeCredentialStore) UpsertCredential(_ context.Context, input CredentialInput) (CredentialRecord, error) {
@@ -387,6 +497,13 @@ func (s *fakeCredentialStore) ListCredentials(_ context.Context, scope Scope) ([
 func (s *fakeCredentialStore) CredentialForTest(_ context.Context, scope Scope, label string) (CredentialRecord, error) {
 	s.testCalls++
 	return s.testCredential, nil
+}
+
+func (s *fakeCredentialStore) CredentialForResolution(_ context.Context, scope Scope, credentialID string, providerID ProviderID) (CredentialRecord, error) {
+	s.resolutionCalls++
+	s.resolutionCredentialID = credentialID
+	s.resolutionProviderID = providerID
+	return s.resolutionCredential, nil
 }
 
 func (s *fakeCredentialStore) UpdateCredentialTestResult(_ context.Context, credentialID string, status TestStatus, errorCode TestErrorCode) error {

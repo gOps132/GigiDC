@@ -229,6 +229,34 @@ func TestSQLStoreLoadsCredentialForTestWithSealedBytes(t *testing.T) {
 	}
 }
 
+func TestSQLStoreLoadsCredentialForResolutionByProfileCredential(t *testing.T) {
+	record := validCredentialRecord()
+	record.Ciphertext = []byte("sealed-secret")
+	record.Nonce = []byte("nonce")
+	db := &fakeLLMDB{rows: fakeCredentialRowsWithSecret(record)}
+	store := NewSQLStore(db, nil)
+
+	got, err := store.CredentialForResolution(context.Background(), Scope{OwnerType: OwnerGuild, GuildID: "guild-id"}, "credential-id", ProviderOpenAI)
+	if err != nil {
+		t.Fatalf("CredentialForResolution returned error: %v", err)
+	}
+	if got.ID != "credential-id" || string(got.Ciphertext) != "sealed-secret" || string(got.Nonce) != "nonce" {
+		t.Fatalf("credential = %+v, want sealed bytes", got)
+	}
+	for _, want := range []string{
+		"where id = $1",
+		"provider_id = $2",
+		"owner_type = $3",
+		"guild_id is not distinct from $4",
+		"status = 'active'",
+		"revoked_at is null",
+	} {
+		if !strings.Contains(db.query, want) {
+			t.Fatalf("query = %q, want %q", db.query, want)
+		}
+	}
+}
+
 func TestSQLStoreUpdatesCredentialTestResult(t *testing.T) {
 	db := &fakeLLMDB{tx: &fakeLLMTx{}}
 	store := NewSQLStore(db, nil)

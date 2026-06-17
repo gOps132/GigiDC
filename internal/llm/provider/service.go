@@ -12,6 +12,7 @@ type CredentialStore interface {
 	RevokeCredential(ctx context.Context, owner Scope, label string, actorID string) error
 	ListCredentials(ctx context.Context, owner Scope) ([]CredentialRecord, error)
 	CredentialForTest(ctx context.Context, owner Scope, label string) (CredentialRecord, error)
+	CredentialForResolution(ctx context.Context, owner Scope, credentialID string, providerID ProviderID) (CredentialRecord, error)
 	UpdateCredentialTestResult(ctx context.Context, credentialID string, status TestStatus, errorCode TestErrorCode) error
 	SelectModelProfile(ctx context.Context, input ModelProfileInput) error
 	ActiveModelProfile(ctx context.Context, owner Scope, purpose Purpose) (ModelProfile, error)
@@ -40,6 +41,25 @@ type SelectModelRequest struct {
 	ModelID      string
 	ParamsJSON   string
 	ActorID      string
+}
+
+type ResolveModelRequest struct {
+	Owner   Scope
+	Purpose Purpose
+	ActorID string
+}
+
+type ResolvedModel struct {
+	Owner            Scope
+	Purpose          Purpose
+	ProviderID       ProviderID
+	ModelID          string
+	ParamsJSON       string
+	CredentialID     string
+	CredentialLabel  string
+	APIKey           string
+	BillingOwnerType OwnerType
+	BillingOwnerID   string
 }
 
 func NewService(store CredentialStore, sealer SecretSealer, registry Registry) Service {
@@ -209,6 +229,48 @@ func (s Service) TestCredential(ctx context.Context, req TestCredentialRequest) 
 	return result, nil
 }
 
+func (s Service) ResolveActiveModel(ctx context.Context, req ResolveModelRequest) (ResolvedModel, error) {
+	if s.Store == nil {
+		return ResolvedModel{}, fmt.Errorf("credential store is required")
+	}
+	if s.Sealer == nil {
+		return ResolvedModel{}, fmt.Errorf("secret sealer is required")
+	}
+
+	owner, purpose, err := normalizeResolveModelRequest(req)
+	if err != nil {
+		return ResolvedModel{}, err
+	}
+	profile, err := s.Store.ActiveModelProfile(ctx, owner, purpose)
+	if err != nil {
+		return ResolvedModel{}, err
+	}
+	credential, err := s.Store.CredentialForResolution(ctx, owner, profile.CredentialID, profile.ProviderID)
+	if err != nil {
+		return ResolvedModel{}, err
+	}
+	secret, err := s.Sealer.Open(ctx, SealedSecret{
+		Ciphertext: append([]byte(nil), credential.Ciphertext...),
+		Nonce:      append([]byte(nil), credential.Nonce...),
+		KeyID:      credential.KeyID,
+	}, []byte(credentialAAD(owner, credential.ProviderID, credential.Label)))
+	if err != nil {
+		return ResolvedModel{}, fmt.Errorf("open credential secret: %w", err)
+	}
+	return ResolvedModel{
+		Owner:            owner,
+		Purpose:          purpose,
+		ProviderID:       profile.ProviderID,
+		ModelID:          profile.ModelID,
+		ParamsJSON:       profile.ParamsJSON,
+		CredentialID:     credential.ID,
+		CredentialLabel:  credential.Label,
+		APIKey:           string(secret),
+		BillingOwnerType: owner.OwnerType,
+		BillingOwnerID:   billingOwnerID(owner),
+	}, nil
+}
+
 func (s Service) normalizeAddCredentialRequest(req AddCredentialRequest) (Scope, ProviderID, string, string, error) {
 	owner, err := normalizeScope(req.Owner)
 	if err != nil {
@@ -244,6 +306,32 @@ func normalizeTestCredentialRequest(req TestCredentialRequest) (Scope, string, e
 		return Scope{}, "", fmt.Errorf("actor user ID is required")
 	}
 	return owner, label, nil
+}
+
+func normalizeResolveModelRequest(req ResolveModelRequest) (Scope, Purpose, error) {
+	owner, err := normalizeScope(req.Owner)
+	if err != nil {
+		return Scope{}, "", err
+	}
+	if err := ValidatePurpose(req.Purpose); err != nil {
+		return Scope{}, "", err
+	}
+	actorID := strings.TrimSpace(req.ActorID)
+	if actorID == "" {
+		return Scope{}, "", fmt.Errorf("actor user ID is required")
+	}
+	return owner, req.Purpose, nil
+}
+
+func billingOwnerID(owner Scope) string {
+	switch owner.OwnerType {
+	case OwnerGuild:
+		return owner.GuildID
+	case OwnerUser:
+		return owner.UserID
+	default:
+		return string(owner.OwnerType)
+	}
 }
 
 func (s Service) modelProfileInput(req SelectModelRequest) (ModelProfileInput, error) {

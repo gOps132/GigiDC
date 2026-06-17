@@ -448,6 +448,67 @@ limit 1
 	return record, nil
 }
 
+func (s SQLStore) CredentialForResolution(ctx context.Context, owner Scope, credentialID string, providerID ProviderID) (CredentialRecord, error) {
+	owner, err := normalizeScope(owner)
+	if err != nil {
+		return CredentialRecord{}, err
+	}
+	credentialID = strings.TrimSpace(credentialID)
+	providerID = ProviderID(strings.TrimSpace(string(providerID)))
+	if credentialID == "" {
+		return CredentialRecord{}, fmt.Errorf("credential ID is required")
+	}
+	if err := ValidateProvider(providerID); err != nil {
+		return CredentialRecord{}, err
+	}
+	if s.query == nil {
+		return CredentialRecord{}, fmt.Errorf("llm provider query database is required")
+	}
+	rows, err := s.query(ctx, `
+select
+  id,
+  owner_type,
+  guild_id,
+  user_id,
+  provider_id,
+  label,
+  credential_key_id,
+  credential_fingerprint,
+  status,
+  last_test_status,
+  last_error_code,
+  created_by_user_id,
+  updated_by_user_id,
+  credential_ciphertext,
+  credential_nonce
+from llm_credentials
+where id = $1
+  and provider_id = $2
+  and owner_type = $3
+  and guild_id is not distinct from $4
+  and user_id is not distinct from $5
+  and status = 'active'
+  and revoked_at is null
+limit 1
+`, credentialID, providerID, owner.OwnerType, nullArg(owner.GuildID), nullArg(owner.UserID))
+	if err != nil {
+		return CredentialRecord{}, err
+	}
+	defer rows.Close()
+
+	record, ok, err := scanCredentialRecordWithSecret(rows)
+	if err != nil {
+		return CredentialRecord{}, err
+	}
+	if !ok {
+		return CredentialRecord{}, fmt.Errorf("active credential was not found")
+	}
+	if err := rows.Err(); err != nil {
+		return CredentialRecord{}, err
+	}
+	return record, nil
+}
+
 func (s SQLStore) UpdateCredentialTestResult(ctx context.Context, credentialID string, status TestStatus, errorCode TestErrorCode) error {
 	credentialID = strings.TrimSpace(credentialID)
 	if credentialID == "" {
