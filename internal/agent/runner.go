@@ -81,6 +81,10 @@ func (r Runner) Run(ctx context.Context, request Request) (Response, bool, error
 		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "dry_run", map[string]string{"intent": safeAuditValue(plan.Intent)})
 		return Response{Text: formatDryRunPlan(plan)}, true, nil
 	}
+	if r.maxSteps() > 0 && plannedStepCount(plan) > r.maxSteps() {
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, "step_budget_exceeded", map[string]string{"intent": safeAuditValue(plan.Intent)})
+		return Response{Text: "Agent step budget exceeded."}, true, nil
+	}
 	if r.maxToolCalls() > 0 && len(plan.ToolCalls) > r.maxToolCalls() {
 		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, "tool_budget_exceeded", map[string]string{"intent": safeAuditValue(plan.Intent)})
 		return Response{Text: "Agent tool budget exceeded."}, true, nil
@@ -94,6 +98,10 @@ func (r Runner) maxToolCalls() int {
 		return r.Limits.MaxToolCalls
 	}
 	return 5
+}
+
+func (r Runner) maxSteps() int {
+	return r.Limits.MaxSteps
 }
 
 func (r Runner) maxLLMCalls() int {
@@ -112,4 +120,8 @@ func capabilityMetadata(required capability.Capability) map[string]string {
 		return nil
 	}
 	return map[string]string{"capability": string(required)}
+}
+
+func plannedStepCount(plan Plan) int {
+	return 2 + len(plan.ToolCalls)
 }

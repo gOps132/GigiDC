@@ -256,6 +256,29 @@ func TestRunnerStopsWhenToolBudgetExceeded(t *testing.T) {
 	}
 }
 
+func TestRunnerStopsWhenStepBudgetExceeded(t *testing.T) {
+	tool := &fakeTool{}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "steps", ToolCalls: []ToolCall{{Name: "fake.tool"}}}},
+		Policy:  RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools: NewRegistry(tool),
+		},
+		Limits: Limits{MaxSteps: 2},
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "Agent step budget exceeded." {
+		t.Fatalf("response=%+v handled=%v, want step budget response", response, handled)
+	}
+	if tool.called {
+		t.Fatalf("tool called after step budget exceeded")
+	}
+}
+
 func TestRunnerSkipsAnswererWhenLLMBudgetExceeded(t *testing.T) {
 	recorder := &fakeAgentAuditRecorder{}
 	answerer := &fakeAnswerer{}
