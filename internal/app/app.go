@@ -127,7 +127,15 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			semanticPlanner,
 			policyStore,
 		)
-		messageHandler := discord.MemoryQuestionHandler(memoryStore, evaluator, auditStore, externalAppHandler)
+		semanticMemoryHandler := discord.SemanticMemoryHandler(
+			memoryStore,
+			evaluator,
+			auditStore,
+			policyStore,
+			assistant.SemanticMemoryPlanner{Runtime: llmRuntime},
+			externalAppHandler,
+		)
+		messageHandler := discord.MemoryQuestionHandler(memoryStore, evaluator, auditStore, semanticMemoryHandler)
 		messageRouter, err := discord.NewMessageRouter(cfg.DiscordClientID, messageHandler, nil, memoryIngestor)
 		if err != nil {
 			_ = db.Close()
