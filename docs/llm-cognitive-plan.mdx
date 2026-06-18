@@ -130,12 +130,15 @@ Agent-runtime V0 should add:
 
 - A single `AgentHandler` fallback behind deterministic external app matching. Started with agent-backed chat fallback and `/ask`.
 - A typed planner contract for intents, context requests, tool calls, clarification questions, and confirmation requirements. Started for memory planning.
+- A general `AgentRunner` with `MaxSteps`, `MaxToolCalls`, LLM-call budget, and redacted trace. This runner should replace one-shot planning internals while preserving current behavior.
+- A split policy/executor/answerer core: policy owns routing mode, context scope, capability checks, and confirmation rules; executor owns tool lookup, dry-run behavior, execution, masked errors, and trace events; answerer owns final response synthesis.
 - A native tool registry with at least `memory.count`, `memory.search`, `memory.recent`, `plugins.plan`, and `llm.chat`. Started with `memory.count`, `memory.search`, `memory.recent`, and chat fallback.
 - A context broker that decides whether a question needs no context, current-channel context, permitted guild memory, or enabled plugin catalog context. Started with bounded snippet packing.
 - A token packer that reserves budget for system instructions, tool results, citations, and output, then trims context deterministically. Started with deterministic character-budget snippet packing.
 - Read-only tool execution for memory and usage-style queries after capability and channel visibility checks. Started with current-channel memory tools and capability checks.
 - Public-safe external app dispatch only through existing manifest-grounded `send_message` rules; restricted actions remain dry-run or confirmation-required.
 - Audits for `agent.plan`, `agent.tool`, `agent.answer`, and `agent.confirmation` using request IDs, status, scopes, tool names, token counts, and redacted metadata only.
+- Compatibility migration from current wrappers: keep exact fast paths while agent-native tools replace `SemanticMemoryHandler`, `AssistantFallbackHandler`, and later semantic plugin handling.
 
 Deferred beyond V0:
 

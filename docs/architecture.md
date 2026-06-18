@@ -26,10 +26,14 @@ Discord Gateway
   -> Go runtime
      -> interaction and DM router
      -> agent runtime core
+        -> runner
         -> planner
+        -> policy
+        -> executor
         -> context broker
         -> native tool registry
         -> answer composer
+        -> redacted trace
      -> capability engine
      -> external app integration catalog
      -> durable jobs and outbox
@@ -54,7 +58,7 @@ Discord Gateway
 - `internal/llm`: provider-backed text client contracts and HTTP callers for OpenAI, Anthropic, Gemini, and custom-compatible providers.
 - `internal/llm/provider`: provider registry, encrypted credentials, model profiles, usage records, provider testing, and credential resolution for OpenAI, Anthropic, Gemini, and future providers.
 - `internal/assistant`: current surface-independent orchestration for guild-mention chat, metadata-only conversation turns, native memory planning, and semantic plugin routing.
-- `internal/agent`: planned agent runtime core for request planning, context/tool orchestration, answer composition, confirmation, and audit-friendly traces.
+- `internal/agent`: agent runtime core for bounded runs, request planning, policy checks, tool execution, answer composition, confirmation, and audit-friendly traces.
 - `internal/contextbroker`: planned scoped context retrieval layer for current-channel context, permitted guild memory, enabled plugin catalog summaries, and token-budgeted context packs.
 - `internal/tools`: planned registry for native deterministic tools and enabled external app tool surfaces.
 
@@ -68,9 +72,11 @@ LLM provider storage supports multiple credential owners from the first schema: 
 
 Gigi uses a provider registry with first-class OpenAI, Anthropic, and Gemini entries plus room for custom providers. Model profiles are selected by purpose: `chat`, `reasoning`, `embedding`, and `routing`.
 
-The cognitive layer should evolve into the agent runtime core. Exact deterministic handlers remain first. If `/llm routing` is `dry-run` or `enabled`, the routing model may propose typed native memory tools or manifest-grounded external app plans. Gigi validates every proposal, applies capability checks, enforces channel visibility, and then either returns a dry-run plan or executes only allowed read-only/public-safe actions. If routing falls through, chat fallback can call the configured chat model and answer guild mentions.
+The cognitive layer should evolve into the agent runtime core. Exact deterministic handlers remain first. If `/llm routing` is `dry-run` or `enabled`, the routing model may propose typed native memory tools or manifest-grounded external app plans. Gigi validates every proposal through the runner policy, applies capability checks, enforces channel visibility, and then either returns a dry-run plan or executes only allowed read-only/public-safe actions through the executor. If routing falls through, chat fallback can call the configured chat model and answer guild mentions.
 
 The core invariant is: LLM output is only a proposal. Gigi builds final action plans from registered native tool schemas, stored manifests, capability checks, confirmation policy, channel visibility rules, and audit rules. Deterministic tools such as `memory.count`, `memory.search`, `plugins.plan`, `permissions.check`, and usage summaries remain the source of truth. Natural language changes the path into those tools; it does not replace them.
+
+The runner is bounded. V0 defaults should keep runs short: a small step limit, a small tool-call limit, and a small LLM-call budget. Every step appends a redacted trace entry. Traces and audit metadata may include request IDs, tool names, status, capability, scope, and result counts, but not raw prompts, raw snippets, provider payloads, or secrets.
 
 Personal BYOK should not be required for v0. A guild admin may provide a provider key, but once it powers shared server behavior, Gigi treats it as a guild credential governed by guild policy and audit. V1 can add optional user-owned keys for DMs and explicit guild-approved personal billing, but personal keys must not grant capabilities or silently process guild context.
 

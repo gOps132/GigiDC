@@ -186,6 +186,7 @@ func (r *fakeAgentAuditRecorder) Record(ctx context.Context, event audit.Event) 
 
 type fakeTool struct {
 	called bool
+	err    error
 }
 
 func (t *fakeTool) Spec() ToolSpec {
@@ -194,6 +195,9 @@ func (t *fakeTool) Spec() ToolSpec {
 
 func (t *fakeTool) Execute(ctx context.Context, request Request, call ToolCall) (ToolResult, error) {
 	t.called = true
+	if t.err != nil {
+		return ToolResult{}, t.err
+	}
 	return ToolResult{Name: "fake.tool", Summary: "fake result"}, nil
 }
 
