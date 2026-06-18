@@ -40,6 +40,9 @@ func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request
 	if h.Planner == nil || request.Surface != SurfaceGuildMention || request.GuildID == "" {
 		return Response{}, false, nil
 	}
+	if request.ContextScope == "none" {
+		return Response{}, false, nil
+	}
 	mode, err := h.toolRoutingMode(ctx, request.GuildID)
 	if err != nil {
 		_ = h.record(ctx, request, "agent.plan", audit.StatusFailed, "routing_policy_failed", nil)

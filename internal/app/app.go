@@ -122,6 +122,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		}
 		semanticPlanner := assistant.SemanticPluginPlanner{Runtime: llmRuntime}
 		commands := discord.CoreCommands()
+		commands = append(commands, discord.AskCommand(agentRuntime))
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
 		commands = append(commands, discord.LLMCommands(providerService, auditStore, discord.LLMCommandConfig{

@@ -27,6 +27,7 @@ type Request struct {
 	ActorUserID      string
 	RoleIDs          []string
 	HasAdministrator bool
+	ContextScope     string
 	Text             string
 	RawText          string
 }
@@ -74,6 +75,7 @@ func NormalizeRequest(request Request) Request {
 	request.GuildID = strings.TrimSpace(request.GuildID)
 	request.ChannelID = strings.TrimSpace(request.ChannelID)
 	request.ActorUserID = strings.TrimSpace(request.ActorUserID)
+	request.ContextScope = strings.TrimSpace(request.ContextScope)
 	request.Text = strings.TrimSpace(request.Text)
 	request.RawText = strings.TrimSpace(request.RawText)
 	request.RoleIDs = append([]string(nil), request.RoleIDs...)
