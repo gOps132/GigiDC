@@ -63,6 +63,20 @@ func TestLLMPlannerUsesPriorRunInPrompt(t *testing.T) {
 	}
 }
 
+func TestLLMPlannerAllowsAnswerFromPriorPlan(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: `{"intent":"answer_from_prior","tool_calls":[]}`}}
+	request := agentTestRequest()
+	request.PriorRun = &RunSnapshot{Intent: "memory.recent", Results: []ToolResult{{Name: ToolMemoryRecent, Summary: "prior result"}}}
+
+	plan, ok, err := (LLMPlanner{Runtime: runtime}).Plan(context.Background(), request, []ToolSpec{{Name: ToolMemoryRecent}})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if !ok || plan.Intent != "answer_from_prior" || len(plan.ToolCalls) != 0 {
+		t.Fatalf("plan=%+v ok=%v, want prior answer plan", plan, ok)
+	}
+}
+
 func TestLLMAnswererSynthesizesToolResults(t *testing.T) {
 	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: "Alice mentioned postgres, then Bob replied."}}
 	answerer := LLMAnswerer{Runtime: runtime}

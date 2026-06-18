@@ -57,7 +57,7 @@ func (p LLMPlanner) Plan(ctx context.Context, request Request, specs []ToolSpec)
 }
 
 func llmPlannerInstructions() string {
-	return "You are Gigi's tool planner. Return only JSON. You may only select listed tools. Do not answer the user. Use tools when they are needed for current-channel memory, plugin planning, permission checks, or usage summaries. Ask a clarifying_question only when needed. For follow-up questions, use prior run context if present or choose a tool to refresh context. Never invent tool names or arguments."
+	return "You are Gigi's tool planner. Return only JSON. You may only select listed tools. Do not answer the user. Use tools when they are needed for current-channel memory, plugin planning, permission checks, or usage summaries. Ask a clarifying_question only when needed. For follow-up questions, use prior run context if present or choose a tool to refresh context. If prior run context is enough to answer, return an intent with empty tool_calls so the answerer can respond from prior context. Never invent tool names or arguments."
 }
 
 func llmPlannerPrompt(request Request, specs []ToolSpec) string {
@@ -83,7 +83,7 @@ func llmPlannerPrompt(request Request, specs []ToolSpec) string {
 		b.WriteString(formatRunSnapshot(*request.PriorRun, 1800))
 		b.WriteString("\n")
 	}
-	b.WriteString("\nReturn JSON like {\"intent\":\"summarize_recent_chat\",\"tool_calls\":[{\"name\":\"memory.recent\",\"args\":{\"limit\":\"25\"}}]}. Return {} if no tool should run.")
+	b.WriteString("\nReturn JSON like {\"intent\":\"summarize_recent_chat\",\"tool_calls\":[{\"name\":\"memory.recent\",\"args\":{\"limit\":\"25\"}}]}. For follow-up answerable from prior context, return {\"intent\":\"answer_from_prior\",\"tool_calls\":[]}. Return {} if Gigi should ignore the message.")
 	return b.String()
 }
 
