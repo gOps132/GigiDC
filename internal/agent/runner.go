@@ -35,6 +35,9 @@ func (r Runner) Run(ctx context.Context, request Request) (Response, bool, error
 	trace := r.Trace.WithRunID(r.newRunID())
 	executor := r.Executor
 	executor.Trace = executor.Trace.inherit(trace)
+	if executor.Answerer != nil && r.maxLLMCalls() > 0 && r.maxLLMCalls() < 2 {
+		executor.SkipAnswerReason = "llm_budget_exceeded"
+	}
 	if r.Planner == nil || request.Surface != SurfaceGuildMention || request.GuildID == "" {
 		return Response{}, false, nil
 	}
@@ -91,6 +94,10 @@ func (r Runner) maxToolCalls() int {
 		return r.Limits.MaxToolCalls
 	}
 	return 5
+}
+
+func (r Runner) maxLLMCalls() int {
+	return r.Limits.Budget.MaxLLMCalls
 }
 
 func (r Runner) newRunID() string {

@@ -255,3 +255,33 @@ func TestRunnerStopsWhenToolBudgetExceeded(t *testing.T) {
 		t.Fatalf("tool called after budget exceeded")
 	}
 }
+
+func TestRunnerSkipsAnswererWhenLLMBudgetExceeded(t *testing.T) {
+	recorder := &fakeAgentAuditRecorder{}
+	answerer := &fakeAnswerer{}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "budget", ToolCalls: []ToolCall{{Name: "fake.tool"}}}},
+		Policy:  RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools:    NewRegistry(&fakeTool{}),
+			Answerer: answerer,
+		},
+		Trace:    Trace{Recorder: recorder},
+		Limits:   Limits{Budget: Budget{MaxLLMCalls: 1}},
+		NewRunID: func() string { return "run-budget" },
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "fake result" {
+		t.Fatalf("response=%+v handled=%v, want tool summary fallback", response, handled)
+	}
+	if answerer.called {
+		t.Fatalf("answerer called after LLM budget exceeded")
+	}
+	if len(recorder.events) != 2 || recorder.events[1].Kind != "agent.answer" || recorder.events[1].Reason != "llm_budget_exceeded" {
+		t.Fatalf("events=%+v, want answer budget trace", recorder.events)
+	}
+}

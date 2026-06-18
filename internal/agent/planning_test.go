@@ -184,6 +184,15 @@ func (r *fakeAgentAuditRecorder) Record(ctx context.Context, event audit.Event) 
 	return nil
 }
 
+type fakeAnswerer struct {
+	called bool
+}
+
+func (a *fakeAnswerer) Answer(ctx context.Context, request Request, plan Plan, results []ToolResult) (Response, error) {
+	a.called = true
+	return Response{Text: "answerer response"}, nil
+}
+
 type fakeTool struct {
 	name       string
 	called     bool

@@ -7,10 +7,11 @@ import (
 )
 
 type Executor struct {
-	Tools    Registry
-	Answerer Answerer
-	Policy   RoutingPolicy
-	Trace    Trace
+	Tools            Registry
+	Answerer         Answerer
+	SkipAnswerReason string
+	Policy           RoutingPolicy
+	Trace            Trace
 }
 
 func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Response, error) {
@@ -64,6 +65,10 @@ func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Resp
 	}
 	answerTrace := e.Trace.WithStep(len(plan.ToolCalls) + 1)
 	if e.Answerer != nil {
+		if e.SkipAnswerReason != "" {
+			_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusFailed, e.SkipAnswerReason, map[string]string{"intent": safeAuditValue(plan.Intent)})
+			return Response{Text: formatToolResults(results)}, nil
+		}
 		response, err := e.Answerer.Answer(ctx, request, plan, results)
 		if err != nil {
 			_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusFailed, "answer_failed", map[string]string{"intent": safeAuditValue(plan.Intent)})
