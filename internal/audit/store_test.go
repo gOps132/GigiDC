@@ -52,6 +52,23 @@ func TestStoreRejectsInvalidEventBeforeInsert(t *testing.T) {
 	}
 }
 
+func TestStoreRejectsUnknownStatusBeforeInsert(t *testing.T) {
+	db := &fakeExecDB{}
+	store := NewStore(db, func() string { return "audit-id" })
+
+	err := store.Record(context.Background(), Event{
+		Kind:    "discord.agent",
+		ActorID: "user-id",
+		Status:  Status("weird"),
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if db.calls != 0 {
+		t.Fatalf("exec calls = %d, want 0", db.calls)
+	}
+}
+
 func TestStoreReturnsDatabaseError(t *testing.T) {
 	db := &fakeExecDB{err: errors.New("db down")}
 	store := NewStore(db, func() string { return "audit-id" })
