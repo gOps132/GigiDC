@@ -644,6 +644,37 @@ Examples:
 
 Privacy and audit: the agent path records scoped metadata such as tool names, status, and intent. It does not store raw prompt text, raw memory snippets, provider responses, or secrets in audit metadata.
 
+### `/agent trace last`
+
+Status: live.
+
+Required Gigi capability: none. The command only shows your own last agent run in the current channel.
+
+Syntax:
+
+```text
+/agent trace last visibility:<private|public?>
+```
+
+Expected response:
+
+```text
+Last agent run `agentrun_...`:
+status: `succeeded`
+- `plan` succeeded routing=`enabled`
+- `1` `tool` succeeded tool=`memory.recent` kind=`read`
+- `2` `answer` succeeded
+```
+
+Use this after a guild mention or `/ask` request to see which planner/tool/answer path Gigi used. The default response is private.
+
+Failure cases:
+
+- no prior agent run exists for you in this channel
+- trace storage is unavailable in the current process
+
+Privacy and audit: trace output is safe metadata only. It does not include raw prompts, raw memory snippets, provider responses, secrets, or raw external commands.
+
 ## Planned LLM Commands
 
 These commands are not implemented yet.
