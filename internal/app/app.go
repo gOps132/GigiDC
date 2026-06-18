@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gOps132/GigiDC/internal/agent"
 	"github.com/gOps132/GigiDC/internal/assistant"
 	"github.com/gOps132/GigiDC/internal/audit"
 	"github.com/gOps132/GigiDC/internal/buildinfo"
@@ -100,6 +101,11 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		}
 		assistantHandler := assistant.NewHandler(llmRuntime)
 		assistantHandler.Recorder = conversationStore
+		agentRuntime := agent.Runtime{
+			Handlers: []agent.Handler{
+				agent.ChatHandler{Responder: assistantHandler},
+			},
+		}
 		semanticPlanner := assistant.SemanticPluginPlanner{Runtime: llmRuntime}
 		commands := discord.CoreCommands()
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
@@ -123,7 +129,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			pluginStore,
 			evaluator,
 			auditStore,
-			discord.AssistantFallbackHandler(assistantHandler, discord.CoreMessageHandler()),
+			discord.AgentMessageHandler(agentRuntime, discord.CoreMessageHandler()),
 			semanticPlanner,
 			policyStore,
 		)
