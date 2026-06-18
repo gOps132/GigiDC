@@ -105,18 +105,22 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		agentRuntime := agent.Runtime{
 			Handlers: []agent.Handler{
 				agent.PlanningHandler{
-					Planner: agent.SemanticMemoryPlannerAdapter{
-						Planner: assistant.SemanticMemoryPlanner{Runtime: llmRuntime},
+					Planner: agent.MultiPlanner{
+						agent.HeuristicToolPlanner{},
+						agent.SemanticMemoryPlannerAdapter{Planner: assistant.SemanticMemoryPlanner{Runtime: llmRuntime}},
 					},
 					Tools: agent.NewRegistry(
 						agent.MemoryCountTool{Store: memoryStore, Checker: evaluator},
 						agent.MemorySearchTool{Store: memoryStore, Checker: evaluator},
 						agent.MemoryRecentTool{Store: memoryStore, Checker: evaluator},
+						agent.PluginsEnabledTool{Registry: pluginStore},
+						agent.PluginPlanTool{Registry: pluginStore, Checker: evaluator},
+						agent.PermissionsCheckTool{Checker: evaluator},
+						agent.LLMUsageGuildTool{Reporter: usageRecorder},
 					),
-					Policy:                       policyStore,
-					Checker:                      evaluator,
-					Recorder:                     auditStore,
-					RequiredCapabilityBeforePlan: "memory.read.guild",
+					Policy:   policyStore,
+					Checker:  evaluator,
+					Recorder: auditStore,
 				},
 				agent.ChatHandler{Responder: assistantHandler},
 			},

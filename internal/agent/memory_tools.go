@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gOps132/GigiDC/internal/capability"
 	"github.com/gOps132/GigiDC/internal/memory"
@@ -104,11 +105,11 @@ func (t MemorySearchTool) Execute(ctx context.Context, request Request, call Too
 	}
 	return ToolResult{
 		Name:    ToolMemorySearch,
-		Summary: formatMemorySearchSummary(query, len(results)),
-		Data: map[string]string{
+		Summary: formatMemoryResultsSummary(fmt.Sprintf("Memory search for `%s`", safeInline(query)), results),
+		Data: mergeToolData(map[string]string{
 			"matches": strconv.Itoa(len(results)),
 			"scope":   "this-channel",
-		},
+		}, memoryResultsData(results)),
 	}, nil
 }
 
@@ -145,11 +146,11 @@ func (t MemoryRecentTool) Execute(ctx context.Context, request Request, call Too
 	}
 	return ToolResult{
 		Name:    ToolMemoryRecent,
-		Summary: fmt.Sprintf("Loaded %d recent retained full-mode messages from this channel.", len(results)),
-		Data: map[string]string{
+		Summary: formatMemoryResultsSummary("Recent retained full-mode messages in this channel", results),
+		Data: mergeToolData(map[string]string{
 			"messages": strconv.Itoa(len(results)),
 			"scope":    "this-channel",
-		},
+		}, memoryResultsData(results)),
 	}, nil
 }
 
@@ -193,11 +194,66 @@ func formatMemoryCountSummary(targetUserID string, text string, count int) strin
 	return fmt.Sprintf("<@%s> mentioned `%s` %d times in this channel.", safeInline(targetUserID), safeInline(text), count)
 }
 
-func formatMemorySearchSummary(query string, count int) string {
-	if count == 0 {
-		return fmt.Sprintf("Memory search found no retained full-mode matches for `%s` in this channel.", safeInline(query))
+func formatMemoryResultsSummary(title string, results []memory.SearchResult) string {
+	if len(results) == 0 {
+		return title + ": no retained full-mode matches."
 	}
-	return fmt.Sprintf("Memory search found %d retained full-mode matches for `%s` in this channel.", count, safeInline(query))
+	lines := []string{fmt.Sprintf("%s (%d):", title, len(results))}
+	for _, result := range results {
+		lines = append(lines, fmt.Sprintf("- <@%s>: %s", safeInline(result.AuthorUserID), safeInlineLimit(result.Text, 140)))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func memoryResultsData(results []memory.SearchResult) map[string]string {
+	data := map[string]string{}
+	messageIDs := make([]string, 0, len(results))
+	authors := make([]string, 0, len(results))
+	snippets := make([]string, 0, len(results))
+	var newest time.Time
+	var oldest time.Time
+	for _, result := range results {
+		if result.MessageID != "" {
+			messageIDs = append(messageIDs, result.MessageID)
+		}
+		if result.AuthorUserID != "" {
+			authors = append(authors, result.AuthorUserID)
+		}
+		if result.Text != "" {
+			snippets = append(snippets, safeInlineLimit(result.Text, 180))
+		}
+		if !result.CreatedAt.IsZero() {
+			if newest.IsZero() || result.CreatedAt.After(newest) {
+				newest = result.CreatedAt
+			}
+			if oldest.IsZero() || result.CreatedAt.Before(oldest) {
+				oldest = result.CreatedAt
+			}
+		}
+	}
+	if len(messageIDs) > 0 {
+		data["message_ids"] = strings.Join(messageIDs, ",")
+	}
+	if len(authors) > 0 {
+		data["author_user_ids"] = strings.Join(authors, ",")
+	}
+	if len(snippets) > 0 {
+		data["snippets"] = strings.Join(snippets, "\n")
+	}
+	if !newest.IsZero() {
+		data["newest_created_at"] = newest.UTC().Format(time.RFC3339)
+	}
+	if !oldest.IsZero() {
+		data["oldest_created_at"] = oldest.UTC().Format(time.RFC3339)
+	}
+	return data
+}
+
+func mergeToolData(base map[string]string, extra map[string]string) map[string]string {
+	for key, value := range extra {
+		base[key] = value
+	}
+	return base
 }
 
 func safeInline(value string) string {
@@ -205,5 +261,13 @@ func safeInline(value string) string {
 	value = strings.ReplaceAll(value, "`", "'")
 	value = strings.ReplaceAll(value, "\n", " ")
 	value = strings.ReplaceAll(value, "\r", " ")
+	return value
+}
+
+func safeInlineLimit(value string, limit int) string {
+	value = safeInline(value)
+	if limit > 0 && len(value) > limit {
+		return value[:limit] + "..."
+	}
 	return value
 }

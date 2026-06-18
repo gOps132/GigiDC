@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gOps132/GigiDC/internal/audit"
 	"github.com/gOps132/GigiDC/internal/capability"
@@ -121,7 +122,12 @@ func TestPlanningHandlerPassesRunnerLimits(t *testing.T) {
 }
 
 func TestMemoryRecentToolExecutes(t *testing.T) {
-	store := &fakeAgentMemoryStore{results: []memory.SearchResult{{MessageID: "message-id"}}}
+	store := &fakeAgentMemoryStore{results: []memory.SearchResult{{
+		MessageID:    "message-id",
+		AuthorUserID: "user-id",
+		Text:         "postgres is neat",
+		CreatedAt:    time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC),
+	}}}
 	tool := MemoryRecentTool{
 		Store:   store,
 		Checker: fakeAgentCapabilityChecker{decision: capability.Decision{Allowed: true, Reason: capability.ReasonRoleGrant}},
@@ -134,8 +140,32 @@ func TestMemoryRecentToolExecutes(t *testing.T) {
 	if result.Name != ToolMemoryRecent || result.Data["messages"] != "1" {
 		t.Fatalf("result = %+v, want recent summary", result)
 	}
+	if result.Data["message_ids"] != "message-id" || !strings.Contains(result.Data["snippets"], "postgres is neat") {
+		t.Fatalf("data = %+v, want message detail payload", result.Data)
+	}
 	if store.recentReq.Limit != 25 {
 		t.Fatalf("limit = %d, want clamped 25", store.recentReq.Limit)
+	}
+}
+
+func TestMemorySearchToolIncludesResultDetails(t *testing.T) {
+	store := &fakeAgentMemoryStore{results: []memory.SearchResult{{
+		MessageID:    "m-1",
+		AuthorUserID: "user-id",
+		Text:         "postgres outage thread",
+		CreatedAt:    time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC),
+	}}}
+	tool := MemorySearchTool{
+		Store:   store,
+		Checker: fakeAgentCapabilityChecker{decision: capability.Decision{Allowed: true, Reason: capability.ReasonRoleGrant}},
+	}
+
+	result, err := tool.Execute(context.Background(), agentTestRequest(), ToolCall{Name: ToolMemorySearch, Args: map[string]string{"query": "postgres"}})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if result.Data["matches"] != "1" || result.Data["message_ids"] != "m-1" || !strings.Contains(result.Summary, "<@user-id>") {
+		t.Fatalf("result = %+v, want search detail payload", result)
 	}
 }
 
