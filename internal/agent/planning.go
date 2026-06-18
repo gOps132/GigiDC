@@ -35,9 +35,19 @@ type PlanningHandler struct {
 	RequiredCapabilityBeforePlan capability.Capability
 	Limits                       Limits
 	NewRunID                     func() string
+	FollowUps                    FollowUpStore
 }
 
 func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request) (Response, bool, error) {
+	if h.FollowUps != nil && request.PriorRun == nil {
+		snapshot, ok, err := h.FollowUps.Load(ctx, request)
+		if err != nil {
+			return Response{Text: "Agent context failed."}, true, nil
+		}
+		if ok {
+			request.PriorRun = &snapshot
+		}
+	}
 	trace := Trace{Recorder: h.Recorder, Source: "agent"}
 	policy := RoutingPolicy{
 		Policy:                       h.Policy,
@@ -48,10 +58,11 @@ func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request
 		Planner: h.Planner,
 		Policy:  policy,
 		Executor: Executor{
-			Tools:    h.Tools,
-			Answerer: h.Answerer,
-			Policy:   policy,
-			Trace:    trace,
+			Tools:     h.Tools,
+			Answerer:  h.Answerer,
+			Policy:    policy,
+			Trace:     trace,
+			FollowUps: h.FollowUps,
 		},
 		Trace:    trace,
 		Limits:   h.Limits,
