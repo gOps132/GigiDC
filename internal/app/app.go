@@ -111,6 +111,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 					Tools: agent.NewRegistry(
 						agent.MemoryCountTool{Store: memoryStore, Checker: evaluator},
 						agent.MemorySearchTool{Store: memoryStore, Checker: evaluator},
+						agent.MemoryRecentTool{Store: memoryStore, Checker: evaluator},
 					),
 					Policy:                       policyStore,
 					Checker:                      evaluator,

@@ -96,6 +96,25 @@ func TestPlanningHandlerExecutesToolWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestMemoryRecentToolExecutes(t *testing.T) {
+	store := &fakeAgentMemoryStore{results: []memory.SearchResult{{MessageID: "message-id"}}}
+	tool := MemoryRecentTool{
+		Store:   store,
+		Checker: fakeAgentCapabilityChecker{decision: capability.Decision{Allowed: true, Reason: capability.ReasonRoleGrant}},
+	}
+
+	result, err := tool.Execute(context.Background(), agentTestRequest(), ToolCall{Name: ToolMemoryRecent, Args: map[string]string{"limit": "50"}})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if result.Name != ToolMemoryRecent || result.Data["messages"] != "1" {
+		t.Fatalf("result = %+v, want recent summary", result)
+	}
+	if store.recentReq.Limit != 25 {
+		t.Fatalf("limit = %d, want clamped 25", store.recentReq.Limit)
+	}
+}
+
 func TestPlanningHandlerMasksPlannerError(t *testing.T) {
 	handler := PlanningHandler{
 		Planner: &fakePlanner{err: errors.New("provider raw error")},
@@ -179,8 +198,9 @@ func (t *fakeTool) Execute(ctx context.Context, request Request, call ToolCall) 
 }
 
 type fakeAgentMemoryStore struct {
-	count   memory.CountResult
-	results []memory.SearchResult
+	count     memory.CountResult
+	results   []memory.SearchResult
+	recentReq memory.RecentRequest
 }
 
 func (s *fakeAgentMemoryStore) CountMentions(ctx context.Context, req memory.CountRequest) (memory.CountResult, error) {
@@ -188,5 +208,10 @@ func (s *fakeAgentMemoryStore) CountMentions(ctx context.Context, req memory.Cou
 }
 
 func (s *fakeAgentMemoryStore) SearchMessages(ctx context.Context, req memory.SearchRequest) ([]memory.SearchResult, error) {
+	return s.results, nil
+}
+
+func (s *fakeAgentMemoryStore) RecentMessages(ctx context.Context, req memory.RecentRequest) ([]memory.SearchResult, error) {
+	s.recentReq = req
 	return s.results, nil
 }

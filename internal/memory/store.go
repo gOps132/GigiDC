@@ -89,6 +89,13 @@ type SearchRequest struct {
 	Limit        int
 }
 
+type RecentRequest struct {
+	GuildID      string
+	ChannelID    string
+	AuthorUserID string
+	Limit        int
+}
+
 type SearchResult struct {
 	MessageID    string
 	ChannelID    string
@@ -421,6 +428,48 @@ limit $5
 	return results, nil
 }
 
+func (s SQLStore) RecentMessages(ctx context.Context, req RecentRequest) ([]SearchResult, error) {
+	req = normalizeRecentRequest(req)
+	if req.GuildID == "" {
+		return nil, fmt.Errorf("guild ID is required")
+	}
+	if req.ChannelID == "" {
+		return nil, fmt.Errorf("channel ID is required")
+	}
+	if s.query == nil {
+		return nil, fmt.Errorf("memory query database is required")
+	}
+	rows, err := s.query(ctx, `
+select message_id, channel_id, author_user_id, normalized_text, created_at
+from guild_memory_messages
+where guild_id = $1
+  and channel_id = $2
+  and ($3 = '' or author_user_id = $3)
+  and normalized_text is not null
+  and deleted_at is null
+  and retention_until > now()
+order by created_at desc
+limit $4
+`, req.GuildID, req.ChannelID, req.AuthorUserID, req.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []SearchResult
+	for rows.Next() {
+		var result SearchResult
+		if err := rows.Scan(&result.MessageID, &result.ChannelID, &result.AuthorUserID, &result.Text, &result.CreatedAt); err != nil {
+			return nil, err
+		}
+		results = append(results, result)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
 func DefaultPolicy(guildID string) Policy {
 	return Policy{
 		GuildID:              strings.TrimSpace(guildID),
@@ -517,6 +566,19 @@ func normalizeSearchRequest(req SearchRequest) SearchRequest {
 	}
 	if req.Limit < 1 {
 		req.Limit = 1
+	}
+	if req.Limit > 25 {
+		req.Limit = 25
+	}
+	return req
+}
+
+func normalizeRecentRequest(req RecentRequest) RecentRequest {
+	req.GuildID = strings.TrimSpace(req.GuildID)
+	req.ChannelID = strings.TrimSpace(req.ChannelID)
+	req.AuthorUserID = strings.TrimSpace(req.AuthorUserID)
+	if req.Limit < 1 {
+		req.Limit = 5
 	}
 	if req.Limit > 25 {
 		req.Limit = 25

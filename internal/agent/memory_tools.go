@@ -13,11 +13,13 @@ import (
 const (
 	ToolMemoryCount  = "memory.count"
 	ToolMemorySearch = "memory.search"
+	ToolMemoryRecent = "memory.recent"
 )
 
 type MemoryStore interface {
 	CountMentions(context.Context, memory.CountRequest) (memory.CountResult, error)
 	SearchMessages(context.Context, memory.SearchRequest) ([]memory.SearchResult, error)
+	RecentMessages(context.Context, memory.RecentRequest) ([]memory.SearchResult, error)
 }
 
 type MemoryCountTool struct {
@@ -106,6 +108,47 @@ func (t MemorySearchTool) Execute(ctx context.Context, request Request, call Too
 		Data: map[string]string{
 			"matches": strconv.Itoa(len(results)),
 			"scope":   "this-channel",
+		},
+	}, nil
+}
+
+type MemoryRecentTool struct {
+	Store   MemoryStore
+	Checker CapabilityChecker
+}
+
+func (t MemoryRecentTool) Spec() ToolSpec {
+	return ToolSpec{
+		Name:        ToolMemoryRecent,
+		Description: "Fetch recent retained current-channel guild memory messages.",
+		Kind:        ToolKindRead,
+		Capability:  "memory.read.guild",
+	}
+}
+
+func (t MemoryRecentTool) Execute(ctx context.Context, request Request, call ToolCall) (ToolResult, error) {
+	if err := checkMemoryToolAccess(ctx, t.Checker, request); err != nil {
+		return ToolResult{}, err
+	}
+	if t.Store == nil {
+		return ToolResult{}, fmt.Errorf("memory store is required")
+	}
+	limit := parseLimit(call.Args["limit"], 5, 25)
+	results, err := t.Store.RecentMessages(ctx, memory.RecentRequest{
+		GuildID:      request.GuildID,
+		ChannelID:    request.ChannelID,
+		AuthorUserID: strings.TrimSpace(call.Args["target_user_id"]),
+		Limit:        limit,
+	})
+	if err != nil {
+		return ToolResult{}, err
+	}
+	return ToolResult{
+		Name:    ToolMemoryRecent,
+		Summary: fmt.Sprintf("Loaded %d recent retained full-mode messages from this channel.", len(results)),
+		Data: map[string]string{
+			"messages": strconv.Itoa(len(results)),
+			"scope":    "this-channel",
 		},
 	}, nil
 }
