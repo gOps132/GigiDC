@@ -9,6 +9,7 @@ func TestKnownCapabilitiesIncludeFixedPermissionChoices(t *testing.T) {
 		"plugin.install",
 		"job.admin",
 		"memory.read.guild",
+		"memory.manage.guild",
 		"relay.dispatch",
 		"relay.receive",
 		"llm.provider.write",
@@ -25,6 +26,22 @@ func TestKnownCapabilitiesIncludeFixedPermissionChoices(t *testing.T) {
 }
 
 func TestPresetCapabilities(t *testing.T) {
+	adminCaps, ok := PresetCapabilities("gigi-admin")
+	if !ok {
+		t.Fatal("gigi-admin preset missing")
+	}
+	if !contains(adminCaps, "memory.read.guild") || !contains(adminCaps, "memory.manage.guild") {
+		t.Fatalf("gigi-admin caps = %+v, want memory read/manage", adminCaps)
+	}
+
+	memoryCaps, ok := PresetCapabilities("memory-manager")
+	if !ok {
+		t.Fatal("memory-manager preset missing")
+	}
+	if !contains(memoryCaps, "memory.read.guild") || !contains(memoryCaps, "memory.manage.guild") {
+		t.Fatalf("memory-manager caps = %+v, want memory read/manage", memoryCaps)
+	}
+
 	caps, ok := PresetCapabilities("relay-user")
 	if !ok {
 		t.Fatal("relay-user preset missing")

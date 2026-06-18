@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/gOps132/GigiDC/internal/memory"
 )
 
 type MessageSurface string
@@ -72,12 +73,17 @@ type messageSender interface {
 }
 
 type MessageRouter struct {
-	botUserID string
-	handler   MessageHandler
-	audit     AuditSink
+	botUserID      string
+	handler        MessageHandler
+	audit          AuditSink
+	memoryIngestor GuildMemoryIngestor
 }
 
-func NewMessageRouter(botUserID string, handler MessageHandler, audit AuditSink) (*MessageRouter, error) {
+type GuildMemoryIngestor interface {
+	TryEnqueueMessage(event memory.MessageEvent) bool
+}
+
+func NewMessageRouter(botUserID string, handler MessageHandler, audit AuditSink, memoryIngestors ...GuildMemoryIngestor) (*MessageRouter, error) {
 	botUserID = strings.TrimSpace(botUserID)
 	if botUserID == "" {
 		return nil, fmt.Errorf("bot user ID is required")
@@ -89,9 +95,10 @@ func NewMessageRouter(botUserID string, handler MessageHandler, audit AuditSink)
 		audit = noopAuditSink{}
 	}
 	return &MessageRouter{
-		botUserID: botUserID,
-		handler:   handler,
-		audit:     audit,
+		botUserID:      botUserID,
+		handler:        handler,
+		audit:          audit,
+		memoryIngestor: firstMemoryIngestor(memoryIngestors),
 	}, nil
 }
 
@@ -109,6 +116,7 @@ func (r *MessageRouter) HandleMessage(ctx context.Context, sender messageSender,
 	if event == nil || event.Message == nil || event.Author == nil || event.Author.Bot {
 		return nil
 	}
+	r.enqueueMemory(event.Message)
 
 	message, ok := r.route(event.Message)
 	if !ok {
@@ -142,6 +150,27 @@ func (r *MessageRouter) HandleMessage(ctx context.Context, sender messageSender,
 		return fmt.Errorf("record discord audit event: %w", auditErr)
 	}
 	return nil
+}
+
+func (r *MessageRouter) enqueueMemory(message *discordgo.Message) {
+	if r == nil || r.memoryIngestor == nil || message == nil || message.Author == nil || strings.TrimSpace(message.GuildID) == "" {
+		return
+	}
+	r.memoryIngestor.TryEnqueueMessage(memory.MessageEvent{
+		MessageID:    message.ID,
+		GuildID:      message.GuildID,
+		ChannelID:    message.ChannelID,
+		AuthorUserID: message.Author.ID,
+		Content:      message.Content,
+		CreatedAt:    message.Timestamp,
+	})
+}
+
+func firstMemoryIngestor(ingestors []GuildMemoryIngestor) GuildMemoryIngestor {
+	if len(ingestors) == 0 {
+		return nil
+	}
+	return ingestors[0]
 }
 
 func (r *MessageRouter) route(message *discordgo.Message) (Message, bool) {

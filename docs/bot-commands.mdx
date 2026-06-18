@@ -29,7 +29,7 @@ Do not document planned behavior as shipped behavior. If a command is planned, m
 
 ### `/ping`
 
-Status: live.
+Status: live for current-channel retained `full` memory messages.
 
 Surface: slash command.
 
@@ -608,13 +608,13 @@ V1 personal BYOK command direction:
 
 Credential entry should use a private modal or private flow, not a normal slash command string option. Gigi should never echo, log, or audit raw provider keys. Personal BYOK pays for reasoning but does not grant Gigi action capabilities.
 
-## Planned Memory Commands
+## Memory Commands
 
-These commands are not implemented yet. Guild memory should start off, require explicit per-channel opt-in, and run ingestion asynchronously so Discord message handling stays responsive.
+Guild memory starts off, requires explicit per-channel opt-in, and runs live ingestion through a bounded async queue so Discord message handling stays responsive.
 
 ### Guild mention memory questions
 
-Status: planned.
+Status: live for exact current-channel count questions matching `how many times did @user mention "text"?`.
 
 Required Gigi capability: `memory.read.guild`.
 
@@ -624,14 +624,13 @@ Example:
 @Gigi how many times did @sam mention "postgres"?
 ```
 
-Expected response:
+Example response:
 
 ```text
-@sam mentioned "postgres" 14 times in indexed channels since Jan 1, 2026.
-Top channels: #backend 11, #infra 3.
+@sam mentioned `postgres` 14 times in this channel.
 ```
 
-Count answers should use deterministic SQL over indexed messages. Gigi should not ask an LLM to guess aggregate counts.
+Count answers use deterministic SQL over indexed messages. Gigi does not ask an LLM to guess aggregate counts.
 
 Failure cases:
 
@@ -643,31 +642,31 @@ Failure cases:
 
 ### `/memory count`
 
-Status: planned.
+Status: live for this-channel exact counts over retained `full` memory messages.
 
 Required Gigi capability: `memory.read.guild`.
 
 Syntax:
 
 ```text
-/memory count user:<user> text:<string> scope:<this-channel|server> since:<date?> until:<date?> visibility:<private|channel>
+/memory count text:<string> user:<user?> scope:<this-channel|server>
 ```
 
-Use this for exact or normalized aggregate questions. The default response should be ephemeral. `visibility:channel` may post a safe summary only.
+Use this for exact normalized aggregate questions. The response is ephemeral. `server` scope is reserved until channel-visibility filtering lands.
 
 ### `/memory search`
 
-Status: planned.
+Status: live.
 
 Required Gigi capability: `memory.read.guild`.
 
 Syntax:
 
 ```text
-/memory search query:<string> user:<user?> channel:<channel?> since:<date?> limit:<5|10|25>
+/memory search query:<string> user:<user?> limit:<number?>
 ```
 
-Returns matching snippets with safe source metadata such as channel, author, timestamp, and message link when allowed by channel visibility.
+Returns matching normalized snippets for the current channel with safe author metadata. Cross-channel search waits for channel-visibility filtering.
 
 ### `/memory ask`
 
@@ -695,11 +694,11 @@ Syntax:
 /memory status
 ```
 
-Shows enabled channels, last sync, backlog, retention, and configured embedding model. Response should be ephemeral.
+Shows configured channel modes, retention, default storage mode, and embedding policy. Response is ephemeral.
 
 ### `/memory sync`
 
-Status: planned.
+Status: live for `show` and channel `set`.
 
 Required Gigi capability: `memory.manage.guild`.
 
@@ -724,7 +723,7 @@ Syntax:
 /memory settings set channel:<channel> mode:<off|metadata|full> retention-days:<number?>
 ```
 
-`metadata` mode can support exact counts without retaining raw searchable content. `full` mode permits search segments and embeddings after redaction. Retention is required before ingest.
+`metadata` mode stores message hashes only in this slice. `full` mode stores normalized text for current-channel counts and future search/retrieval. Retention is required before ingest.
 
 ## External App Mention Actions
 
