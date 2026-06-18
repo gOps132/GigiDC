@@ -1,14 +1,16 @@
 ---
 title: GigiDC
-description: Go foundation for the rebuilt Gigi Discord assistant.
+description: Discord agent runtime for Gigi.
 ---
 
 # GigiDC
 
-GigiDC is being rebuilt as a Go service with Docker Compose, local PostgreSQL, pgvector, durable jobs, and an external Discord app integration layer.
+GigiDC is being rebuilt as a Discord-native agent runtime with Go, Docker Compose, local PostgreSQL, pgvector, durable jobs, LLM provider routing, memory tools, and an external Discord app integration layer.
+
+The target shape is not a chatbot with plugins. Gigi should understand a request, choose scoped context and tools, enforce permissions, run deterministic tools, compose an answer, confirm risky actions, and audit the path.
 
 <Note>
-The old Node/Supabase runtime has been removed. The current foundation exposes health/readiness, Discord liveness routing, admin-gated capability grants, guild-scoped LLM provider setup, plugin catalog controls, deterministic and semantic external app dry-run routing, guild mention chat fallback through a configured chat model, and opt-in public external app dispatch. Retrieval, memory, rich DM chat, reasoning chat, and restricted action routing are not live yet.
+The old Node/Supabase runtime has been removed. The current foundation exposes health/readiness, Discord liveness routing, admin-gated capability grants, guild-scoped LLM provider setup, plugin catalog controls, deterministic and semantic external app routing, guild mention chat fallback through a configured chat model, current-channel memory count/search tools, and opt-in public external app dispatch. Rich semantic retrieval, rich DM chat, reasoning chat, and restricted action routing are not live yet.
 </Note>
 
 ## Foundation Shape
@@ -17,9 +19,12 @@ The old Node/Supabase runtime has been removed. The current foundation exposes h
 flowchart LR
   Runtime["Go Runtime"] --> Health["Health + Readiness"]
   Runtime --> Plugins["External App Catalog"]
+  Runtime --> Agent["Agent Runtime Core"]
   Runtime --> Jobs["Durable Jobs"]
   Runtime --> Storage["PostgreSQL + pgvector"]
   Runtime --> Discord["Discord Adapter"]
+  Agent --> Plugins
+  Agent --> Storage
 ```
 
 ## Start Here

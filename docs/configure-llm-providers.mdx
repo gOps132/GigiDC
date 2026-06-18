@@ -93,6 +93,15 @@ Ask Gigi a guild mention after the chat model is set:
 @Gigi explain recursion in one paragraph
 ```
 
+Or use `/ask`:
+
+```text
+/ask question:explain recursion in one paragraph context:none visibility:private
+/ask question:how often did we mention postgres here context:channel visibility:public
+```
+
+`context:channel` lets the agent planner choose current-channel memory tools only when tool routing and memory permissions allow it.
+
 Then check aggregate token usage:
 
 ```text

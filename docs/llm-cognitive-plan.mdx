@@ -5,17 +5,69 @@ description: Planned provider registry, credential ownership, memory, and reason
 
 # LLM And Cognitive Layer Plan
 
-This page is planning material. It describes how Gigi should grow from the current foundation into an LLM-backed Discord assistant without weakening the existing permission, audit, and plugin safety model.
+This page is planning material. It describes how Gigi should grow from the current foundation into a Discord-native agent runtime without weakening the existing permission, audit, memory, and plugin safety model.
 
 ## Design Principles
 
 - Keep Discord as an adapter. The cognitive layer should not depend on `discordgo`.
 - Keep `internal/llm` as the low-level provider port for text and embedding calls.
-- Add orchestration as a separate package, such as `internal/assistant` or `internal/cognitive`.
+- Add agent orchestration as a separate package, such as `internal/agent`, above provider calls, memory, plugins, permissions, and audit.
 - Keep deterministic plugin prefix matching before LLM planning.
 - Treat LLM output and plugin descriptions as untrusted hints, never executable authority.
-- Build final action plans from stored manifests, capability checks, confirmation policy, and audit rules.
+- Build final tool plans from registered tool schemas, stored manifests, capability checks, confirmation policy, and audit rules.
+- Keep deterministic tools for exact work such as memory counts, message search, plugin dispatch, permission checks, and usage summaries.
+- Use the LLM for interpretation, planning, clarification, and answer composition, not as the source of truth for counts, permissions, or action execution.
 - Never store raw prompts, completions, provider responses, planned commands, or secrets in audit metadata.
+
+## Agent Runtime Core
+
+The new core model is:
+
+```text
+Discord intake
+  -> deterministic trigger handlers
+  -> agent planner
+  -> context broker
+  -> tool executor
+  -> answer composer
+  -> confirmation executor for risky actions
+  -> audit
+```
+
+This avoids writing one custom parser for every natural-language phrasing. Gigi still keeps small deterministic tools, but arbitrary user language maps onto those tools through a typed planning step.
+
+Example:
+
+```text
+@Gigi how often do we talk about postgres here?
+```
+
+Planner proposal:
+
+```json
+{
+  "intent": "answer_with_context",
+  "tool_calls": [
+    {"name": "memory.count", "args": {"text": "postgres", "scope": "this-channel"}},
+    {"name": "memory.search", "args": {"query": "postgres", "scope": "this-channel", "limit": 5}}
+  ]
+}
+```
+
+Gigi then validates the proposal, checks `memory.read.guild`, enforces channel visibility, runs SQL-backed memory tools, packs a small context bundle, asks the answer model to explain the result, and audits the request without storing raw prompt or raw snippets by default.
+
+Core packages should move toward these boundaries:
+
+| Package | Responsibility |
+| --- | --- |
+| `internal/agent` | Surface-independent request orchestration and agent loop |
+| `internal/agent/planner` | Typed JSON planning against registered tools and available context |
+| `internal/contextbroker` | Chooses and retrieves scoped context such as recent channel messages, memory search results, and plugin catalog summaries |
+| `internal/tools` | Registry for native tools and enabled external app tools |
+| `internal/agent/policy` | Capability checks, channel visibility checks, confirmation rules, redaction, and audit classification |
+| `internal/agent/answer` | Final answer composition from prompt, tool results, citations, and policy notes |
+
+The important invariant: the LLM proposes; Gigi validates and executes deterministic code.
 
 ## Provider Registry Direction
 
@@ -51,7 +103,9 @@ V0 should be multi-owner architecture with guild-only product behavior. That mea
 
 ## Revised V0
 
-Current V0 LLM and cognitive slice includes:
+V0 should establish the Discord agent runtime core, not only isolated chat or one-off semantic routes.
+
+Current and planned V0 LLM/provider foundation includes:
 
 - `internal/llm/provider` registry, credential store, secret sealing, model profile selection, provider testing, and credential resolution.
 - Provider-backed text clients for OpenAI, Anthropic, and Gemini using resolved model credentials.
@@ -64,14 +118,31 @@ Current V0 LLM and cognitive slice includes:
 - `/llm usage guild` aggregate reporting with no raw prompt, completion, provider response, or secret storage.
 - Guild-mention cognitive fallback chat after deterministic external app matching fails.
 - Metadata-only conversation turn storage with no raw prompt or completion columns.
-- Semantic plugin routing that treats LLM output as a proposal, validates it against enabled manifests, applies capability checks, and returns dry-run plans only.
+- Semantic routing that treats LLM output as a proposal, validates it against native tools and enabled manifests, applies capability checks, and returns dry-run or allowed read-only/public-safe results only.
+- `/ask` command routing through the agent runtime with explicit `context:none` or `context:channel`.
+- Initial `internal/agent` runtime contracts, planner handler, native tool registry, memory count/search/recent tools, and chat fallback adapter.
+- Initial `internal/contextbroker` context packer seam for bounded snippet packing.
 - Guild policy storage that defaults personal keys to `off`.
 - No per-user BYOK for guild mentions, shared memory, embeddings, or semantic routing.
 - No silent fallback between billing owners.
 
+Agent-runtime V0 should add:
+
+- A single `AgentHandler` fallback behind deterministic external app matching. Started with agent-backed chat fallback and `/ask`.
+- A typed planner contract for intents, context requests, tool calls, clarification questions, and confirmation requirements. Started for memory planning.
+- A general `AgentRunner` with `MaxSteps`, `MaxToolCalls`, LLM-call budget, and redacted trace. Started with a compatibility runner that preserves current mention and `/ask` behavior while moving orchestration out of one-shot planning handlers.
+- A split policy/executor/answerer core. Started with policy-owned routing mode and capability checks, executor-owned tool lookup/execution/masked errors, deterministic write-tool confirmation guards, answerer-owned synthesis hooks, and audit trace metadata for `run_id`, `step_index`, tool kind, and capability.
+- A native tool registry with at least `memory.count`, `memory.search`, `memory.recent`, `plugins.plan`, and `llm.chat`. Started with `memory.count`, `memory.search`, `memory.recent`, and chat fallback.
+- A context broker that decides whether a question needs no context, current-channel context, permitted guild memory, or enabled plugin catalog context. Started with bounded snippet packing.
+- A token packer that reserves budget for system instructions, tool results, citations, and output, then trims context deterministically. Started with deterministic character-budget snippet packing.
+- Read-only tool execution for memory and usage-style queries after capability and channel visibility checks. Started with current-channel memory tools and capability checks.
+- Public-safe external app dispatch only through existing manifest-grounded `send_message` rules; restricted actions remain dry-run or confirmation-required.
+- Audits for `agent.plan`, `agent.tool`, `agent.answer`, and `agent.confirmation` using request IDs, run IDs, ordered step indexes, status, scopes, tool names, tool kind, capability, token counts, and redacted metadata only.
+- Compatibility migration from current wrappers: keep exact fast paths while agent-native tools replace `SemanticMemoryHandler`, `AssistantFallbackHandler`, and later semantic plugin handling.
+
 Deferred beyond V0:
 
-- Raw memory and retrieval policy.
+- Rich semantic retrieval over vectors beyond current count/search scaffolding.
 - `/llm key` personal BYOK behavior.
 - Tenant/operator fallback credentials.
 - Persistent confirmation records.
@@ -101,7 +172,7 @@ The target behavior has two retrieval paths:
 - deterministic aggregate queries for questions such as `@Gigi how many times did @sam mention "postgres"?`
 - semantic recall for questions that need similar-message retrieval and citations
 
-Count questions should not depend on an LLM answer. Gigi should resolve the mentioned user, normalize the requested text, apply guild/channel/retention/deletion filters, and answer from SQL counts. Semantic recall can use embeddings after deterministic filters and capability checks.
+Count questions should not depend on an LLM answer. Gigi should resolve the mentioned user when present, normalize the requested text, apply guild/channel/retention/deletion filters, and answer from SQL counts. The agent planner may map flexible language onto `memory.count`, but the count itself comes from deterministic SQL. Semantic recall can use embeddings after deterministic filters and capability checks.
 
 Efficient ingestion should never block Discord event handling:
 
@@ -330,22 +401,35 @@ Planned memory commands:
 /memory settings set channel:<channel> mode:<off|metadata|full> retention-days:<number?>
 ```
 
+Planned agent commands:
+
+```text
+/ask question:<text> visibility:<public|private> context:<none|channel|guild>
+/gigi settings view
+/gigi settings set ask-enabled:<true|false> default-context:<none|channel|guild> default-visibility:<public|private>
+/gigi audit recent target:<request|user|channel|plugin>
+/gigi confirm request:<request-id>
+```
+
+`/ask` should route through the same agent runtime as guild mentions. `context:none` means normal chat without memory. `context:channel` can use current-channel memory tools when policy and capability checks pass. `context:guild` is future behavior until channel visibility filtering is strong enough across multiple channels.
+
 Slash responses should default to ephemeral. If `visibility:channel` is supported, it should post only safe summaries, not raw hidden/private content.
 
-## Cognitive Layer Direction
+## Agent Runtime Direction
 
-The first cognitive handler should be a fallback behind deterministic external app matching:
+The first agent handler should be a fallback behind deterministic external app matching:
 
 ```text
 Discord MessageRouter
   -> ExternalAppDryRunHandler
-     -> Cognitive fallback handler
+     -> AgentHandler
         -> provider resolver
-        -> conversation store
-        -> retriever
         -> planner
+        -> context broker
+        -> native tool registry
         -> capability evaluator
+        -> answer composer
         -> audit recorder
 ```
 
-V0 cognitive behavior should focus on rich DM and mention conversation after a provider is configured. Semantic plugin routing should initially produce dry-run or confirmation-required plans only. Restricted dispatch and multi-step actions should wait until confirmation records, durable jobs, and tighter action schemas exist.
+V0 agent behavior should answer guild mentions after a provider is configured, route flexible memory questions through native tools, and produce plugin/tool dry-runs when execution is not clearly public-safe. Rich DM chat can reuse the same agent core with `context:none` until a guild context selector exists. Restricted dispatch and multi-step actions should wait until confirmation records, durable jobs, and tighter action schemas exist.

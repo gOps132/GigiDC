@@ -31,7 +31,7 @@ func (e Event) Validate() error {
 	if strings.TrimSpace(e.ActorID) == "" {
 		return fmt.Errorf("audit actor ID is required")
 	}
-	if e.Status == "" {
+	if !validStatus(e.Status) {
 		return fmt.Errorf("audit status is required")
 	}
 	for key, value := range e.Metadata {
@@ -40,6 +40,15 @@ func (e Event) Validate() error {
 		}
 	}
 	return nil
+}
+
+func validStatus(status Status) bool {
+	switch status {
+	case StatusAllowed, StatusDenied, StatusFailed, StatusSucceeded:
+		return true
+	default:
+		return false
+	}
 }
 
 func looksSensitive(value string) bool {

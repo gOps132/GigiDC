@@ -15,12 +15,31 @@
 </p>
 
 <p align="center">
-  Gigi is being rebuilt as a Go-based Discord assistant foundation for CS/IT Archive.
+  Gigi is being rebuilt as a Discord agent runtime for CS/IT Archive.
 </p>
+
+## Purpose
+
+Gigi is not just a chatbot with plugins. The target product is a Discord-native agent runtime: it receives guild messages and slash commands, understands the user request, chooses the right context and tools, checks permissions, executes deterministic tools, composes an answer, and audits the path.
+
+The core loop is:
+
+```text
+intake
+  -> plan
+  -> retrieve context
+  -> run read tools
+  -> compose answer
+  -> propose or confirm write tools
+  -> execute deterministic actions
+  -> audit
+```
+
+Natural language should map onto tool calls instead of requiring one hard-coded parser for every phrasing. Exact features such as memory counts, message search, plugin dispatch, permission checks, and usage summaries still exist as deterministic tools. The LLM proposes what tool to use and how to explain the result; Go code validates, authorizes, executes, and records it.
 
 ## Current Foundation
 
-This branch intentionally removes the old Node/Supabase runtime. The current Go foundation exposes health/readiness endpoints plus Discord `/ping`, DM `ping`, guild mention `ping`, role-first admin-gated `/permissions` capability grants, `/llm` guild provider/model/routing policy management, `/plugins` manifest management, deterministic external app matching, policy-gated semantic routing, guild mention chat fallback through a configured chat model, opt-in public `send_message` prefix dispatch, and guild memory settings/status/current-channel count/search scaffolding. LLM-backed guild mention behavior is live only when a guild credential, model profile, `GIGI_LLM_SECRET_KEY_BASE64`, and relevant guild routing policy are configured. Semantic retrieval, rich DM chat, reasoning chat, restricted dispatch, tasks, and relay actions are not live yet.
+This branch intentionally removes the old Node/Supabase runtime. The current Go foundation exposes health/readiness endpoints plus Discord `/ping`, DM `ping`, guild mention `ping`, role-first admin-gated `/permissions` capability grants, `/llm` guild provider/model/routing policy management, `/plugins` manifest management, deterministic external app matching, policy-gated semantic routing, guild mention chat fallback through a configured chat model, opt-in public `send_message` prefix dispatch, and guild memory settings/status/current-channel count/search scaffolding. Agent runtime work has started with a bounded runner, policy/executor/answerer split, typed native tools, read-tool capability gates, write-tool confirmation guards, and redacted run traces. LLM-backed guild mention behavior is live only when a guild credential, model profile, `GIGI_LLM_SECRET_KEY_BASE64`, and relevant guild routing policy are configured. Semantic retrieval, rich DM chat, reasoning chat, restricted dispatch, tasks, and relay actions are not live yet.
 
 ```mermaid
 flowchart LR
