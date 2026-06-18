@@ -23,7 +23,10 @@ func TestPluginsEnabledToolListsGuildPlugins(t *testing.T) {
 }
 
 func TestPluginPlanToolPlansEnabledManifest(t *testing.T) {
-	tool := PluginPlanTool{Registry: fakePluginRegistry{manifests: []plugins.Manifest{testPluginManifest()}}}
+	tool := PluginPlanTool{
+		Registry: fakePluginRegistry{manifests: []plugins.Manifest{testPluginManifest()}},
+		Checker:  fakeAgentCapabilityChecker{decision: capability.Decision{Allowed: true, Reason: capability.ReasonRoleGrant}},
+	}
 
 	result, err := tool.Execute(context.Background(), agentTestRequest(), ToolCall{
 		Name: ToolPluginsPlan,
@@ -35,8 +38,29 @@ func TestPluginPlanToolPlansEnabledManifest(t *testing.T) {
 	if result.Data["matched"] != "true" || result.Data["command"] != "m!play never gonna give you up" || !strings.Contains(result.Summary, "planned command") {
 		t.Fatalf("result=%+v, want command plan", result)
 	}
+	if result.Data["allowed"] != "true" {
+		t.Fatalf("allowed = %q, want true", result.Data["allowed"])
+	}
 	if result.Data["required_capabilities"] != "music.play" {
 		t.Fatalf("required capabilities = %q, want music.play", result.Data["required_capabilities"])
+	}
+}
+
+func TestPluginPlanToolDeniesRestrictedManifest(t *testing.T) {
+	tool := PluginPlanTool{
+		Registry: fakePluginRegistry{manifests: []plugins.Manifest{testPluginManifest()}},
+		Checker:  fakeAgentCapabilityChecker{decision: capability.Decision{Allowed: false, Reason: capability.ReasonMissingCapability}},
+	}
+
+	result, err := tool.Execute(context.Background(), agentTestRequest(), ToolCall{
+		Name: ToolPluginsPlan,
+		Args: map[string]string{"text": "play never gonna give you up"},
+	})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if result.Data["allowed"] != "false" || result.Data["denied_capability"] != "music.play" || !strings.Contains(result.Summary, "Permission denied") {
+		t.Fatalf("result=%+v, want denied plan", result)
 	}
 }
 

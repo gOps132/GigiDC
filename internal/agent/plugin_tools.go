@@ -20,6 +20,7 @@ type PluginRegistry interface {
 
 type PluginPlanTool struct {
 	Registry PluginRegistry
+	Checker  CapabilityChecker
 }
 
 type PluginsEnabledTool struct {
@@ -111,11 +112,32 @@ func (t PluginPlanTool) Execute(ctx context.Context, request Request, call ToolC
 			},
 		}, nil
 	}
+	decision := pluginPlanDecision{Allowed: true}
+	if len(plan.RequiredCapabilities) > 0 {
+		decision, err = t.authorize(ctx, request, plan.RequiredCapabilities)
+		if err != nil {
+			return ToolResult{}, err
+		}
+	}
+	if !decision.Allowed {
+		return ToolResult{
+			Name:    ToolPluginsPlan,
+			Summary: "Permission denied for external app action.",
+			Data: map[string]string{
+				"matched":               "true",
+				"allowed":               "false",
+				"required_capabilities": joinCapabilities(plan.RequiredCapabilities),
+				"denied_capability":     string(decision.Capability),
+				"decision_reason":       string(decision.Reason),
+			},
+		}, nil
+	}
 	return ToolResult{
 		Name:    ToolPluginsPlan,
 		Summary: fmt.Sprintf("Matched external app `%s`; planned command `%s`.", safeInline(plan.Manifest.Name), safeInline(plan.Command)),
 		Data: map[string]string{
 			"matched":               "true",
+			"allowed":               "true",
 			"plugin_id":             plan.Manifest.ID,
 			"plugin_name":           plan.Manifest.Name,
 			"plugin_version":        plan.Manifest.Version,
@@ -126,6 +148,33 @@ func (t PluginPlanTool) Execute(ctx context.Context, request Request, call ToolC
 			"required_capabilities": joinCapabilities(plan.RequiredCapabilities),
 		},
 	}, nil
+}
+
+type pluginPlanDecision struct {
+	Allowed    bool
+	Capability capability.Capability
+	Reason     capability.Reason
+}
+
+func (t PluginPlanTool) authorize(ctx context.Context, request Request, required []capability.Capability) (pluginPlanDecision, error) {
+	if t.Checker == nil {
+		return pluginPlanDecision{Allowed: false, Capability: required[0], Reason: capability.ReasonStoreError}, fmt.Errorf("capability checker is required")
+	}
+	for _, requiredCapability := range required {
+		decision, err := t.Checker.Check(ctx, capability.Subject{
+			GuildID:          request.GuildID,
+			UserID:           request.ActorUserID,
+			RoleIDs:          request.RoleIDs,
+			HasAdministrator: request.HasAdministrator,
+		}, requiredCapability)
+		if err != nil {
+			return pluginPlanDecision{Allowed: false, Capability: decision.Capability, Reason: decision.Reason}, err
+		}
+		if !decision.Allowed {
+			return pluginPlanDecision{Allowed: false, Capability: decision.Capability, Reason: decision.Reason}, nil
+		}
+	}
+	return pluginPlanDecision{Allowed: true}, nil
 }
 
 func joinCapabilities(values []capability.Capability) string {
