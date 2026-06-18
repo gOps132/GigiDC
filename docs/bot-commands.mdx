@@ -556,6 +556,44 @@ Failure cases:
 
 Privacy and audit: audits provider, purpose, and model metadata only.
 
+### `/llm routing show`
+
+Status: live.
+
+Required Gigi capability: `llm.provider.select`.
+
+Syntax:
+
+```text
+/llm routing show
+```
+
+Expected response:
+
+```text
+LLM tool routing mode: `off`.
+```
+
+### `/llm routing set`
+
+Status: live.
+
+Required Gigi capability: `llm.provider.write`.
+
+Syntax:
+
+```text
+/llm routing set mode:<off|dry-run|enabled>
+```
+
+Modes:
+
+- `off`: deterministic mention routing only; no LLM tool planner calls.
+- `dry-run`: LLM may propose memory or external-app tool calls, but Gigi does not execute read-only memory tools or semantic public dispatch.
+- `enabled`: LLM may route to allowed native memory tools and public external app dispatch after validation and capability checks.
+
+Privacy and audit: audits routing mode metadata only.
+
 ### `/llm usage guild`
 
 Status: live.
@@ -727,7 +765,7 @@ Syntax:
 
 ## External App Mention Actions
 
-External app matching is live for guild mentions. Deterministic prefix matching runs first. If no prefix trigger matches, semantic routing can call the configured `routing` model, validate the proposal against enabled manifests, apply capability checks, and return a dry-run plan only. It does not call LangChain, run harnesses, or use LLM output as dispatch authority.
+External app matching is live for guild mentions. Deterministic prefix matching runs first. If no prefix trigger matches and `/llm routing` is `dry-run` or `enabled`, semantic routing can call the configured `routing` model, validate the proposal against enabled manifests, and apply capability checks. `dry-run` returns the planned action only. `enabled` may dispatch public `send_message` actions; restricted actions still dry-run. It does not call LangChain, run harnesses, or use LLM output as dispatch authority.
 
 Dispatch is opt-in per manifest. If a matched enabled manifest has `dispatch: "send_message"` and empty `permissions`, Gigi sends the planned prefix command into the channel as Gigi. If the manifest omits that dispatch mode, or if the matched action has non-empty `permissions`, Gigi returns a dry-run response instead.
 

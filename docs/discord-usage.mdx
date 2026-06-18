@@ -7,7 +7,7 @@ description: Discord status for the Go foundation rebuild.
 
 Discord usage is active in a narrow foundation slice.
 
-The current codebase has a disabled-by-default Discord gateway adapter, a `/ping` slash-command handler, opt-in command sync, DM routing, guild-mention routing, admin-gated `/permissions` capability grants, `/llm` guild provider controls, `/plugins` catalog controls, deterministic external app dry-run matching, semantic external app dry-run routing, guild mention chat fallback through a configured chat model, and limited public external app dispatch. Retrieval, memory, rich DM chat, reasoning chat, task actions, relay actions, and restricted external app dispatch are not live yet.
+The current codebase has a disabled-by-default Discord gateway adapter, a `/ping` slash-command handler, opt-in command sync, DM routing, guild-mention routing, admin-gated `/permissions` capability grants, `/llm` guild provider/model/routing controls, `/plugins` catalog controls, deterministic external app dry-run matching, policy-gated semantic routing, guild mention chat fallback through a configured chat model, guild memory count/search scaffolding, and limited public external app dispatch. Rich DM chat, reasoning chat, task actions, relay actions, and restricted external app dispatch are not live yet.
 
 For exact command syntax, required capabilities, responses, and failure cases, use [Bot Commands](/bot-commands) as the canonical command guide.
 
@@ -19,7 +19,7 @@ For exact command syntax, required capabilities, responses, and failure cases, u
 - DM `ping` replies `pong`.
 - Guild message `<@Gigi> ping` replies `pong`.
 - Guild mention text first checks enabled external app manifest prefix triggers. Dry-run manifests return the planned command. Public manifests with `dispatch: "send_message"` send the planned command as Gigi.
-- If deterministic external app matching fails, a configured routing model can propose a validated semantic dry-run plan against enabled manifests.
+- If deterministic matching fails and `/llm routing` is `dry-run` or `enabled`, a configured routing model can propose validated native memory or manifest-grounded plans.
 - If plugin routing fails, a configured chat model can answer the guild mention.
 - Other DM text replies that rich chat needs a server LLM profile first; rich DM chat is not live.
 - Ordinary guild messages without a Gigi mention are ignored.

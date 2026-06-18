@@ -20,6 +20,9 @@ func TestSQLPolicyStoreReturnsDefaultOffPolicyWhenMissing(t *testing.T) {
 	if got.GuildID != "guild-id" || got.PersonalKeysMode != PersonalKeysOff {
 		t.Fatalf("policy = %+v, want default off", got)
 	}
+	if got.ToolRoutingMode != ToolRoutingOff {
+		t.Fatalf("tool routing mode = %q, want off", got.ToolRoutingMode)
+	}
 	if !strings.Contains(db.query, "llm_guild_policies") {
 		t.Fatalf("query = %q, want policy table lookup", db.query)
 	}
@@ -28,6 +31,7 @@ func TestSQLPolicyStoreReturnsDefaultOffPolicyWhenMissing(t *testing.T) {
 func TestSQLPolicyStoreLoadsStoredPolicy(t *testing.T) {
 	db := &fakePolicyDB{row: fakeUsageRow{scan: func(dest ...any) error {
 		*(dest[0].(*PersonalKeysMode)) = PersonalKeysDMOnly
+		*(dest[1].(*ToolRoutingMode)) = ToolRoutingDryRun
 		return nil
 	}}}
 	store := NewSQLPolicyStore(db)
@@ -39,6 +43,9 @@ func TestSQLPolicyStoreLoadsStoredPolicy(t *testing.T) {
 	if got.PersonalKeysMode != PersonalKeysDMOnly {
 		t.Fatalf("policy = %+v, want dm-only", got)
 	}
+	if got.ToolRoutingMode != ToolRoutingDryRun {
+		t.Fatalf("policy = %+v, want dry-run routing", got)
+	}
 }
 
 func TestSQLPolicyStoreUpsertsGuildPolicy(t *testing.T) {
@@ -48,6 +55,7 @@ func TestSQLPolicyStoreUpsertsGuildPolicy(t *testing.T) {
 	err := store.SetGuildPolicy(context.Background(), GuildPolicyInput{
 		GuildID:          "guild-id",
 		PersonalKeysMode: PersonalKeysOff,
+		ToolRoutingMode:  ToolRoutingEnabled,
 		ActorUserID:      "actor-id",
 	})
 	if err != nil {
@@ -56,7 +64,7 @@ func TestSQLPolicyStoreUpsertsGuildPolicy(t *testing.T) {
 	if !strings.Contains(db.query, "insert into llm_guild_policies") || !strings.Contains(db.query, "on conflict") {
 		t.Fatalf("query = %q, want policy upsert", db.query)
 	}
-	if db.args[0] != "guild-id" || db.args[1] != PersonalKeysOff || db.args[2] != "actor-id" {
+	if db.args[0] != "guild-id" || db.args[1] != PersonalKeysOff || db.args[2] != ToolRoutingEnabled || db.args[3] != "actor-id" {
 		t.Fatalf("args = %+v, want guild mode actor", db.args)
 	}
 }
@@ -69,6 +77,7 @@ func TestSQLPolicyStoreRejectsInvalidPolicyInput(t *testing.T) {
 	}{
 		{name: "missing guild", input: GuildPolicyInput{PersonalKeysMode: PersonalKeysOff, ActorUserID: "actor-id"}, want: "guild ID is required"},
 		{name: "bad mode", input: GuildPolicyInput{GuildID: "guild-id", PersonalKeysMode: "always", ActorUserID: "actor-id"}, want: "unknown personal keys mode"},
+		{name: "bad routing mode", input: GuildPolicyInput{GuildID: "guild-id", PersonalKeysMode: PersonalKeysOff, ToolRoutingMode: "always", ActorUserID: "actor-id"}, want: "unknown tool routing mode"},
 		{name: "missing actor", input: GuildPolicyInput{GuildID: "guild-id", PersonalKeysMode: PersonalKeysOff}, want: "actor user ID is required"},
 	}
 	for _, tt := range tests {

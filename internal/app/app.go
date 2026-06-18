@@ -86,6 +86,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		auditStore := audit.NewStore(db, func() string { return storage.NewID("audit") })
 		pluginStore := plugins.NewSQLCatalogStore(db, func() string { return storage.NewID("plugin") })
 		providerStore := llmprovider.NewSQLStore(db, func() string { return storage.NewID("llm") })
+		policyStore := llmprovider.NewSQLPolicyStore(db)
 		providerService := llmprovider.NewServiceWithTester(providerStore, secretSealer, llmprovider.DefaultRegistry(), llmprovider.NewHTTPTester(nil))
 		usageRecorder := llmprovider.NewSQLUsageRecorder(db, func() string { return storage.NewID("llmusage") })
 		memoryStore := memory.NewSQLStore(db)
@@ -106,6 +107,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		commands = append(commands, discord.LLMCommands(providerService, auditStore, discord.LLMCommandConfig{
 			CredentialEntryEnabled: secretSealer != nil,
 			UsageReporter:          usageRecorder,
+			PolicyManager:          policyStore,
 		})...)
 		commands = append(commands, discord.MemoryCommands(memoryStore, auditStore)...)
 
@@ -117,14 +119,23 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		evaluator := capability.NewEvaluator(grantStore)
 		router.SetAuthorizer(discord.NewCapabilityAuthorizer(evaluator, auditStore))
 
-		externalAppHandler := discord.ExternalAppDryRunHandlerWithSemantic(
+		externalAppHandler := discord.ExternalAppDryRunHandlerWithSemanticPolicy(
 			pluginStore,
 			evaluator,
 			auditStore,
 			discord.AssistantFallbackHandler(assistantHandler, discord.CoreMessageHandler()),
 			semanticPlanner,
+			policyStore,
 		)
-		messageHandler := discord.MemoryQuestionHandler(memoryStore, evaluator, auditStore, externalAppHandler)
+		semanticMemoryHandler := discord.SemanticMemoryHandler(
+			memoryStore,
+			evaluator,
+			auditStore,
+			policyStore,
+			assistant.SemanticMemoryPlanner{Runtime: llmRuntime},
+			externalAppHandler,
+		)
+		messageHandler := discord.MemoryQuestionHandler(memoryStore, evaluator, auditStore, semanticMemoryHandler)
 		messageRouter, err := discord.NewMessageRouter(cfg.DiscordClientID, messageHandler, nil, memoryIngestor)
 		if err != nil {
 			_ = db.Close()

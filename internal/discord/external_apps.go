@@ -9,6 +9,7 @@ import (
 	"github.com/gOps132/GigiDC/internal/assistant"
 	"github.com/gOps132/GigiDC/internal/audit"
 	"github.com/gOps132/GigiDC/internal/capability"
+	"github.com/gOps132/GigiDC/internal/llm/provider"
 	"github.com/gOps132/GigiDC/internal/plugins"
 )
 
@@ -18,6 +19,7 @@ type externalAppDryRunHandler struct {
 	recorder AuditRecorder
 	fallback MessageHandler
 	semantic assistant.SemanticPluginPlanner
+	policy   LLMPolicyManager
 }
 
 func ExternalAppDryRunHandler(registry plugins.Registry, checker CapabilityChecker, recorder AuditRecorder, fallback MessageHandler) MessageHandler {
@@ -25,6 +27,10 @@ func ExternalAppDryRunHandler(registry plugins.Registry, checker CapabilityCheck
 }
 
 func ExternalAppDryRunHandlerWithSemantic(registry plugins.Registry, checker CapabilityChecker, recorder AuditRecorder, fallback MessageHandler, semantic assistant.SemanticPluginPlanner) MessageHandler {
+	return ExternalAppDryRunHandlerWithSemanticPolicy(registry, checker, recorder, fallback, semantic, nil)
+}
+
+func ExternalAppDryRunHandlerWithSemanticPolicy(registry plugins.Registry, checker CapabilityChecker, recorder AuditRecorder, fallback MessageHandler, semantic assistant.SemanticPluginPlanner, policy LLMPolicyManager) MessageHandler {
 	if fallback == nil {
 		fallback = CoreMessageHandler()
 	}
@@ -34,6 +40,7 @@ func ExternalAppDryRunHandlerWithSemantic(registry plugins.Registry, checker Cap
 		recorder: recorder,
 		fallback: fallback,
 		semantic: semantic,
+		policy:   policy,
 	}
 }
 
@@ -80,6 +87,14 @@ func (h externalAppDryRunHandler) handleSemantic(ctx context.Context, message Me
 	if h.semantic.Runtime == nil {
 		return MessageResponse{}, false, nil
 	}
+	mode, err := h.toolRoutingMode(ctx, message.GuildID)
+	if err != nil {
+		_ = h.recordKind(ctx, "discord.external_app.semantic_dry_run", message, plugins.CommandPlan{}, audit.StatusFailed, "routing_policy_failed", "")
+		return MessageResponse{Content: "External app semantic routing failed."}, true, nil
+	}
+	if mode == provider.ToolRoutingOff {
+		return MessageResponse{}, false, nil
+	}
 	plan, ok, err := h.semantic.Plan(ctx, assistant.SemanticPluginInput{
 		GuildID:     message.GuildID,
 		ChannelID:   message.ChannelID,
@@ -103,10 +118,27 @@ func (h externalAppDryRunHandler) handleSemantic(ctx context.Context, message Me
 		_ = h.recordKind(ctx, "discord.external_app.semantic_dry_run", message, plan, audit.StatusDenied, string(decision.Reason), string(decision.Capability))
 		return MessageResponse{Content: "Permission denied for external app action."}, true, nil
 	}
+	if mode == provider.ToolRoutingEnabled && shouldDispatch(plan) {
+		if err := h.recordKind(ctx, "discord.external_app.semantic_dispatch", message, plan, audit.StatusSucceeded, "", ""); err != nil {
+			return MessageResponse{}, true, err
+		}
+		return MessageResponse{Content: plan.Command}, true, nil
+	}
 	if err := h.recordKind(ctx, "discord.external_app.semantic_dry_run", message, plan, audit.StatusSucceeded, "", capabilityList(plan.RequiredCapabilities)); err != nil {
 		return MessageResponse{}, true, err
 	}
 	return MessageResponse{Content: formatDryRunPlan(plan)}, true, nil
+}
+
+func (h externalAppDryRunHandler) toolRoutingMode(ctx context.Context, guildID string) (provider.ToolRoutingMode, error) {
+	if h.policy == nil {
+		return provider.ToolRoutingDryRun, nil
+	}
+	policy, err := h.policy.GuildPolicy(ctx, guildID)
+	if err != nil {
+		return "", err
+	}
+	return policy.ToolRoutingMode, nil
 }
 
 func (h externalAppDryRunHandler) authorize(ctx context.Context, message Message, plan plugins.CommandPlan) (capability.Decision, error) {

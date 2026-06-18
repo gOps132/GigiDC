@@ -75,6 +75,16 @@ Confirm:
 /llm model show purpose:routing
 ```
 
+Enable or inspect LLM tool routing:
+
+```text
+/llm routing show
+/llm routing set mode:dry-run
+/llm routing set mode:enabled
+```
+
+New guilds default to `off`. Use `dry-run` first when testing flexible guild mention routing. Use `enabled` only when you want validated native memory tools and public external app dispatch to execute after capability checks.
+
 ## Verify usage
 
 Ask Gigi a guild mention after the chat model is set:

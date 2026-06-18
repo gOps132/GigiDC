@@ -29,10 +29,16 @@ type LLMUsageReporter interface {
 	GuildUsageSummary(ctx context.Context, guildID string) (provider.UsageSummary, error)
 }
 
+type LLMPolicyManager interface {
+	GuildPolicy(ctx context.Context, guildID string) (provider.GuildPolicy, error)
+	SetGuildPolicy(ctx context.Context, input provider.GuildPolicyInput) error
+}
+
 type LLMCommandConfig struct {
 	CredentialEntryEnabled bool
 	ModalTTL               time.Duration
 	UsageReporter          LLMUsageReporter
+	PolicyManager          LLMPolicyManager
 }
 
 func LLMCommands(manager LLMProviderManager, recorder AuditRecorder, configs ...LLMCommandConfig) []Command {
@@ -54,10 +60,34 @@ func LLMCommands(manager LLMProviderManager, recorder AuditRecorder, configs ...
 			llmProviderGroup(),
 			llmModelGroup(),
 			llmUsageGroup(),
+			llmRoutingGroup(),
 		},
 		Handle:      llmHandler(manager, recorder, modals, cfg),
 		HandleModal: llmModalHandler(manager, recorder, modals),
 	}}
+}
+
+func llmRoutingGroup() *discordgo.ApplicationCommandOption {
+	return &discordgo.ApplicationCommandOption{
+		Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
+		Name:        "routing",
+		Description: "Manage LLM tool routing policy.",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "show",
+				Description: "Show guild LLM tool routing mode.",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "set",
+				Description: "Set guild LLM tool routing mode.",
+				Options: []*discordgo.ApplicationCommandOption{
+					routingModeOption(),
+				},
+			},
+		},
+	}
 }
 
 func llmProviderGroup() *discordgo.ApplicationCommandOption {
@@ -179,6 +209,14 @@ func purposeOption() *discordgo.ApplicationCommandOption {
 	})
 }
 
+func routingModeOption() *discordgo.ApplicationCommandOption {
+	return stringOption("mode", "LLM tool routing mode.", []*discordgo.ApplicationCommandOptionChoice{
+		{Name: "off", Value: string(provider.ToolRoutingOff)},
+		{Name: "dry-run", Value: string(provider.ToolRoutingDryRun)},
+		{Name: "enabled", Value: string(provider.ToolRoutingEnabled)},
+	})
+}
+
 func llmRequiredCapability(interaction Interaction) capability.Capability {
 	group, action, ok := llmPath(interaction)
 	if !ok {
@@ -193,6 +231,10 @@ func llmRequiredCapability(interaction Interaction) capability.Capability {
 		return capability.Capability("llm.provider.select")
 	case group == "usage" && action == "guild":
 		return capability.Capability("llm.provider.select")
+	case group == "routing" && action == "show":
+		return capability.Capability("llm.provider.select")
+	case group == "routing" && action == "set":
+		return capability.Capability("llm.provider.write")
 	default:
 		return ""
 	}
@@ -243,13 +285,14 @@ func llmHandler(manager LLMProviderManager, recorder AuditRecorder, modals *llmC
 }
 
 type llmRequest struct {
-	Group      string
-	Action     string
-	ProviderID provider.ProviderID
-	Label      string
-	Purpose    provider.Purpose
-	ModelID    string
-	Confirm    bool
+	Group       string
+	Action      string
+	ProviderID  provider.ProviderID
+	Label       string
+	Purpose     provider.Purpose
+	ModelID     string
+	Confirm     bool
+	RoutingMode provider.ToolRoutingMode
 }
 
 func parseLLMRequest(interaction Interaction) (llmRequest, error) {
@@ -273,8 +316,25 @@ func parseLLMRequest(interaction Interaction) (llmRequest, error) {
 		return parseLLMModelRequest(request, action.Options)
 	case "usage":
 		return parseLLMUsageRequest(request)
+	case "routing":
+		return parseLLMRoutingRequest(request, action.Options)
 	default:
 		return request, fmt.Errorf("Unsupported llm group.")
+	}
+}
+
+func parseLLMRoutingRequest(request llmRequest, options []InteractionOption) (llmRequest, error) {
+	switch request.Action {
+	case "show":
+		return request, nil
+	case "set":
+		request.RoutingMode = provider.ToolRoutingMode(optionByName(options, "mode"))
+		if err := provider.ValidateToolRoutingMode(request.RoutingMode); err != nil {
+			return request, err
+		}
+		return request, nil
+	default:
+		return request, fmt.Errorf("Unsupported llm routing action.")
 	}
 }
 
@@ -445,6 +505,32 @@ func executeLLMRequest(ctx context.Context, manager LLMProviderManager, interact
 			return CommandResponse{}, err
 		}
 		return CommandResponse{Content: formatLLMUsageSummary(summary)}, nil
+	case request.Group == "routing" && request.Action == "show":
+		if cfg.PolicyManager == nil {
+			return CommandResponse{Content: "LLM routing policy is not configured."}, nil
+		}
+		policy, err := cfg.PolicyManager.GuildPolicy(ctx, interaction.GuildID)
+		if err != nil {
+			return CommandResponse{}, err
+		}
+		return CommandResponse{Content: fmt.Sprintf("LLM tool routing mode: `%s`.", safeInline(string(policy.ToolRoutingMode)))}, nil
+	case request.Group == "routing" && request.Action == "set":
+		if cfg.PolicyManager == nil {
+			return CommandResponse{Content: "LLM routing policy is not configured."}, nil
+		}
+		current, err := cfg.PolicyManager.GuildPolicy(ctx, interaction.GuildID)
+		if err != nil {
+			return CommandResponse{}, err
+		}
+		if err := cfg.PolicyManager.SetGuildPolicy(ctx, provider.GuildPolicyInput{
+			GuildID:          interaction.GuildID,
+			PersonalKeysMode: current.PersonalKeysMode,
+			ToolRoutingMode:  request.RoutingMode,
+			ActorUserID:      interaction.UserID,
+		}); err != nil {
+			return CommandResponse{}, err
+		}
+		return CommandResponse{Content: fmt.Sprintf("Set LLM tool routing mode to `%s`.", safeInline(string(request.RoutingMode)))}, nil
 	default:
 		return CommandResponse{}, fmt.Errorf("unsupported llm action")
 	}
@@ -586,6 +672,8 @@ func shouldAuditLLMAction(request llmRequest) bool {
 		return true
 	case request.Group == "model" && request.Action == "set":
 		return true
+	case request.Group == "routing" && request.Action == "set":
+		return true
 	default:
 		return false
 	}
@@ -612,6 +700,9 @@ func recordLLMAction(ctx context.Context, recorder AuditRecorder, interaction In
 	}
 	if request.ModelID != "" {
 		metadata["model_id"] = request.ModelID
+	}
+	if request.RoutingMode != "" {
+		metadata["routing_mode"] = string(request.RoutingMode)
 	}
 	return recorder.Record(ctx, audit.Event{
 		Kind:     "discord.llm.change",
