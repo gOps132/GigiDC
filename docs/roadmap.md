@@ -11,7 +11,7 @@ description: Planned evolution of the Go foundation rebuild.
 - Docker Compose
 - PostgreSQL + pgvector
 - health and readiness endpoints
-- external app integration, job, Discord, storage, and LLM interfaces
+- external app integration, job, Discord, storage, LLM, memory, and agent-runtime interfaces
 
 ## v0 Discord Surface Slice
 
@@ -21,13 +21,19 @@ description: Planned evolution of the Go foundation rebuild.
 - DM handling
 - permission model
 
-Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, capability evaluator, identity resolver contract, DB-backed role-first `/permissions` command, guild-scoped `/llm` provider and model controls, guild mention chat fallback, startup migration runner, guild memory settings/status/count scaffold, and durable audit-log seam are started. Rich DM conversation, semantic retrieval, assignment/task commands, and restricted action execution remain.
+Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, capability evaluator, identity resolver contract, DB-backed role-first `/permissions` command, guild-scoped `/llm` provider and model controls, guild mention chat fallback, startup migration runner, guild memory settings/status/count/search scaffold, semantic memory/tool routing policy, and durable audit-log seam are started. Rich DM conversation, semantic retrieval, assignment/task commands, and restricted action execution remain.
 
-## v0 Memory And Actions Slice
+## v0 Agent Runtime Core Slice
 
 - multi-owner LLM provider registry foundation
 - guild-scoped provider credential UX
 - model profiles for chat, reasoning, embedding, and routing
+- agent handler behind deterministic Discord/plugin routing
+- typed planner contract for intents, context requests, tool calls, clarification, and confirmation
+- context broker for current-channel context, permitted guild memory, and enabled plugin catalog context
+- native tool registry for deterministic capabilities such as `memory.count`, `memory.search`, `memory.recent`, `plugins.plan`, and `llm.chat`
+- policy layer for capability checks, channel visibility, confirmation, redaction, and audit classification
+- token-budgeted context packing with citations/tool result summaries
 - durable jobs
 - opt-in guild memory policy
 - async message ingestion for enabled channels
@@ -37,9 +43,11 @@ Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing,
 - relays with confirmation
 - usage tracking
 
+Current agent direction: Gigi should become a Discord agent runtime, not a chatbot plus scattered plugins. Natural language should map to deterministic tools through an LLM planner. Gigi validates, checks permissions, enforces channel visibility, executes tools in Go, composes answers, and audits the path. This prevents writing one parser for every phrasing while keeping exact tools such as `memory.count` and `memory.search` as sources of truth.
+
 Current LLM direction: build the data model and resolver for `guild`, `user`, and `tenant` credential owners from the start, but expose only guild/admin-scoped provider configuration in v0. Personal BYOK remains disabled in v0 product behavior. See [LLM And Cognitive Layer Plan](./llm-cognitive-plan).
 
-Current memory direction: memory starts off, is enabled per channel, ingests through a bounded async live queue, and separates exact count queries from semantic retrieval. Questions such as `@Gigi how many times did @sam mention "postgres"?` should use deterministic SQL over indexed, permitted messages rather than asking an LLM to guess. Embeddings are batched in workers and use the guild `embedding` profile, never personal BYOK for shared guild memory.
+Current memory direction: memory starts off, is enabled per channel, ingests through a bounded async live queue, and exposes deterministic tools for exact counts and search. Questions such as `@Gigi how many times did @sam mention "postgres"?` or `@Gigi how often do we talk about postgres here?` can use the planner to choose `memory.count`, but SQL computes the count over indexed, permitted messages. Embeddings are batched in workers and use the guild `embedding` profile, never personal BYOK for shared guild memory.
 
 ## v1 Personal BYOK Slice
 

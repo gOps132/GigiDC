@@ -25,6 +25,11 @@ Capability and identity foundations now exist as internal gates for privileged a
 Discord Gateway
   -> Go runtime
      -> interaction and DM router
+     -> agent runtime core
+        -> planner
+        -> context broker
+        -> native tool registry
+        -> answer composer
      -> capability engine
      -> external app integration catalog
      -> durable jobs and outbox
@@ -48,7 +53,10 @@ Discord Gateway
 - `internal/discord`: Discord gateway adapter, slash command router, DM/guild-mention router, and audit seam.
 - `internal/llm`: provider-backed text client contracts and HTTP callers for OpenAI, Anthropic, Gemini, and custom-compatible providers.
 - `internal/llm/provider`: provider registry, encrypted credentials, model profiles, usage records, provider testing, and credential resolution for OpenAI, Anthropic, Gemini, and future providers.
-- `internal/assistant`: surface-independent orchestration for guild-mention chat, metadata-only conversation turns, and semantic plugin dry-run routing.
+- `internal/assistant`: current surface-independent orchestration for guild-mention chat, metadata-only conversation turns, native memory planning, and semantic plugin routing.
+- `internal/agent`: planned agent runtime core for request planning, context/tool orchestration, answer composition, confirmation, and audit-friendly traces.
+- `internal/contextbroker`: planned scoped context retrieval layer for current-channel context, permitted guild memory, enabled plugin catalog summaries, and token-budgeted context packs.
+- `internal/tools`: planned registry for native deterministic tools and enabled external app tool surfaces.
 
 ## Data Boundary
 
@@ -60,7 +68,9 @@ LLM provider storage supports multiple credential owners from the first schema: 
 
 Gigi uses a provider registry with first-class OpenAI, Anthropic, and Gemini entries plus room for custom providers. Model profiles are selected by purpose: `chat`, `reasoning`, `embedding`, and `routing`.
 
-The cognitive layer is gated by guild LLM routing policy. New guilds default to `off`. Exact deterministic handlers remain first. If `/llm routing` is `dry-run` or `enabled`, the routing model may propose typed native memory tools or manifest-grounded external app plans. Gigi validates every proposal, applies capability checks, and then either returns a dry-run plan or executes only allowed read-only/public-safe actions. If routing fails, chat fallback can call the configured chat model and answer guild mentions. LLM output is only a proposal for routing; Gigi builds final action plans from stored manifests, native tool schemas, capability checks, confirmation policy, and audit rules.
+The cognitive layer should evolve into the agent runtime core. Exact deterministic handlers remain first. If `/llm routing` is `dry-run` or `enabled`, the routing model may propose typed native memory tools or manifest-grounded external app plans. Gigi validates every proposal, applies capability checks, enforces channel visibility, and then either returns a dry-run plan or executes only allowed read-only/public-safe actions. If routing falls through, chat fallback can call the configured chat model and answer guild mentions.
+
+The core invariant is: LLM output is only a proposal. Gigi builds final action plans from registered native tool schemas, stored manifests, capability checks, confirmation policy, channel visibility rules, and audit rules. Deterministic tools such as `memory.count`, `memory.search`, `plugins.plan`, `permissions.check`, and usage summaries remain the source of truth. Natural language changes the path into those tools; it does not replace them.
 
 Personal BYOK should not be required for v0. A guild admin may provide a provider key, but once it powers shared server behavior, Gigi treats it as a guild credential governed by guild policy and audit. V1 can add optional user-owned keys for DMs and explicit guild-approved personal billing, but personal keys must not grant capabilities or silently process guild context.
 
@@ -78,6 +88,6 @@ Gigi understands approved external Discord apps and bots from manifests. During 
 - Durable audit store is used for permission checks and permission changes, but current Discord liveness replies do not depend on it yet.
 - External app command dispatch is limited to public `send_message` prefix actions declared by approved enabled manifests. Restricted actions stay dry-run only.
 - External apps may ignore bot-authored messages after Gigi sends the planned command.
-- Provider text calls require sealed guild credentials, active model profiles, and `GIGI_LLM_SECRET_KEY_BASE64`; personal BYOK, retrieval, memory, and rich DM chat are not live.
-- No retrieval or memory behavior yet.
+- Provider text calls require sealed guild credentials, active model profiles, and `GIGI_LLM_SECRET_KEY_BASE64`; personal BYOK, rich semantic retrieval, and rich DM chat are not live.
+- Guild memory is limited to opted-in current-channel count/search behavior; cross-channel semantic retrieval, citations, backfill UX, and export/delete workflows remain later behavior.
 - Readiness checks database reachability; startup applies idempotent SQL migration files before Discord command wiring.

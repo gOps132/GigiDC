@@ -15,8 +15,27 @@
 </p>
 
 <p align="center">
-  Gigi is being rebuilt as a Go-based Discord assistant foundation for CS/IT Archive.
+  Gigi is being rebuilt as a Discord agent runtime for CS/IT Archive.
 </p>
+
+## Purpose
+
+Gigi is not just a chatbot with plugins. The target product is a Discord-native agent runtime: it receives guild messages and slash commands, understands the user request, chooses the right context and tools, checks permissions, executes deterministic tools, composes an answer, and audits the path.
+
+The core loop is:
+
+```text
+intake
+  -> plan
+  -> retrieve context
+  -> run read tools
+  -> compose answer
+  -> propose or confirm write tools
+  -> execute deterministic actions
+  -> audit
+```
+
+Natural language should map onto tool calls instead of requiring one hard-coded parser for every phrasing. Exact features such as memory counts, message search, plugin dispatch, permission checks, and usage summaries still exist as deterministic tools. The LLM proposes what tool to use and how to explain the result; Go code validates, authorizes, executes, and records it.
 
 ## Current Foundation
 
