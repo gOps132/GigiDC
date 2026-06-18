@@ -38,7 +38,7 @@ func (p HeuristicToolPlanner) Plan(ctx context.Context, request Request, specs [
 		return Plan{Intent: ToolPluginsEnabled, ToolCalls: []ToolCall{{Name: ToolPluginsEnabled}}}, true, nil
 	}
 	if available[ToolPluginsPlan] && mentionsAny(text, "plugin dry run", "plugin plan", "external app plan") {
-		return Plan{Intent: ToolPluginsPlan, ToolCalls: []ToolCall{{Name: ToolPluginsPlan, Args: map[string]string{"text": request.Text}}}}, true, nil
+		return Plan{Intent: ToolPluginsPlan, ToolCalls: []ToolCall{{Name: ToolPluginsPlan, Args: map[string]string{"text": pluginPlanText(request.Text)}}}}, true, nil
 	}
 	if available[ToolPermissionsCheck] {
 		if required := mentionedCapability(text); required != "" {
@@ -69,6 +69,17 @@ func mentionsAny(text string, needles ...string) bool {
 		}
 	}
 	return false
+}
+
+func pluginPlanText(text string) string {
+	trimmed := strings.TrimSpace(text)
+	lower := strings.ToLower(trimmed)
+	for _, prefix := range []string{"plugin dry run", "plugin plan", "external app plan"} {
+		if strings.HasPrefix(lower, prefix) {
+			return strings.TrimSpace(trimmed[len(prefix):])
+		}
+	}
+	return trimmed
 }
 
 var inlineCapabilityPattern = regexp.MustCompile("`([^`]+)`")

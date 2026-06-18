@@ -111,6 +111,49 @@ func TestPermissionsCheckToolReportsDecision(t *testing.T) {
 	}
 }
 
+func TestPlanningHandlerExecutesHeuristicUsageTool(t *testing.T) {
+	request := agentTestRequest()
+	request.Text = "how many LLM tokens used here?"
+	handler := PlanningHandler{
+		Planner: HeuristicToolPlanner{},
+		Policy:  fakePolicy{mode: llmprovider.ToolRoutingEnabled},
+		Checker: fakeAgentCapabilityChecker{decision: capability.Decision{Allowed: true, Reason: capability.ReasonRoleGrant}},
+		Tools: NewRegistry(LLMUsageGuildTool{Reporter: fakeUsageReporter{summary: llmprovider.UsageSummary{
+			InputTokens: 7,
+			TotalEvents: 1,
+		}}}),
+	}
+
+	response, handled, err := handler.HandleAgentRequest(context.Background(), request)
+	if err != nil {
+		t.Fatalf("HandleAgentRequest returned error: %v", err)
+	}
+	if !handled || !strings.Contains(response.Text, "7 tokens") {
+		t.Fatalf("response=%+v handled=%v, want usage response", response, handled)
+	}
+}
+
+func TestPlanningHandlerExecutesHeuristicPluginPlan(t *testing.T) {
+	request := agentTestRequest()
+	request.Text = "plugin plan play never gonna give you up"
+	handler := PlanningHandler{
+		Planner: HeuristicToolPlanner{},
+		Policy:  fakePolicy{mode: llmprovider.ToolRoutingEnabled},
+		Tools: NewRegistry(PluginPlanTool{
+			Registry: fakePluginRegistry{manifests: []plugins.Manifest{testPluginManifest()}},
+			Checker:  fakeAgentCapabilityChecker{decision: capability.Decision{Allowed: true, Reason: capability.ReasonRoleGrant}},
+		}),
+	}
+
+	response, handled, err := handler.HandleAgentRequest(context.Background(), request)
+	if err != nil {
+		t.Fatalf("HandleAgentRequest returned error: %v", err)
+	}
+	if !handled || !strings.Contains(response.Text, "m!play never gonna give you up") {
+		t.Fatalf("response=%+v handled=%v, want plugin plan response", response, handled)
+	}
+}
+
 func testPluginManifest() plugins.Manifest {
 	return plugins.Manifest{
 		ID:       "jockie-music",

@@ -49,6 +49,19 @@ func TestHeuristicToolPlannerPlansPermissionCheck(t *testing.T) {
 	}
 }
 
+func TestHeuristicToolPlannerPlansPluginText(t *testing.T) {
+	request := agentTestRequest()
+	request.Text = "plugin plan play never gonna give you up"
+
+	plan, ok, err := HeuristicToolPlanner{}.Plan(context.Background(), request, []ToolSpec{{Name: ToolPluginsPlan}})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if !ok || plan.ToolCalls[0].Name != ToolPluginsPlan || plan.ToolCalls[0].Args["text"] != "play never gonna give you up" {
+		t.Fatalf("plan=%+v ok=%v, want stripped plugin plan text", plan, ok)
+	}
+}
+
 func TestHeuristicToolPlannerPlansRecentMemory(t *testing.T) {
 	request := agentTestRequest()
 	request.Text = "summarize chat"
