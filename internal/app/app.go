@@ -105,8 +105,9 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		agentRuntime := agent.Runtime{
 			Handlers: []agent.Handler{
 				agent.PlanningHandler{
-					Planner: agent.SemanticMemoryPlannerAdapter{
-						Planner: assistant.SemanticMemoryPlanner{Runtime: llmRuntime},
+					Planner: agent.MultiPlanner{
+						agent.HeuristicToolPlanner{},
+						agent.SemanticMemoryPlannerAdapter{Planner: assistant.SemanticMemoryPlanner{Runtime: llmRuntime}},
 					},
 					Tools: agent.NewRegistry(
 						agent.MemoryCountTool{Store: memoryStore, Checker: evaluator},
