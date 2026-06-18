@@ -39,12 +39,37 @@ func TestSemanticMemoryPlannerMapsSearchJSON(t *testing.T) {
 	}
 }
 
+func TestSemanticMemoryPlannerMapsChannelCountJSON(t *testing.T) {
+	runtime := &fakeRuntime{response: llm.TextResponse{Text: `{"intent":"count","text":"postgres","scope":"this-channel"}`}}
+	planner := SemanticMemoryPlanner{Runtime: runtime}
+
+	got, ok, err := planner.Plan(context.Background(), SemanticMemoryInput{GuildID: "guild-id", ChannelID: "channel-id", ActorUserID: "actor-id", Text: "how many times has postgres been mentioned in this channel?"})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if !ok || got.Intent != MemoryIntentCount || got.TargetUserID != "" || got.Text != "postgres" {
+		t.Fatalf("plan = %+v ok=%v, want channel count plan", got, ok)
+	}
+}
+
+func TestSemanticMemoryPlannerDropsUnmentionedTarget(t *testing.T) {
+	runtime := &fakeRuntime{response: llm.TextResponse{Text: `{"intent":"count","target_user_id":"123","text":"postgres","scope":"this-channel"}`}}
+	planner := SemanticMemoryPlanner{Runtime: runtime}
+
+	got, ok, err := planner.Plan(context.Background(), SemanticMemoryInput{GuildID: "guild-id", ChannelID: "channel-id", ActorUserID: "actor-id", Text: "how many times has postgres been mentioned in this channel?"})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if !ok || got.Intent != MemoryIntentCount || got.TargetUserID != "" || got.Text != "postgres" {
+		t.Fatalf("plan = %+v ok=%v, want hallucinated target dropped", got, ok)
+	}
+}
+
 func TestSemanticMemoryPlannerRejectsInvalidOutput(t *testing.T) {
 	tests := []string{
 		`{}`,
 		`{"intent":"delete","query":"postgres","scope":"this-channel"}`,
 		`{"intent":"search","query":"postgres","scope":"server"}`,
-		`{"intent":"count","text":"postgres","scope":"this-channel"}`,
 	}
 	for _, output := range tests {
 		t.Run(output, func(t *testing.T) {

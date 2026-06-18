@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/gOps132/GigiDC/internal/llm"
@@ -68,7 +69,7 @@ func (p SemanticMemoryPlanner) Plan(ctx context.Context, input SemanticMemoryInp
 	if err != nil {
 		return MemoryPlan{}, false, err
 	}
-	return parseSemanticMemoryPlan(generated.Text)
+	return parseSemanticMemoryPlanForInput(generated.Text, input)
 }
 
 func normalizeSemanticMemoryInput(input SemanticMemoryInput) SemanticMemoryInput {
@@ -87,14 +88,23 @@ func (p SemanticMemoryPlanner) maxOutputTokens() int {
 }
 
 func semanticMemoryInstructions() string {
-	return "You plan Gigi memory tools for one Discord guild mention. Return only JSON. Allowed intents: count, search. Use only this-channel scope. For count, target_user_id and text are required. For search, query is required. If message is not a memory count/search request, return {}. Do not answer the user."
+	return "You plan Gigi memory tools for one Discord guild mention. Return only JSON. Allowed intents: count, search. Use only this-channel scope. For count, text is required. Include target_user_id only when the user asks about a specific mentioned user, and only use an ID from Mentioned user IDs. Omit target_user_id for channel-wide counts. For search, query is required. If message is not a memory count/search request, return {}. Do not answer the user."
 }
 
 func semanticMemoryPrompt(input SemanticMemoryInput) string {
-	return "User message:\n" + input.Text + "\n\nReturn one JSON object like {\"intent\":\"count\",\"target_user_id\":\"123\",\"text\":\"postgres\",\"scope\":\"this-channel\"} or {\"intent\":\"search\",\"query\":\"postgres\",\"limit\":5,\"scope\":\"this-channel\"}."
+	mentions := extractMentionedUserIDs(input.Text)
+	mentionList := "none"
+	if len(mentions) > 0 {
+		mentionList = strings.Join(mentions, ", ")
+	}
+	return "User message:\n" + input.Text + "\n\nMentioned user IDs: " + mentionList + "\n\nReturn one JSON object like {\"intent\":\"count\",\"target_user_id\":\"123\",\"text\":\"postgres\",\"scope\":\"this-channel\"}, {\"intent\":\"count\",\"text\":\"postgres\",\"scope\":\"this-channel\"}, or {\"intent\":\"search\",\"query\":\"postgres\",\"limit\":5,\"scope\":\"this-channel\"}."
 }
 
 func parseSemanticMemoryPlan(value string) (MemoryPlan, bool, error) {
+	return parseSemanticMemoryPlanForInput(value, SemanticMemoryInput{})
+}
+
+func parseSemanticMemoryPlanForInput(value string, input SemanticMemoryInput) (MemoryPlan, bool, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return MemoryPlan{}, false, nil
@@ -133,9 +143,10 @@ func parseSemanticMemoryPlan(value string) (MemoryPlan, bool, error) {
 	}
 	switch plan.Intent {
 	case MemoryIntentCount:
-		if plan.TargetUserID == "" || strings.TrimSpace(plan.Text) == "" {
+		if strings.TrimSpace(plan.Text) == "" {
 			return MemoryPlan{}, false, nil
 		}
+		plan.TargetUserID = validMentionedTarget(plan.TargetUserID, input.Text)
 	case MemoryIntentSearch:
 		if strings.TrimSpace(plan.Query) == "" {
 			return MemoryPlan{}, false, nil
@@ -144,4 +155,39 @@ func parseSemanticMemoryPlan(value string) (MemoryPlan, bool, error) {
 		return MemoryPlan{}, false, nil
 	}
 	return plan, true, nil
+}
+
+var discordUserMentionPattern = regexp.MustCompile(`<@!?([0-9]+)>`)
+
+func extractMentionedUserIDs(text string) []string {
+	matches := discordUserMentionPattern.FindAllStringSubmatch(text, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(matches))
+	ids := make([]string, 0, len(matches))
+	for _, match := range matches {
+		if len(match) < 2 || match[1] == "" {
+			continue
+		}
+		if _, ok := seen[match[1]]; ok {
+			continue
+		}
+		seen[match[1]] = struct{}{}
+		ids = append(ids, match[1])
+	}
+	return ids
+}
+
+func validMentionedTarget(targetUserID string, text string) string {
+	targetUserID = strings.TrimSpace(targetUserID)
+	if targetUserID == "" {
+		return ""
+	}
+	for _, mentionedUserID := range extractMentionedUserIDs(text) {
+		if targetUserID == mentionedUserID {
+			return targetUserID
+		}
+	}
+	return ""
 }

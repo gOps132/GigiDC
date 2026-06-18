@@ -652,7 +652,7 @@ Guild memory starts off, requires explicit per-channel opt-in, and runs live ing
 
 ### Guild mention memory questions
 
-Status: live for exact current-channel count questions matching `how many times did @user mention "text"?`.
+Status: live for exact current-channel count questions matching `how many times did @user mention "text"?` and, when LLM tool routing is enabled, flexible current-channel count/search phrasing.
 
 Required Gigi capability: `memory.read.guild`.
 
@@ -660,15 +660,17 @@ Example:
 
 ```text
 @Gigi how many times did @sam mention "postgres"?
+@Gigi how many times has postgres been mentioned in this channel?
 ```
 
 Example response:
 
 ```text
 @sam mentioned `postgres` 14 times in this channel.
+Messages mentioned `postgres` 19 times in this channel.
 ```
 
-Count answers use deterministic SQL over indexed messages. Gigi does not ask an LLM to guess aggregate counts.
+Count answers use deterministic SQL over indexed messages. When LLM tool routing is enabled, Gigi may use the routing model to choose the memory tool, but it does not ask an LLM to guess aggregate counts.
 
 Failure cases:
 

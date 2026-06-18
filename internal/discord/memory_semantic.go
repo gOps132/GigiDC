@@ -113,7 +113,7 @@ func (h semanticMemoryHandler) executePlan(ctx context.Context, message Message,
 		if err != nil {
 			return MessageResponse{}, err
 		}
-		return MessageResponse{Content: fmt.Sprintf("<@%s> mentioned `%s` %d times in this channel.", safeInline(plan.TargetUserID), safeInline(memory.NormalizeText(plan.Text)), result.Count)}, nil
+		return MessageResponse{Content: formatSemanticMemoryCount(result, plan)}, nil
 	case assistant.MemoryIntentSearch:
 		results, err := h.manager.SearchMessages(ctx, memory.SearchRequest{
 			GuildID:   message.GuildID,
@@ -168,10 +168,22 @@ func (h semanticMemoryHandler) record(ctx context.Context, message Message, plan
 func formatSemanticMemoryDryRun(plan assistant.MemoryPlan) string {
 	switch plan.Intent {
 	case assistant.MemoryIntentCount:
+		if strings.TrimSpace(plan.TargetUserID) == "" {
+			return fmt.Sprintf("Planned channel memory count for `%s`. LLM tool routing is in `dry-run` mode.", safeInline(memory.NormalizeText(plan.Text)))
+		}
 		return fmt.Sprintf("Planned memory count for <@%s> mentioning `%s`. LLM tool routing is in `dry-run` mode.", safeInline(plan.TargetUserID), safeInline(memory.NormalizeText(plan.Text)))
 	case assistant.MemoryIntentSearch:
 		return fmt.Sprintf("Planned memory search for `%s`. LLM tool routing is in `dry-run` mode.", safeInline(memory.NormalizeText(plan.Query)))
 	default:
 		return "Planned memory tool call. LLM tool routing is in `dry-run` mode."
 	}
+}
+
+func formatSemanticMemoryCount(result memory.CountResult, plan assistant.MemoryPlan) string {
+	target := strings.TrimSpace(plan.TargetUserID)
+	text := safeInline(memory.NormalizeText(plan.Text))
+	if target == "" {
+		return fmt.Sprintf("Messages mentioned `%s` %d times in this channel.", text, result.Count)
+	}
+	return fmt.Sprintf("<@%s> mentioned `%s` %d times in this channel.", safeInline(target), text, result.Count)
 }
