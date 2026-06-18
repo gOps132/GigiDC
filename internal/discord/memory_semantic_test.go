@@ -76,6 +76,25 @@ func TestSemanticMemoryHandlerEnabledExecutesCount(t *testing.T) {
 	}
 }
 
+func TestSemanticMemoryHandlerEnabledExecutesChannelCount(t *testing.T) {
+	manager := &fakeMemoryManager{count: memory.CountResult{Count: 7}}
+	handler := SemanticMemoryHandler(manager, &fakeCapabilityChecker{decision: capability.Decision{Allowed: true, Capability: "memory.read.guild", Reason: capability.ReasonRoleGrant}}, nil, &fakeLLMPolicyManager{policy: provider.GuildPolicy{GuildID: "guild-id", ToolRoutingMode: provider.ToolRoutingEnabled}}, &fakeSemanticMemoryPlanner{
+		plan: assistant.MemoryPlan{Intent: assistant.MemoryIntentCount, Text: "postgres", Scope: "this-channel"},
+		ok:   true,
+	}, CoreMessageHandler())
+
+	response, err := handler.HandleMessage(context.Background(), semanticMemoryMessage("how many times has postgres been mentioned in this channel?"))
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if manager.method != "CountMentions" || manager.countReq.AuthorUserID != "" || manager.countReq.Text != "postgres" {
+		t.Fatalf("manager = %+v, want channel count execution", manager)
+	}
+	if response.Content != "Messages mentioned `postgres` 7 times in this channel." {
+		t.Fatalf("response = %q, want channel count answer", response.Content)
+	}
+}
+
 func TestSemanticMemoryHandlerEnabledExecutesSearch(t *testing.T) {
 	manager := &fakeMemoryManager{searchResults: []memory.SearchResult{{AuthorUserID: "123", Text: "postgres outage notes"}}}
 	handler := SemanticMemoryHandler(manager, &fakeCapabilityChecker{decision: capability.Decision{Allowed: true, Capability: "memory.read.guild", Reason: capability.ReasonRoleGrant}}, nil, &fakeLLMPolicyManager{policy: provider.GuildPolicy{GuildID: "guild-id", ToolRoutingMode: provider.ToolRoutingEnabled}}, &fakeSemanticMemoryPlanner{
