@@ -119,12 +119,13 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		evaluator := capability.NewEvaluator(grantStore)
 		router.SetAuthorizer(discord.NewCapabilityAuthorizer(evaluator, auditStore))
 
-		externalAppHandler := discord.ExternalAppDryRunHandlerWithSemantic(
+		externalAppHandler := discord.ExternalAppDryRunHandlerWithSemanticPolicy(
 			pluginStore,
 			evaluator,
 			auditStore,
 			discord.AssistantFallbackHandler(assistantHandler, discord.CoreMessageHandler()),
 			semanticPlanner,
+			policyStore,
 		)
 		messageHandler := discord.MemoryQuestionHandler(memoryStore, evaluator, auditStore, externalAppHandler)
 		messageRouter, err := discord.NewMessageRouter(cfg.DiscordClientID, messageHandler, nil, memoryIngestor)

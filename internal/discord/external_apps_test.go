@@ -9,6 +9,7 @@ import (
 	"github.com/gOps132/GigiDC/internal/audit"
 	"github.com/gOps132/GigiDC/internal/capability"
 	"github.com/gOps132/GigiDC/internal/llm"
+	"github.com/gOps132/GigiDC/internal/llm/provider"
 	"github.com/gOps132/GigiDC/internal/plugins"
 )
 
@@ -227,6 +228,63 @@ func TestExternalAppDryRunHandlerUsesSemanticDryRunWhenNoPrefixMatches(t *testin
 	}
 }
 
+func TestExternalAppSemanticRoutingSkipsWhenPolicyOff(t *testing.T) {
+	handler := ExternalAppDryRunHandlerWithSemanticPolicy(
+		&fakeExternalAppRegistry{manifests: []plugins.Manifest{dryRunManifest()}},
+		&fakeCapabilityChecker{},
+		nil,
+		MessageHandlerFunc(func(context.Context, Message) (MessageResponse, error) {
+			return MessageResponse{Content: "fallback-ok"}, nil
+		}),
+		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"plugin_id":"jockie-music","trigger":"!play","arguments":"song"}`}}},
+		&fakeLLMPolicyManager{policy: provider.GuildPolicy{GuildID: "guild-id", ToolRoutingMode: provider.ToolRoutingOff}},
+	)
+
+	response, err := handler.HandleMessage(context.Background(), Message{
+		Surface: MessageSurfaceGuildMention,
+		GuildID: "guild-id",
+		UserID:  "user-id",
+		Text:    "could you play song",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if response.Content != "fallback-ok" {
+		t.Fatalf("response = %q, want fallback when semantic routing off", response.Content)
+	}
+}
+
+func TestExternalAppSemanticRoutingEnabledDispatchesPublicManifest(t *testing.T) {
+	manifest := dryRunManifest()
+	manifest.Permissions = nil
+	manifest.Dispatch = plugins.DispatchModeSendMessage
+	recorder := &fakeAuditRecorder{}
+	handler := ExternalAppDryRunHandlerWithSemanticPolicy(
+		&fakeExternalAppRegistry{manifests: []plugins.Manifest{manifest}},
+		nil,
+		recorder,
+		CoreMessageHandler(),
+		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"plugin_id":"jockie-music","trigger":"!play","arguments":"song"}`}}},
+		&fakeLLMPolicyManager{policy: provider.GuildPolicy{GuildID: "guild-id", ToolRoutingMode: provider.ToolRoutingEnabled}},
+	)
+
+	response, err := handler.HandleMessage(context.Background(), Message{
+		Surface: MessageSurfaceGuildMention,
+		GuildID: "guild-id",
+		UserID:  "user-id",
+		Text:    "could you play song",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if response.Content != "!play song" {
+		t.Fatalf("response = %q, want semantic public dispatch", response.Content)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Kind != "discord.external_app.semantic_dispatch" || recorder.events[0].Status != audit.StatusSucceeded {
+		t.Fatalf("audit events = %+v, want semantic dispatch audit", recorder.events)
+	}
+}
+
 func TestExternalAppSemanticDryRunNeverDispatchesPublicManifest(t *testing.T) {
 	manifest := dryRunManifest()
 	manifest.Permissions = nil
@@ -250,6 +308,32 @@ func TestExternalAppSemanticDryRunNeverDispatchesPublicManifest(t *testing.T) {
 	}
 	if response.Content == "!play song" || !strings.Contains(response.Content, "Dry-run only; no command sent.") {
 		t.Fatalf("response = %q, want dry-run not dispatch", response.Content)
+	}
+}
+
+func TestExternalAppSemanticRoutingEnabledStillDryRunsRestrictedManifest(t *testing.T) {
+	manifest := dryRunManifest()
+	manifest.Dispatch = plugins.DispatchModeSendMessage
+	handler := ExternalAppDryRunHandlerWithSemanticPolicy(
+		&fakeExternalAppRegistry{manifests: []plugins.Manifest{manifest}},
+		&fakeCapabilityChecker{decision: capability.Decision{Allowed: true, Capability: "plugin.install", Reason: capability.ReasonRoleGrant}},
+		nil,
+		CoreMessageHandler(),
+		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"plugin_id":"jockie-music","trigger":"!play","arguments":"song"}`}}},
+		&fakeLLMPolicyManager{policy: provider.GuildPolicy{GuildID: "guild-id", ToolRoutingMode: provider.ToolRoutingEnabled}},
+	)
+
+	response, err := handler.HandleMessage(context.Background(), Message{
+		Surface: MessageSurfaceGuildMention,
+		GuildID: "guild-id",
+		UserID:  "user-id",
+		Text:    "could you play song",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if response.Content == "!play song" || !strings.Contains(response.Content, "Dry-run only; no command sent.") {
+		t.Fatalf("response = %q, want dry-run for restricted semantic plan", response.Content)
 	}
 }
 
