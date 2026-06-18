@@ -102,13 +102,16 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		}
 		assistantHandler := assistant.NewHandler(llmRuntime)
 		assistantHandler.Recorder = conversationStore
+		followUps := agent.NewMemoryFollowUpStore()
 		agentRuntime := agent.Runtime{
 			Handlers: []agent.Handler{
 				agent.PlanningHandler{
 					Planner: agent.MultiPlanner{
 						agent.HeuristicToolPlanner{},
+						agent.LLMPlanner{Runtime: llmRuntime},
 						agent.SemanticMemoryPlannerAdapter{Planner: assistant.SemanticMemoryPlanner{Runtime: llmRuntime}},
 					},
+					Answerer: agent.LLMAnswerer{Runtime: llmRuntime},
 					Tools: agent.NewRegistry(
 						agent.MemoryCountTool{Store: memoryStore, Checker: evaluator},
 						agent.MemorySearchTool{Store: memoryStore, Checker: evaluator},
@@ -118,9 +121,10 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 						agent.PermissionsCheckTool{Checker: evaluator},
 						agent.LLMUsageGuildTool{Reporter: usageRecorder},
 					),
-					Policy:   policyStore,
-					Checker:  evaluator,
-					Recorder: auditStore,
+					Policy:    policyStore,
+					Checker:   evaluator,
+					Recorder:  auditStore,
+					FollowUps: followUps,
 				},
 				agent.ChatHandler{Responder: assistantHandler},
 			},
