@@ -619,6 +619,31 @@ Failure cases:
 
 Privacy and audit: reads aggregate token and request counts only. Usage events do not store raw prompts, completions, provider responses, or secrets.
 
+## Agent Commands
+
+### `/ask`
+
+Status: live.
+
+Required Gigi capability: none for `context:none`; channel memory tools still require `memory.read.guild` when `context:channel` and tool routing are enabled.
+
+Syntax:
+
+```text
+/ask question:<text> context:<none|channel> visibility:<public|private>
+```
+
+`context:none` routes through the agent chat path without memory tools. `context:channel` allows the agent planner to choose current-channel memory tools such as `memory.count` and `memory.search` when `/llm routing` allows it and the requester has memory permission.
+
+Examples:
+
+```text
+/ask question:explain recursion in one paragraph context:none visibility:private
+/ask question:how often did we mention postgres here context:channel visibility:public
+```
+
+Privacy and audit: the agent path records scoped metadata such as tool names, status, and intent. It does not store raw prompt text, raw memory snippets, provider responses, or secrets in audit metadata.
+
 ## Planned LLM Commands
 
 These commands are not implemented yet.

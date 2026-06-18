@@ -21,7 +21,7 @@ description: Planned evolution of the Go foundation rebuild.
 - DM handling
 - permission model
 
-Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, capability evaluator, identity resolver contract, DB-backed role-first `/permissions` command, guild-scoped `/llm` provider and model controls, guild mention chat fallback, startup migration runner, guild memory settings/status/count/search scaffold, semantic memory/tool routing policy, and durable audit-log seam are started. Rich DM conversation, semantic retrieval, assignment/task commands, and restricted action execution remain.
+Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, `/ask`, capability evaluator, identity resolver contract, DB-backed role-first `/permissions` command, guild-scoped `/llm` provider and model controls, agent-backed guild mention chat fallback, startup migration runner, guild memory settings/status/count/search scaffold, semantic memory/tool routing policy, and durable audit-log seam are started. Rich DM conversation, semantic retrieval, assignment/task commands, and restricted action execution remain.
 
 ## v0 Agent Runtime Core Slice
 
