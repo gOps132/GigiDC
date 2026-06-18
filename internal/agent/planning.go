@@ -33,6 +33,8 @@ type PlanningHandler struct {
 	Checker                      CapabilityChecker
 	Recorder                     AuditRecorder
 	RequiredCapabilityBeforePlan capability.Capability
+	Limits                       Limits
+	NewRunID                     func() string
 }
 
 func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request) (Response, bool, error) {
@@ -51,7 +53,9 @@ func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request
 			Policy:   policy,
 			Trace:    trace,
 		},
-		Trace: trace,
+		Trace:    trace,
+		Limits:   h.Limits,
+		NewRunID: h.NewRunID,
 	}
 	return runner.Run(ctx, request)
 }

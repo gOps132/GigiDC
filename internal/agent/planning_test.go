@@ -96,6 +96,30 @@ func TestPlanningHandlerExecutesToolWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestPlanningHandlerPassesRunnerLimits(t *testing.T) {
+	tool := &fakeTool{}
+	handler := PlanningHandler{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "many", ToolCalls: []ToolCall{
+			{Name: "fake.tool"},
+			{Name: "fake.tool"},
+		}}},
+		Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled},
+		Tools:  NewRegistry(tool),
+		Limits: Limits{MaxToolCalls: 1},
+	}
+
+	response, handled, err := handler.HandleAgentRequest(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("HandleAgentRequest returned error: %v", err)
+	}
+	if !handled || response.Text != "Agent tool budget exceeded." {
+		t.Fatalf("response=%+v handled=%v, want limit response", response, handled)
+	}
+	if tool.called {
+		t.Fatalf("tool executed after handler limit")
+	}
+}
+
 func TestMemoryRecentToolExecutes(t *testing.T) {
 	store := &fakeAgentMemoryStore{results: []memory.SearchResult{{MessageID: "message-id"}}}
 	tool := MemoryRecentTool{
