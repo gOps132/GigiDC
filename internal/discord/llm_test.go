@@ -56,6 +56,20 @@ func TestLLMCommandsExposeGuildProviderSurface(t *testing.T) {
 	if findOption(usageGroup.Options, "guild") == nil {
 		t.Fatalf("usage group missing guild")
 	}
+
+	routingGroup := findOption(command.Options, "routing")
+	if routingGroup == nil || routingGroup.Type != discordgo.ApplicationCommandOptionSubCommandGroup {
+		t.Fatalf("routing group = %+v, want subcommand group", routingGroup)
+	}
+	for _, name := range []string{"show", "set"} {
+		if findOption(routingGroup.Options, name) == nil {
+			t.Fatalf("routing group missing %q", name)
+		}
+	}
+	set := findOption(routingGroup.Options, "set")
+	if option := findOption(set.Options, "mode"); option == nil || !hasChoice(option, string(provider.ToolRoutingOff)) || !hasChoice(option, string(provider.ToolRoutingDryRun)) || !hasChoice(option, string(provider.ToolRoutingEnabled)) {
+		t.Fatalf("routing mode option = %+v, want routing mode choices", option)
+	}
 }
 
 func TestLLMCommandDynamicCapabilities(t *testing.T) {
@@ -73,6 +87,8 @@ func TestLLMCommandDynamicCapabilities(t *testing.T) {
 		{name: "model show", i: llmInteraction("model", "show", []InteractionOption{{Name: "purpose", Value: "chat"}}), want: "llm.provider.select"},
 		{name: "model set", i: llmInteraction("model", "set", []InteractionOption{{Name: "purpose", Value: "chat"}, {Name: "label", Value: "main"}, {Name: "model", Value: "gpt-4o-mini"}}), want: "llm.provider.select"},
 		{name: "usage guild", i: llmInteraction("usage", "guild", nil), want: "llm.provider.select"},
+		{name: "routing show", i: llmInteraction("routing", "show", nil), want: "llm.provider.select"},
+		{name: "routing set", i: llmInteraction("routing", "set", []InteractionOption{{Name: "mode", Value: "dry-run"}}), want: "llm.provider.write"},
 		{name: "bad path", i: llmInteraction("provider", "wat", nil), want: ""},
 	}
 
@@ -83,6 +99,54 @@ func TestLLMCommandDynamicCapabilities(t *testing.T) {
 				t.Fatalf("capability = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestLLMCommandShowsRoutingPolicy(t *testing.T) {
+	policies := &fakeLLMPolicyManager{policy: provider.GuildPolicy{GuildID: "guild-id", PersonalKeysMode: provider.PersonalKeysOff, ToolRoutingMode: provider.ToolRoutingDryRun}}
+	handler := LLMCommands(&fakeLLMProviderManager{}, nil, LLMCommandConfig{PolicyManager: policies})[0].Handle
+
+	response, err := handler(context.Background(), llmInteraction("routing", "show", nil))
+	if err != nil {
+		t.Fatalf("routing show returned error: %v", err)
+	}
+	if policies.guildID != "guild-id" {
+		t.Fatalf("policy guild ID = %q, want guild-id", policies.guildID)
+	}
+	if response.Content != "LLM tool routing mode: `dry-run`." || !response.Ephemeral {
+		t.Fatalf("response = %+v, want routing mode", response)
+	}
+}
+
+func TestLLMCommandSetsRoutingPolicyAndAudits(t *testing.T) {
+	policies := &fakeLLMPolicyManager{policy: provider.GuildPolicy{GuildID: "guild-id", PersonalKeysMode: provider.PersonalKeysDMOnly, ToolRoutingMode: provider.ToolRoutingOff}}
+	recorder := &fakeAuditRecorder{}
+	handler := LLMCommands(&fakeLLMProviderManager{}, recorder, LLMCommandConfig{PolicyManager: policies})[0].Handle
+
+	response, err := handler(context.Background(), llmInteraction("routing", "set", []InteractionOption{{Name: "mode", Value: "enabled"}}))
+	if err != nil {
+		t.Fatalf("routing set returned error: %v", err)
+	}
+	if policies.input.GuildID != "guild-id" || policies.input.PersonalKeysMode != provider.PersonalKeysDMOnly || policies.input.ToolRoutingMode != provider.ToolRoutingEnabled || policies.input.ActorUserID != "actor-id" {
+		t.Fatalf("policy input = %+v, want preserved personal mode and enabled routing", policies.input)
+	}
+	if response.Content != "Set LLM tool routing mode to `enabled`." || !response.Ephemeral {
+		t.Fatalf("response = %+v, want set response", response)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Status != audit.StatusSucceeded || recorder.events[0].Metadata["group"] != "routing" || recorder.events[0].Metadata["routing_mode"] != "enabled" {
+		t.Fatalf("audit events = %+v, want routing audit", recorder.events)
+	}
+}
+
+func TestLLMCommandRejectsInvalidRoutingMode(t *testing.T) {
+	handler := LLMCommands(&fakeLLMProviderManager{}, nil, LLMCommandConfig{PolicyManager: &fakeLLMPolicyManager{}})[0].Handle
+
+	response, err := handler(context.Background(), llmInteraction("routing", "set", []InteractionOption{{Name: "mode", Value: "always"}}))
+	if err != nil {
+		t.Fatalf("routing set returned error: %v", err)
+	}
+	if response.Content != "unknown tool routing mode" || !response.Ephemeral {
+		t.Fatalf("response = %+v, want validation error", response)
 	}
 }
 
@@ -583,4 +647,27 @@ type fakeLLMUsageReporter struct {
 func (r *fakeLLMUsageReporter) GuildUsageSummary(_ context.Context, guildID string) (provider.UsageSummary, error) {
 	r.guildID = guildID
 	return r.summary, r.err
+}
+
+type fakeLLMPolicyManager struct {
+	guildID string
+	policy  provider.GuildPolicy
+	input   provider.GuildPolicyInput
+	err     error
+}
+
+func (m *fakeLLMPolicyManager) GuildPolicy(_ context.Context, guildID string) (provider.GuildPolicy, error) {
+	m.guildID = guildID
+	if m.err != nil {
+		return provider.GuildPolicy{}, m.err
+	}
+	if m.policy.GuildID == "" {
+		return provider.DefaultGuildPolicy(guildID), nil
+	}
+	return m.policy, nil
+}
+
+func (m *fakeLLMPolicyManager) SetGuildPolicy(_ context.Context, input provider.GuildPolicyInput) error {
+	m.input = input
+	return m.err
 }

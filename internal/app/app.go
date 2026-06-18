@@ -86,6 +86,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		auditStore := audit.NewStore(db, func() string { return storage.NewID("audit") })
 		pluginStore := plugins.NewSQLCatalogStore(db, func() string { return storage.NewID("plugin") })
 		providerStore := llmprovider.NewSQLStore(db, func() string { return storage.NewID("llm") })
+		policyStore := llmprovider.NewSQLPolicyStore(db)
 		providerService := llmprovider.NewServiceWithTester(providerStore, secretSealer, llmprovider.DefaultRegistry(), llmprovider.NewHTTPTester(nil))
 		usageRecorder := llmprovider.NewSQLUsageRecorder(db, func() string { return storage.NewID("llmusage") })
 		memoryStore := memory.NewSQLStore(db)
@@ -106,6 +107,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		commands = append(commands, discord.LLMCommands(providerService, auditStore, discord.LLMCommandConfig{
 			CredentialEntryEnabled: secretSealer != nil,
 			UsageReporter:          usageRecorder,
+			PolicyManager:          policyStore,
 		})...)
 		commands = append(commands, discord.MemoryCommands(memoryStore, auditStore)...)
 

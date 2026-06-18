@@ -154,6 +154,23 @@ func TestLLMGuildPoliciesMigrationDefaultsPersonalKeysOff(t *testing.T) {
 	}
 }
 
+func TestLLMToolRoutingPolicyMigrationDefaultsOff(t *testing.T) {
+	sqlBytes, err := os.ReadFile("../../db/migrations/000007_llm_tool_routing_policy.sql")
+	if err != nil {
+		t.Fatalf("ReadFile returned error: %v", err)
+	}
+	sql := string(sqlBytes)
+
+	for _, want := range []string{
+		"add column if not exists tool_routing_mode text not null default 'off'",
+		"check (tool_routing_mode in ('off', 'dry-run', 'enabled'))",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("llm tool routing policy migration missing %q", want)
+		}
+	}
+}
+
 func TestGuildMemoryMigrationDefinesPolicyAndRetrievalSchema(t *testing.T) {
 	sqlBytes, err := os.ReadFile("../../db/migrations/000006_guild_memory.sql")
 	if err != nil {
