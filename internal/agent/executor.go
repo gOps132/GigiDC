@@ -15,14 +15,15 @@ type Executor struct {
 
 func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Response, error) {
 	results := make([]ToolResult, 0, len(plan.ToolCalls))
-	for _, call := range plan.ToolCalls {
+	for index, call := range plan.ToolCalls {
+		trace := e.Trace.WithStep(index + 1)
 		tool, spec, err := e.Tools.Lookup(call.Name)
 		if err != nil {
-			_ = e.Trace.Record(ctx, request, "agent.tool", audit.StatusFailed, "tool_failed", map[string]string{"tool": safeAuditValue(call.Name)})
+			_ = trace.Record(ctx, request, "agent.tool", audit.StatusFailed, "tool_failed", map[string]string{"tool": safeAuditValue(call.Name)})
 			return Response{Text: "Agent tool failed."}, nil
 		}
 		if spec.Kind == ToolKindWrite {
-			_ = e.Trace.Record(ctx, request, "agent.tool", audit.StatusDenied, "confirmation_required", map[string]string{
+			_ = trace.Record(ctx, request, "agent.tool", audit.StatusDenied, "confirmation_required", map[string]string{
 				"tool":       safeAuditValue(spec.Name),
 				"kind":       safeAuditValue(string(spec.Kind)),
 				"capability": safeAuditValue(spec.Capability),
@@ -31,7 +32,7 @@ func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Resp
 		}
 		decision, err := e.Policy.CheckBeforeTool(ctx, request, spec)
 		if err != nil {
-			_ = e.Trace.Record(ctx, request, "agent.tool", audit.StatusFailed, "permission_check_failed", map[string]string{
+			_ = trace.Record(ctx, request, "agent.tool", audit.StatusFailed, "permission_check_failed", map[string]string{
 				"tool":       safeAuditValue(spec.Name),
 				"kind":       safeAuditValue(string(spec.Kind)),
 				"capability": safeAuditValue(spec.Capability),
@@ -39,7 +40,7 @@ func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Resp
 			return Response{Text: "Permission check failed."}, nil
 		}
 		if !decision.Allowed {
-			_ = e.Trace.Record(ctx, request, "agent.tool", audit.StatusDenied, "permission_denied", map[string]string{
+			_ = trace.Record(ctx, request, "agent.tool", audit.StatusDenied, "permission_denied", map[string]string{
 				"tool":            safeAuditValue(spec.Name),
 				"kind":            safeAuditValue(string(spec.Kind)),
 				"capability":      safeAuditValue(string(decision.Capability)),
@@ -55,21 +56,22 @@ func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Resp
 			"capability": safeAuditValue(spec.Capability),
 		}
 		if err != nil {
-			_ = e.Trace.Record(ctx, request, "agent.tool", audit.StatusFailed, "tool_failed", metadata)
+			_ = trace.Record(ctx, request, "agent.tool", audit.StatusFailed, "tool_failed", metadata)
 			return Response{Text: "Agent tool failed."}, nil
 		}
 		results = append(results, result)
-		_ = e.Trace.Record(ctx, request, "agent.tool", audit.StatusSucceeded, "", metadata)
+		_ = trace.Record(ctx, request, "agent.tool", audit.StatusSucceeded, "", metadata)
 	}
+	answerTrace := e.Trace.WithStep(len(plan.ToolCalls) + 1)
 	if e.Answerer != nil {
 		response, err := e.Answerer.Answer(ctx, request, plan, results)
 		if err != nil {
-			_ = e.Trace.Record(ctx, request, "agent.answer", audit.StatusFailed, "answer_failed", map[string]string{"intent": safeAuditValue(plan.Intent)})
+			_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusFailed, "answer_failed", map[string]string{"intent": safeAuditValue(plan.Intent)})
 			return Response{Text: "Agent answer failed."}, nil
 		}
-		_ = e.Trace.Record(ctx, request, "agent.answer", audit.StatusSucceeded, "", map[string]string{"intent": safeAuditValue(plan.Intent)})
+		_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusSucceeded, "", map[string]string{"intent": safeAuditValue(plan.Intent)})
 		return response, nil
 	}
-	_ = e.Trace.Record(ctx, request, "agent.answer", audit.StatusSucceeded, "", map[string]string{"intent": safeAuditValue(plan.Intent)})
+	_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusSucceeded, "", map[string]string{"intent": safeAuditValue(plan.Intent)})
 	return Response{Text: formatToolResults(results)}, nil
 }

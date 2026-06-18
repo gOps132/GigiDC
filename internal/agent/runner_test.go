@@ -173,6 +173,42 @@ func TestTraceSkipsEmptyActorAndAddsSource(t *testing.T) {
 	}
 }
 
+func TestRunnerTraceIncludesRunIDAndOrderedSteps(t *testing.T) {
+	recorder := &fakeAgentAuditRecorder{}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "multi", ToolCalls: []ToolCall{
+			{Name: "tool.a"},
+			{Name: "tool.b"},
+		}}},
+		Policy: RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools: NewRegistry(&fakeTool{name: "tool.a"}, &fakeTool{name: "tool.b"}),
+		},
+		Trace:    Trace{Recorder: recorder, Source: "agent-test"},
+		NewRunID: func() string { return "run-1" },
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "fake result\nfake result" {
+		t.Fatalf("response=%+v handled=%v, want combined results", response, handled)
+	}
+	if len(recorder.events) != 3 {
+		t.Fatalf("events=%+v, want 2 tools + answer", recorder.events)
+	}
+	for index, event := range recorder.events {
+		if event.Metadata["run_id"] != "run-1" || event.Metadata["source"] != "agent-test" {
+			t.Fatalf("event=%+v, want run/source metadata", event)
+		}
+		wantStep := string(rune('1' + index))
+		if event.Metadata["step_index"] != wantStep {
+			t.Fatalf("event=%+v, want step_index %s", event, wantStep)
+		}
+	}
+}
+
 func TestRunnerChecksCapabilityBeforePlanner(t *testing.T) {
 	planner := &fakePlanner{ok: true}
 	runner := Runner{

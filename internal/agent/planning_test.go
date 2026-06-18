@@ -185,6 +185,7 @@ func (r *fakeAgentAuditRecorder) Record(ctx context.Context, event audit.Event) 
 }
 
 type fakeTool struct {
+	name       string
 	called     bool
 	err        error
 	kind       ToolKind
@@ -192,11 +193,15 @@ type fakeTool struct {
 }
 
 func (t *fakeTool) Spec() ToolSpec {
+	name := t.name
+	if name == "" {
+		name = "fake.tool"
+	}
 	kind := t.kind
 	if kind == "" {
 		kind = ToolKindRead
 	}
-	return ToolSpec{Name: "fake.tool", Kind: kind, Capability: t.capability}
+	return ToolSpec{Name: name, Kind: kind, Capability: t.capability}
 }
 
 func (t *fakeTool) Execute(ctx context.Context, request Request, call ToolCall) (ToolResult, error) {
@@ -204,7 +209,7 @@ func (t *fakeTool) Execute(ctx context.Context, request Request, call ToolCall) 
 	if t.err != nil {
 		return ToolResult{}, t.err
 	}
-	return ToolResult{Name: "fake.tool", Summary: "fake result"}, nil
+	return ToolResult{Name: t.Spec().Name, Summary: "fake result"}, nil
 }
 
 type fakeAgentMemoryStore struct {
