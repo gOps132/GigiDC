@@ -185,12 +185,18 @@ func (r *fakeAgentAuditRecorder) Record(ctx context.Context, event audit.Event) 
 }
 
 type fakeTool struct {
-	called bool
-	err    error
+	called     bool
+	err        error
+	kind       ToolKind
+	capability string
 }
 
 func (t *fakeTool) Spec() ToolSpec {
-	return ToolSpec{Name: "fake.tool", Kind: ToolKindRead}
+	kind := t.kind
+	if kind == "" {
+		kind = ToolKindRead
+	}
+	return ToolSpec{Name: "fake.tool", Kind: kind, Capability: t.capability}
 }
 
 func (t *fakeTool) Execute(ctx context.Context, request Request, call ToolCall) (ToolResult, error) {

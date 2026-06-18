@@ -37,16 +37,18 @@ type PlanningHandler struct {
 
 func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request) (Response, bool, error) {
 	trace := Trace{Recorder: h.Recorder, Source: "agent"}
+	policy := RoutingPolicy{
+		Policy:                       h.Policy,
+		Checker:                      h.Checker,
+		RequiredCapabilityBeforePlan: h.RequiredCapabilityBeforePlan,
+	}
 	runner := Runner{
 		Planner: h.Planner,
-		Policy: RoutingPolicy{
-			Policy:                       h.Policy,
-			Checker:                      h.Checker,
-			RequiredCapabilityBeforePlan: h.RequiredCapabilityBeforePlan,
-		},
+		Policy:  policy,
 		Executor: Executor{
 			Tools:    h.Tools,
 			Answerer: h.Answerer,
+			Policy:   policy,
 			Trace:    trace,
 		},
 		Trace: trace,

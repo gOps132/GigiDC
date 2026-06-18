@@ -59,6 +59,21 @@ func TestRoutingPolicyNilPolicyDefaultsOff(t *testing.T) {
 	}
 }
 
+func TestRegistryLookupNormalizesSpec(t *testing.T) {
+	registry := NewRegistry(&fakeTool{kind: ToolKind("mutation")})
+
+	_, spec, err := registry.Lookup(" fake.tool ")
+	if err != nil {
+		t.Fatalf("Lookup returned error: %v", err)
+	}
+	if spec.Name != "fake.tool" || spec.Kind != ToolKindRead {
+		t.Fatalf("spec=%+v, want trimmed read spec", spec)
+	}
+	if _, _, err := registry.Lookup("missing.tool"); err == nil {
+		t.Fatalf("Lookup unknown tool returned nil error")
+	}
+}
+
 func TestExecutorMasksToolErrorAndRecordsTrace(t *testing.T) {
 	recorder := &fakeAgentAuditRecorder{}
 	runner := Runner{
@@ -80,6 +95,63 @@ func TestExecutorMasksToolErrorAndRecordsTrace(t *testing.T) {
 	}
 	if len(recorder.events) != 1 || recorder.events[0].Kind != "agent.tool" || recorder.events[0].Status != audit.StatusFailed {
 		t.Fatalf("events=%+v, want failed tool trace", recorder.events)
+	}
+}
+
+func TestExecutorDeniesToolCapabilityBeforeExecute(t *testing.T) {
+	recorder := &fakeAgentAuditRecorder{}
+	tool := &fakeTool{capability: "memory.read.guild"}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "fake", ToolCalls: []ToolCall{{Name: "fake.tool"}}}},
+		Policy:  RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools:  NewRegistry(tool),
+			Policy: RoutingPolicy{Checker: fakeAgentCapabilityChecker{decision: capability.Decision{Allowed: false, Reason: capability.ReasonMissingCapability}}},
+			Trace:  Trace{Recorder: recorder},
+		},
+		Trace: Trace{Recorder: recorder},
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "Permission denied for agent tool." {
+		t.Fatalf("response=%+v handled=%v, want denied", response, handled)
+	}
+	if tool.called {
+		t.Fatalf("tool executed after capability denied")
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Status != audit.StatusDenied || recorder.events[0].Metadata["decision_reason"] == "" {
+		t.Fatalf("events=%+v, want denied tool trace", recorder.events)
+	}
+}
+
+func TestExecutorRequiresConfirmationForWriteTool(t *testing.T) {
+	recorder := &fakeAgentAuditRecorder{}
+	tool := &fakeTool{kind: ToolKindWrite}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "write", ToolCalls: []ToolCall{{Name: "fake.tool"}}}},
+		Policy:  RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools: NewRegistry(tool),
+			Trace: Trace{Recorder: recorder},
+		},
+		Trace: Trace{Recorder: recorder},
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "I can plan that, but confirmation is required before running it." {
+		t.Fatalf("response=%+v handled=%v, want confirmation guard", response, handled)
+	}
+	if tool.called {
+		t.Fatalf("write tool executed without confirmation")
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Reason != "confirmation_required" {
+		t.Fatalf("events=%+v, want confirmation trace", recorder.events)
 	}
 }
 

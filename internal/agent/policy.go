@@ -32,6 +32,14 @@ func (p RoutingPolicy) CheckBeforePlan(ctx context.Context, request Request) (ca
 	return p.checkCapability(ctx, request, p.RequiredCapabilityBeforePlan)
 }
 
+func (p RoutingPolicy) CheckBeforeTool(ctx context.Context, request Request, spec ToolSpec) (capability.Decision, error) {
+	spec = NormalizeToolSpec(spec)
+	if spec.Capability == "" {
+		return capability.Decision{Allowed: true, Reason: capability.ReasonPublicAction}, nil
+	}
+	return p.checkCapability(ctx, request, capability.Capability(spec.Capability))
+}
+
 func (p RoutingPolicy) checkCapability(ctx context.Context, request Request, required capability.Capability) (capability.Decision, error) {
 	if p.Checker == nil {
 		return capability.Decision{Allowed: false, Capability: required, Reason: capability.ReasonStoreError}, fmt.Errorf("capability checker is required")

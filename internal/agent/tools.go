@@ -74,16 +74,24 @@ func (r Registry) Specs() []ToolSpec {
 	return specs
 }
 
-func (r Registry) Execute(ctx context.Context, request Request, call ToolCall) (ToolResult, error) {
-	name := strings.TrimSpace(call.Name)
+func (r Registry) Lookup(name string) (Tool, ToolSpec, error) {
+	name = strings.TrimSpace(name)
 	if name == "" {
-		return ToolResult{}, fmt.Errorf("tool name is required")
+		return nil, ToolSpec{}, fmt.Errorf("tool name is required")
 	}
 	tool, ok := r.tools[name]
 	if !ok {
-		return ToolResult{}, fmt.Errorf("unknown tool %q", name)
+		return nil, ToolSpec{}, fmt.Errorf("unknown tool %q", name)
 	}
-	call.Name = name
+	return tool, NormalizeToolSpec(tool.Spec()), nil
+}
+
+func (r Registry) Execute(ctx context.Context, request Request, call ToolCall) (ToolResult, error) {
+	tool, spec, err := r.Lookup(call.Name)
+	if err != nil {
+		return ToolResult{}, err
+	}
+	call.Name = spec.Name
 	return tool.Execute(ctx, request, call)
 }
 
@@ -92,7 +100,11 @@ func NormalizeToolSpec(spec ToolSpec) ToolSpec {
 	spec.Description = strings.TrimSpace(spec.Description)
 	spec.Kind = ToolKind(strings.TrimSpace(string(spec.Kind)))
 	spec.Capability = strings.TrimSpace(spec.Capability)
-	if spec.Kind == "" {
+	switch spec.Kind {
+	case "":
+		spec.Kind = ToolKindRead
+	case ToolKindRead, ToolKindWrite:
+	default:
 		spec.Kind = ToolKindRead
 	}
 	return spec
