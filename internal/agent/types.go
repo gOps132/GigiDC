@@ -30,6 +30,7 @@ type Request struct {
 	ContextScope     string
 	Text             string
 	RawText          string
+	PriorRun         *RunSnapshot
 }
 
 type Response struct {
@@ -79,6 +80,10 @@ func NormalizeRequest(request Request) Request {
 	request.Text = strings.TrimSpace(request.Text)
 	request.RawText = strings.TrimSpace(request.RawText)
 	request.RoleIDs = append([]string(nil), request.RoleIDs...)
+	if request.PriorRun != nil {
+		snapshot := request.PriorRun.copy()
+		request.PriorRun = &snapshot
+	}
 	return request
 }
 

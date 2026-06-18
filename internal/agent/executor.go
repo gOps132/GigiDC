@@ -12,6 +12,7 @@ type Executor struct {
 	SkipAnswerReason string
 	Policy           RoutingPolicy
 	Trace            Trace
+	FollowUps        FollowUpStore
 }
 
 func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Response, error) {
@@ -67,7 +68,9 @@ func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Resp
 	if e.Answerer != nil {
 		if e.SkipAnswerReason != "" {
 			_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusFailed, e.SkipAnswerReason, map[string]string{"intent": safeAuditValue(plan.Intent)})
-			return Response{Text: formatToolResults(results)}, nil
+			response := Response{Text: formatToolResults(results)}
+			_ = e.saveFollowUp(ctx, request, plan, results, response)
+			return response, nil
 		}
 		response, err := e.Answerer.Answer(ctx, request, plan, results)
 		if err != nil {
@@ -75,8 +78,23 @@ func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Resp
 			return Response{Text: "Agent answer failed."}, nil
 		}
 		_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusSucceeded, "", map[string]string{"intent": safeAuditValue(plan.Intent)})
+		_ = e.saveFollowUp(ctx, request, plan, results, response)
 		return response, nil
 	}
 	_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusSucceeded, "", map[string]string{"intent": safeAuditValue(plan.Intent)})
-	return Response{Text: formatToolResults(results)}, nil
+	response := Response{Text: formatToolResults(results)}
+	_ = e.saveFollowUp(ctx, request, plan, results, response)
+	return response, nil
+}
+
+func (e Executor) saveFollowUp(ctx context.Context, request Request, plan Plan, results []ToolResult, response Response) error {
+	if e.FollowUps == nil {
+		return nil
+	}
+	snapshot := RunSnapshot{
+		Intent:       plan.Intent,
+		Results:      append([]ToolResult(nil), results...),
+		ResponseText: response.Text,
+	}
+	return e.FollowUps.Save(ctx, request, snapshot)
 }
