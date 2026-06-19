@@ -175,6 +175,11 @@ func (p LLMPlanner) maxToolCalls() int {
 
 func formatRunSnapshot(snapshot RunSnapshot, maxChars int) string {
 	var b strings.Builder
+	if snapshot.RunID != "" {
+		b.WriteString("run_id: ")
+		b.WriteString(snapshot.RunID)
+		b.WriteString("\n")
+	}
 	if snapshot.Intent != "" {
 		b.WriteString("intent: ")
 		b.WriteString(snapshot.Intent)

@@ -92,6 +92,7 @@ func (e Executor) saveFollowUp(ctx context.Context, request Request, plan Plan, 
 		return nil
 	}
 	snapshot := RunSnapshot{
+		RunID:        e.Trace.RunID,
 		Intent:       plan.Intent,
 		Results:      append([]ToolResult(nil), results...),
 		ResponseText: response.Text,

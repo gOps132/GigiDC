@@ -52,43 +52,45 @@ func (r Runner) Run(ctx context.Context, request Request) (Response, bool, error
 	if mode == llmprovider.ToolRoutingOff {
 		return Response{}, false, nil
 	}
+	planMetadata := map[string]string{"routing_mode": safeAuditValue(string(mode))}
 	decision, err := r.Policy.CheckBeforePlan(ctx, request)
 	if err != nil {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, string(decision.Reason), capabilityMetadata(r.Policy.RequiredCapabilityBeforePlan))
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, string(decision.Reason), mergeMetadata(planMetadata, capabilityMetadata(r.Policy.RequiredCapabilityBeforePlan)))
 		return Response{Text: "Permission check failed."}, true, nil
 	}
 	if !decision.Allowed {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusDenied, string(decision.Reason), capabilityMetadata(r.Policy.RequiredCapabilityBeforePlan))
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusDenied, string(decision.Reason), mergeMetadata(planMetadata, capabilityMetadata(r.Policy.RequiredCapabilityBeforePlan)))
 		return Response{Text: "Permission denied for agent tools."}, true, nil
 	}
 	plan, ok, err := r.Planner.Plan(ctx, request, executor.Tools.Specs())
 	if err != nil {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, "planner_failed", nil)
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, "planner_failed", planMetadata)
 		return Response{Text: "Agent routing failed."}, true, nil
 	}
 	if !ok {
 		return Response{}, false, nil
 	}
 	if strings.TrimSpace(plan.ClarifyingQuestion) != "" {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "clarify", map[string]string{"intent": safeAuditValue(plan.Intent)})
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "clarify", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return Response{Text: plan.ClarifyingQuestion}, true, nil
 	}
 	if plan.RequiresConfirmation {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "confirmation_required", map[string]string{"intent": safeAuditValue(plan.Intent)})
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "confirmation_required", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return Response{Text: "I can plan that, but confirmation is required before running it."}, true, nil
 	}
 	if mode == llmprovider.ToolRoutingDryRun {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "dry_run", map[string]string{"intent": safeAuditValue(plan.Intent)})
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "dry_run", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return Response{Text: formatDryRunPlan(plan)}, true, nil
 	}
 	if r.maxSteps() > 0 && plannedStepCount(plan) > r.maxSteps() {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, "step_budget_exceeded", map[string]string{"intent": safeAuditValue(plan.Intent)})
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, "step_budget_exceeded", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return Response{Text: "Agent step budget exceeded."}, true, nil
 	}
 	if r.maxToolCalls() > 0 && len(plan.ToolCalls) > r.maxToolCalls() {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, "tool_budget_exceeded", map[string]string{"intent": safeAuditValue(plan.Intent)})
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, "tool_budget_exceeded", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return Response{Text: "Agent tool budget exceeded."}, true, nil
 	}
+	_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent), "planner": "agent"}))
 	response, err := executor.Execute(ctx, request, plan)
 	return response, true, err
 }
@@ -120,6 +122,21 @@ func capabilityMetadata(required capability.Capability) map[string]string {
 		return nil
 	}
 	return map[string]string{"capability": string(required)}
+}
+
+func mergeMetadata(maps ...map[string]string) map[string]string {
+	merged := map[string]string{}
+	for _, values := range maps {
+		for key, value := range values {
+			if strings.TrimSpace(key) != "" && strings.TrimSpace(value) != "" {
+				merged[key] = value
+			}
+		}
+	}
+	if len(merged) == 0 {
+		return nil
+	}
+	return merged
 }
 
 func plannedStepCount(plan Plan) int {

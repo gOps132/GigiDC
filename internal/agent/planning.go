@@ -36,6 +36,7 @@ type PlanningHandler struct {
 	Limits                       Limits
 	NewRunID                     func() string
 	FollowUps                    FollowUpStore
+	TraceSink                    TraceSink
 }
 
 func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request) (Response, bool, error) {
@@ -48,7 +49,7 @@ func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request
 			request.PriorRun = &snapshot
 		}
 	}
-	trace := Trace{Recorder: h.Recorder, Source: "agent"}
+	trace := Trace{Recorder: h.Recorder, Sink: h.TraceSink, Source: "agent"}
 	policy := RoutingPolicy{
 		Policy:                       h.Policy,
 		Checker:                      h.Checker,
