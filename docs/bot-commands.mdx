@@ -625,7 +625,7 @@ Privacy and audit: reads aggregate token and request counts only. Usage events d
 
 Status: live.
 
-Required Gigi capability: none for `context:none`; channel memory tools still require `memory.read.guild` when `context:channel` and tool routing are enabled.
+Required Gigi capability: none for `context:none`; dynamic channel context and channel memory tools require `memory.read.guild` when `context:channel` and tool routing are enabled.
 
 Syntax:
 
@@ -633,7 +633,7 @@ Syntax:
 /ask question:<text> context:<none|channel> visibility:<public|private>
 ```
 
-`context:none` routes through the agent chat path without memory tools. `context:channel` lets the agent load permitted recent full-mode messages into a bounded context pack and allows the planner to choose current-channel memory tools such as `memory.count`, `memory.search`, and `memory.recent` when `/llm routing` allows it and the requester has memory permission.
+`context:none` routes through agent chat without memory fetches. `context:channel` lets the agent load permitted retained messages from this channel into a bounded context pack and allows the planner to choose current-channel memory tools such as `memory.count`, `memory.search`, and `memory.recent` when `/llm routing` allows it and the requester has `memory.read.guild`.
 
 If `visibility` is omitted, `context:none` defaults to public and `context:channel` defaults to private. A private agent response also forces an ephemeral slash response even if the request asked for public visibility.
 
@@ -644,9 +644,47 @@ Examples:
 /ask question:how often did we mention postgres here context:channel
 ```
 
-Privacy and audit: the agent path records scoped metadata such as tool names, status, intent, source IDs, citation labels, restore handles, context-pack status markers, run status, and termination reason. It does not store raw prompt text, raw memory snippets, provider responses, or secrets in audit metadata or durable step observations. Follow-up snapshots omit memory evidence summaries and provenance from `memory.search` and `memory.recent` tool data.
+Privacy and audit: dynamic context fetches are scoped to the current guild channel and require enabled memory plus `memory.read.guild`. The agent path records scoped metadata such as run IDs, step indexes, context scope, source type, result count, truncation flag, tool names, status, capabilities, source IDs, message IDs, citation labels, restore handles, context-pack status markers, run status, and termination reason. It does not store raw prompt text, raw memory snippets, provider responses, embeddings, planned commands, or secrets in audit metadata or durable step observations. Follow-up snapshots omit memory evidence summaries and provenance from `memory.search` and `memory.recent` tool data.
+
+Failure cases and notes:
+
+- `context:channel` but channel memory is off may leave Gigi with no fetched snippets
+- requester lacks `memory.read.guild`
+- `/llm routing` is off or tool routing is unavailable
+- context packs may be truncated because of budget; Gigi should still answer from the bounded pack
 
 When a durable run needs confirmation, Gigi includes the run ID in the response and points to `/agent pending`, `/agent confirm`, and `/agent reject`. Confirming or rejecting updates the pending confirmation record; confirmed actions are not resumed automatically in this slice.
+
+### `/agent trace last`
+
+Status: live.
+
+Required Gigi capability: none. The command only shows your own last agent run in the current channel.
+
+Syntax:
+
+```text
+/agent trace last visibility:<private|public?>
+```
+
+Expected response:
+
+```text
+Last agent run `agentrun_...`:
+status: `succeeded`
+- `plan` succeeded routing=`enabled`
+- `1` `tool` succeeded tool=`memory.recent` kind=`read`
+- `2` `answer` succeeded
+```
+
+Use this after a guild mention or `/ask` request to see which planner/tool/answer path Gigi used. The default response is private.
+
+Failure cases:
+
+- no prior agent run exists for you in this channel
+- trace storage is unavailable in the current process
+
+Privacy and audit: trace output is safe metadata only. It does not include raw prompts, raw memory snippets, provider responses, secrets, or raw external commands.
 
 ### `/agent cancel`
 
@@ -1111,7 +1149,7 @@ Failure cases:
 ## Not Implemented Yet
 
 - rich DM chat
-- memory retrieval commands
+- semantic `/memory ask`, cross-channel retrieval, and citation-rich retrieval
 - tasks
 - relay actions
 - LLM-driven external app dispatch

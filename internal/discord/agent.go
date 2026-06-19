@@ -19,10 +19,6 @@ func AgentMessageHandler(runtime AgentRuntime, fallback MessageHandler) MessageH
 		if runtime == nil {
 			return fallback.HandleMessage(ctx, message)
 		}
-		contextScope := ""
-		if message.Surface == MessageSurfaceGuildMention {
-			contextScope = "channel"
-		}
 		response, err := runtime.Run(ctx, agent.Request{
 			Surface:          agent.Surface(message.Surface),
 			GuildID:          message.GuildID,
@@ -30,7 +26,7 @@ func AgentMessageHandler(runtime AgentRuntime, fallback MessageHandler) MessageH
 			ActorUserID:      message.UserID,
 			RoleIDs:          message.RoleIDs,
 			HasAdministrator: message.HasAdministrator,
-			ContextScope:     contextScope,
+			ContextScope:     defaultAgentMessageContext(message),
 			Text:             message.Text,
 			RawText:          message.RawContent,
 		})
@@ -42,6 +38,13 @@ func AgentMessageHandler(runtime AgentRuntime, fallback MessageHandler) MessageH
 		}
 		return MessageResponse{Content: appendAgentRunHint(response.Text, response)}, nil
 	})
+}
+
+func defaultAgentMessageContext(message Message) string {
+	if message.Surface == MessageSurfaceGuildMention {
+		return "channel-auto"
+	}
+	return ""
 }
 
 func AgentHandlerAdapter(handler agent.Handler) AgentRuntime {

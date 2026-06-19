@@ -78,11 +78,14 @@ func TestPlanningHandlerDryRunDoesNotExecuteTool(t *testing.T) {
 	}
 }
 
-func TestPlanningHandlerBuildsContextPackBeforePlanner(t *testing.T) {
+func TestPlanningHandlerPassesContextPackBeforePlanner(t *testing.T) {
 	planner := &fakePlanner{ok: true, plan: Plan{Intent: "context"}}
 	request := agentTestRequest()
 	request.ContextScope = "channel"
-	request.ContextSnippets = []contextbroker.Snippet{{ID: "m1", Source: "discord:channel-id", Text: "postgres context"}}
+	pack := contextbroker.BuildPack(contextbroker.BuildRequest{
+		Snippets: []contextbroker.Snippet{{ID: "m1", Source: "discord:channel-id", Text: "postgres context"}},
+	})
+	request.ContextPack = &pack
 	handler := PlanningHandler{
 		Planner: planner,
 		Policy:  fakePolicy{mode: llmprovider.ToolRoutingDryRun},
@@ -93,51 +96,55 @@ func TestPlanningHandlerBuildsContextPackBeforePlanner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HandleAgentRequest returned error: %v", err)
 	}
-	if !planner.called || len(planner.request.ContextPack.Items) != 1 || planner.request.ContextPack.Items[0].Citation.Label != "S1" {
+	if !planner.called || planner.request.ContextPack == nil || len(planner.request.ContextPack.Items) != 1 || planner.request.ContextPack.Items[0].Citation.Label != "S1" {
 		t.Fatalf("planner request = %+v, want built context pack before planning", planner.request)
 	}
 }
 
-func TestPlanningHandlerLoadsContextProviderBeforePlanner(t *testing.T) {
+func TestPlanningHandlerLoadsContextFetcherBeforePlanner(t *testing.T) {
 	planner := &fakePlanner{ok: true, plan: Plan{Intent: "context"}}
-	provider := fakeContextProvider{
-		snippets: []contextbroker.Snippet{{ID: "m1", Source: "discord:channel:channel-id", Text: "postgres context"}},
+	pack := contextbroker.BuildPack(contextbroker.BuildRequest{
+		Snippets: []contextbroker.Snippet{{ID: "m1", Source: "discord:channel:channel-id", Text: "postgres context"}},
+	})
+	fetcher := &fakeContextFetcher{
+		pack: pack,
 	}
 	request := agentTestRequest()
 	request.ContextScope = "channel"
 	handler := PlanningHandler{
-		Planner:         planner,
-		Policy:          fakePolicy{mode: llmprovider.ToolRoutingDryRun},
-		Tools:           NewRegistry(&fakeTool{}),
-		ContextProvider: provider,
+		Planner:        planner,
+		Policy:         fakePolicy{mode: llmprovider.ToolRoutingDryRun},
+		Tools:          NewRegistry(&fakeTool{}),
+		ContextFetcher: fetcher,
 	}
 
 	_, _, err := handler.HandleAgentRequest(context.Background(), request)
 	if err != nil {
 		t.Fatalf("HandleAgentRequest returned error: %v", err)
 	}
-	if !planner.called || len(planner.request.ContextPack.Items) != 1 || planner.request.ContextPack.Items[0].Snippet.Text != "postgres context" {
-		t.Fatalf("planner request = %+v, want provider context pack before planning", planner.request)
+	if !fetcher.called || !planner.called || planner.request.ContextPack == nil || len(planner.request.ContextPack.Items) != 1 || planner.request.ContextPack.Items[0].Snippet.Text != "postgres context" {
+		t.Fatalf("fetcher.called=%v planner request = %+v, want fetched context pack before planning", fetcher.called, planner.request)
 	}
 }
 
 func TestPlanningHandlerSkipsContextPackWhenScopeNone(t *testing.T) {
 	planner := &fakePlanner{ok: true, plan: Plan{Intent: "context"}}
+	fetcher := &fakeContextFetcher{}
 	request := agentTestRequest()
 	request.ContextScope = "none"
-	request.ContextSnippets = []contextbroker.Snippet{{ID: "m1", Source: "discord:channel-id", Text: "postgres context"}}
 	handler := PlanningHandler{
-		Planner: planner,
-		Policy:  fakePolicy{mode: llmprovider.ToolRoutingDryRun},
-		Tools:   NewRegistry(&fakeTool{}),
+		Planner:        planner,
+		Policy:         fakePolicy{mode: llmprovider.ToolRoutingDryRun},
+		Tools:          NewRegistry(&fakeTool{}),
+		ContextFetcher: fetcher,
 	}
 
 	response, handled, err := handler.HandleAgentRequest(context.Background(), request)
 	if err != nil {
 		t.Fatalf("HandleAgentRequest returned error: %v", err)
 	}
-	if handled || response.Text != "" || planner.called {
-		t.Fatalf("response=%+v handled=%v planner.called=%v, want skipped context none", response, handled, planner.called)
+	if handled || response.Text != "" || planner.called || fetcher.called {
+		t.Fatalf("response=%+v handled=%v planner.called=%v fetcher.called=%v, want skipped context none", response, handled, planner.called, fetcher.called)
 	}
 }
 
@@ -319,26 +326,33 @@ func agentTestRequest() Request {
 }
 
 type fakePlanner struct {
-	called  bool
-	request Request
-	plan    Plan
-	ok      bool
-	err     error
+	called     bool
+	request    Request
+	sawContext bool
+	plan       Plan
+	ok         bool
+	err        error
 }
 
 func (p *fakePlanner) Plan(ctx context.Context, request Request, specs []ToolSpec) (Plan, bool, error) {
 	p.called = true
 	p.request = request
+	p.sawContext = request.ContextPack != nil && len(request.ContextPack.Snippets) > 0
 	return p.plan, p.ok, p.err
 }
 
-type fakeContextProvider struct {
-	snippets []contextbroker.Snippet
-	err      error
+type fakeContextFetcher struct {
+	called bool
+	pack   contextbroker.Pack
+	err    error
 }
 
-func (p fakeContextProvider) LoadContextSnippets(context.Context, Request) ([]contextbroker.Snippet, error) {
-	return p.snippets, p.err
+func (f *fakeContextFetcher) FetchContext(ctx context.Context, request Request) (contextbroker.Pack, error) {
+	f.called = true
+	if f.err != nil {
+		return contextbroker.Pack{}, f.err
+	}
+	return f.pack, nil
 }
 
 type fakePolicy struct {

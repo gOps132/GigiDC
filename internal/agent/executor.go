@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/gOps132/GigiDC/internal/audit"
+	"github.com/gOps132/GigiDC/internal/contextbroker"
 	"github.com/gOps132/GigiDC/internal/storage"
 )
 
@@ -13,13 +14,14 @@ type Executor struct {
 	SkipAnswerReason string
 	Policy           RoutingPolicy
 	Trace            Trace
+	TraceStepOffset  int
 	FollowUps        FollowUpStore
 }
 
 func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Response, error) {
 	results := make([]ToolResult, 0, len(plan.ToolCalls))
 	for index, call := range plan.ToolCalls {
-		trace := e.Trace.WithStep(index + 1)
+		trace := e.Trace.WithStep(e.TraceStepOffset + index + 1)
 		tool, spec, err := e.Tools.Lookup(call.Name)
 		if err != nil {
 			_ = trace.Record(ctx, request, "agent.tool", audit.StatusFailed, "tool_failed", map[string]string{"tool": safeAuditValue(call.Name)})
@@ -76,7 +78,7 @@ func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Resp
 		results = append(results, result)
 		_ = trace.Record(ctx, request, "agent.tool", audit.StatusSucceeded, "", metadata)
 	}
-	answerTrace := e.Trace.WithStep(len(plan.ToolCalls) + 1)
+	answerTrace := e.Trace.WithStep(e.TraceStepOffset + len(plan.ToolCalls) + 1)
 	if canceled, err := traceRunCanceled(ctx, answerTrace); err != nil {
 		_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusFailed, "cancel_check_failed", map[string]string{"intent": safeAuditValue(plan.Intent)})
 		return Response{Text: "Agent run failed.", RunStatus: RunStatusFailed, TerminationReason: TerminationExecutorFailed}, nil
@@ -111,12 +113,20 @@ func (e Executor) saveFollowUp(ctx context.Context, request Request, plan Plan, 
 	}
 	results, responseText := sanitizeFollowUpSnapshot(results, response.Text)
 	snapshot := RunSnapshot{
+		RunID:        e.Trace.RunID,
 		Intent:       plan.Intent,
 		Results:      results,
 		ResponseText: responseText,
-		ContextState: request.ContextPack.NextState,
+		ContextState: requestContextState(request),
 	}
 	return e.FollowUps.Save(ctx, request, snapshot)
+}
+
+func requestContextState(request Request) contextbroker.SessionState {
+	if request.ContextPack == nil {
+		return contextbroker.SessionState{}
+	}
+	return request.ContextPack.NextState
 }
 
 func sanitizeFollowUpSnapshot(results []ToolResult, responseText string) ([]ToolResult, string) {

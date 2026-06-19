@@ -8,6 +8,7 @@ import (
 
 	"github.com/gOps132/GigiDC/internal/audit"
 	"github.com/gOps132/GigiDC/internal/capability"
+	"github.com/gOps132/GigiDC/internal/contextbroker"
 	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
 )
 
@@ -47,6 +48,134 @@ func TestRunnerRoutingOffSkipsPlanner(t *testing.T) {
 	}
 	if handled || response.Text != "" || planner.called {
 		t.Fatalf("response=%+v handled=%v planner.called=%v, want skip", response, handled, planner.called)
+	}
+}
+
+func TestRunnerFetchesChannelContextBeforePlanner(t *testing.T) {
+	fetcher := &fakeContextFetcher{pack: contextbroker.Pack{Snippets: []contextbroker.Snippet{{ID: "m1", Text: "postgres deploy"}}}}
+	planner := &fakePlanner{ok: true, plan: Plan{Intent: "answer_from_context"}}
+	runner := Runner{
+		Planner:        planner,
+		ContextFetcher: fetcher,
+		Policy:         RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor:       Executor{},
+	}
+	request := agentTestRequest()
+	request.ContextScope = "channel"
+
+	response, handled, err := runner.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "No agent tool results." {
+		t.Fatalf("response=%+v handled=%v, want handled fallback answer", response, handled)
+	}
+	if !fetcher.called || !planner.sawContext {
+		t.Fatalf("fetcher.called=%v planner.sawContext=%v, want fetched context before planner", fetcher.called, planner.sawContext)
+	}
+}
+
+func TestRunnerSkipsContextFetchWhenScopeNone(t *testing.T) {
+	fetcher := &fakeContextFetcher{}
+	planner := &fakePlanner{ok: true}
+	runner := Runner{
+		Planner:        planner,
+		ContextFetcher: fetcher,
+		Policy:         RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+	}
+	request := agentTestRequest()
+	request.ContextScope = "none"
+
+	response, handled, err := runner.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if handled || response.Text != "" || fetcher.called || planner.called {
+		t.Fatalf("response=%+v handled=%v fetcher.called=%v planner.called=%v, want skip", response, handled, fetcher.called, planner.called)
+	}
+}
+
+func TestRunnerMasksContextFetchErrorAndRecordsTrace(t *testing.T) {
+	recorder := &fakeAgentAuditRecorder{}
+	fetcher := &fakeContextFetcher{err: errors.New("raw database failure")}
+	planner := &fakePlanner{ok: true}
+	runner := Runner{
+		Planner:        planner,
+		ContextFetcher: fetcher,
+		Policy:         RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Trace:          Trace{Recorder: recorder},
+	}
+	request := agentTestRequest()
+	request.ContextScope = "channel"
+
+	response, handled, err := runner.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "Agent context fetch failed." {
+		t.Fatalf("response=%+v handled=%v, want masked context failure", response, handled)
+	}
+	if planner.called {
+		t.Fatalf("planner called after context fetch failure")
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Kind != "agent.context" || recorder.events[0].Status != audit.StatusFailed {
+		t.Fatalf("events=%+v, want failed context trace", recorder.events)
+	}
+}
+
+func TestRunnerDeniesContextFetchPermission(t *testing.T) {
+	recorder := &fakeAgentAuditRecorder{}
+	fetcher := &fakeContextFetcher{err: ErrContextPermissionDenied}
+	planner := &fakePlanner{ok: true}
+	runner := Runner{
+		Planner:        planner,
+		ContextFetcher: fetcher,
+		Policy:         RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Trace:          Trace{Recorder: recorder},
+	}
+	request := agentTestRequest()
+	request.ContextScope = "channel"
+
+	response, handled, err := runner.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "Permission denied for agent context." {
+		t.Fatalf("response=%+v handled=%v, want permission denied", response, handled)
+	}
+	if planner.called {
+		t.Fatalf("planner called after context permission denial")
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Kind != "agent.context" || recorder.events[0].Status != audit.StatusDenied {
+		t.Fatalf("events=%+v, want denied context trace", recorder.events)
+	}
+}
+
+func TestRunnerContinuesWhenOptionalChannelContextDenied(t *testing.T) {
+	recorder := &fakeAgentAuditRecorder{}
+	fetcher := &fakeContextFetcher{err: ErrContextPermissionDenied}
+	planner := &fakePlanner{ok: true, plan: Plan{Intent: "chat"}}
+	runner := Runner{
+		Planner:        planner,
+		ContextFetcher: fetcher,
+		Policy:         RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Trace:          Trace{Recorder: recorder},
+	}
+	request := agentTestRequest()
+	request.ContextScope = "channel-auto"
+
+	response, handled, err := runner.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "No agent tool results." {
+		t.Fatalf("response=%+v handled=%v, want planner fallback", response, handled)
+	}
+	if !planner.called || planner.sawContext {
+		t.Fatalf("planner.called=%v planner.sawContext=%v, want planner without context", planner.called, planner.sawContext)
+	}
+	if len(recorder.events) != 3 || recorder.events[0].Kind != "agent.context" || recorder.events[0].Status != audit.StatusDenied || recorder.events[1].Kind != "agent.plan" || recorder.events[2].Kind != "agent.answer" {
+		t.Fatalf("events=%+v, want denied optional context trace then plan and answer", recorder.events)
 	}
 }
 
@@ -94,7 +223,7 @@ func TestExecutorMasksToolErrorAndRecordsTrace(t *testing.T) {
 	if !handled || response.Text != "Agent tool failed." {
 		t.Fatalf("response=%+v handled=%v, want masked tool failure", response, handled)
 	}
-	if len(recorder.events) != 1 || recorder.events[0].Kind != "agent.tool" || recorder.events[0].Status != audit.StatusFailed {
+	if len(recorder.events) != 2 || recorder.events[1].Kind != "agent.tool" || recorder.events[1].Status != audit.StatusFailed {
 		t.Fatalf("events=%+v, want failed tool trace", recorder.events)
 	}
 }
@@ -123,7 +252,7 @@ func TestExecutorDeniesToolCapabilityBeforeExecute(t *testing.T) {
 	if tool.called {
 		t.Fatalf("tool executed after capability denied")
 	}
-	if len(recorder.events) != 1 || recorder.events[0].Status != audit.StatusDenied || recorder.events[0].Metadata["decision_reason"] == "" {
+	if len(recorder.events) != 2 || recorder.events[1].Status != audit.StatusDenied || recorder.events[1].Metadata["decision_reason"] == "" {
 		t.Fatalf("events=%+v, want denied tool trace", recorder.events)
 	}
 }
@@ -151,7 +280,7 @@ func TestExecutorRequiresConfirmationForWriteTool(t *testing.T) {
 	if tool.called {
 		t.Fatalf("write tool executed without confirmation")
 	}
-	if len(recorder.events) != 1 || recorder.events[0].Reason != "confirmation_required" {
+	if len(recorder.events) != 2 || recorder.events[1].Reason != "confirmation_required" {
 		t.Fatalf("events=%+v, want confirmation trace", recorder.events)
 	}
 }
@@ -218,17 +347,64 @@ func TestRunnerTraceIncludesRunIDAndOrderedSteps(t *testing.T) {
 	if !handled || response.Text != "fake result\nfake result" {
 		t.Fatalf("response=%+v handled=%v, want combined results", response, handled)
 	}
-	if len(recorder.events) != 3 {
-		t.Fatalf("events=%+v, want 2 tools + answer", recorder.events)
+	if len(recorder.events) != 4 {
+		t.Fatalf("events=%+v, want plan + 2 tools + answer", recorder.events)
 	}
 	for index, event := range recorder.events {
 		if event.Metadata["run_id"] != "run-1" || event.Metadata["source"] != "agent-test" {
 			t.Fatalf("event=%+v, want run/source metadata", event)
 		}
-		wantStep := string(rune('1' + index))
+		if index == 0 {
+			continue
+		}
+		wantStep := string(rune('0' + index))
 		if event.Metadata["step_index"] != wantStep {
 			t.Fatalf("event=%+v, want step_index %s", event, wantStep)
 		}
+	}
+}
+
+func TestTraceRecordsSafeLastRun(t *testing.T) {
+	store := NewMemoryTraceStore(10)
+	trace := Trace{Sink: store, Source: "agent-test", RunID: "run-1", Step: 2}
+	if err := trace.Record(context.Background(), agentTestRequest(), "agent.tool", audit.StatusSucceeded, "", map[string]string{
+		"tool":       "memory.recent",
+		"kind":       "read",
+		"capability": "memory.read.guild",
+	}); err != nil {
+		t.Fatalf("Record returned error: %v", err)
+	}
+	run, ok, err := store.LastTrace(context.Background(), TraceQuery{GuildID: "guild-id", ChannelID: "channel-id", ActorUserID: "actor-id"})
+	if err != nil {
+		t.Fatalf("LastTrace returned error: %v", err)
+	}
+	if !ok || run.RunID != "run-1" || len(run.Events) != 1 {
+		t.Fatalf("run=%+v ok=%v, want one trace event", run, ok)
+	}
+	event := run.Events[0]
+	if event.Phase != "tool" || event.StepIndex != 2 || event.ToolName != "memory.recent" || event.Capability != "memory.read.guild" {
+		t.Fatalf("event=%+v, want safe tool metadata", event)
+	}
+}
+
+func TestTraceStoreScopesDuplicateRunIDs(t *testing.T) {
+	store := NewMemoryTraceStore(10)
+	first := agentTestRequest()
+	second := agentTestRequest()
+	second.ActorUserID = "other-actor"
+	trace := Trace{Sink: store, RunID: "same-run", Step: 1}
+	if err := trace.Record(context.Background(), first, "agent.tool", audit.StatusSucceeded, "", map[string]string{"tool": "memory.recent"}); err != nil {
+		t.Fatalf("Record first returned error: %v", err)
+	}
+	if err := trace.Record(context.Background(), second, "agent.tool", audit.StatusSucceeded, "", map[string]string{"tool": "plugins.enabled"}); err != nil {
+		t.Fatalf("Record second returned error: %v", err)
+	}
+	run, ok, err := store.LastTrace(context.Background(), TraceQuery{GuildID: "guild-id", ChannelID: "channel-id", ActorUserID: "actor-id"})
+	if err != nil {
+		t.Fatalf("LastTrace returned error: %v", err)
+	}
+	if !ok || len(run.Events) != 1 || run.Events[0].ToolName != "memory.recent" {
+		t.Fatalf("run=%+v ok=%v, want first actor trace only", run, ok)
 	}
 }
 
@@ -302,6 +478,32 @@ func TestRunnerStopsWhenStepBudgetExceeded(t *testing.T) {
 	}
 }
 
+func TestRunnerCountsContextFetchAgainstStepBudget(t *testing.T) {
+	tool := &fakeTool{}
+	runner := Runner{
+		Planner:        &fakePlanner{ok: true, plan: Plan{Intent: "steps", ToolCalls: []ToolCall{{Name: "fake.tool"}}}},
+		ContextFetcher: &fakeContextFetcher{pack: contextbroker.Pack{Snippets: []contextbroker.Snippet{{ID: "m1", Text: "postgres"}}}},
+		Policy:         RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools: NewRegistry(tool),
+		},
+		Limits: Limits{MaxSteps: 3},
+	}
+	request := agentTestRequest()
+	request.ContextScope = "channel"
+
+	response, handled, err := runner.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "Agent step budget exceeded." {
+		t.Fatalf("response=%+v handled=%v, want step budget response", response, handled)
+	}
+	if tool.called {
+		t.Fatalf("tool called after context-aware step budget exceeded")
+	}
+}
+
 func TestRunnerSkipsAnswererWhenLLMBudgetExceeded(t *testing.T) {
 	recorder := &fakeAgentAuditRecorder{}
 	answerer := &fakeAnswerer{}
@@ -327,7 +529,7 @@ func TestRunnerSkipsAnswererWhenLLMBudgetExceeded(t *testing.T) {
 	if answerer.called {
 		t.Fatalf("answerer called after LLM budget exceeded")
 	}
-	if len(recorder.events) != 2 || recorder.events[1].Kind != "agent.answer" || recorder.events[1].Reason != "llm_budget_exceeded" {
+	if len(recorder.events) != 3 || recorder.events[2].Kind != "agent.answer" || recorder.events[2].Reason != "llm_budget_exceeded" {
 		t.Fatalf("events=%+v, want answer budget trace", recorder.events)
 	}
 }
@@ -359,8 +561,8 @@ func TestRunnerPersistsRunLifecycleAndSteps(t *testing.T) {
 	if len(store.completed) != 1 || store.completed[0].status != RunStatusSucceeded || store.completed[0].reason != TerminationCompleted {
 		t.Fatalf("completed=%+v, want succeeded completed run", store.completed)
 	}
-	if len(store.steps) != 2 || store.steps[0].Kind != "agent.tool" || store.steps[1].Kind != "agent.answer" || store.steps[0].RunID != "run-1" {
-		t.Fatalf("steps=%+v, want tool and answer durable steps", store.steps)
+	if len(store.steps) != 3 || store.steps[0].Kind != "agent.plan" || store.steps[1].Kind != "agent.tool" || store.steps[2].Kind != "agent.answer" || store.steps[0].RunID != "run-1" {
+		t.Fatalf("steps=%+v, want plan, tool, and answer durable steps", store.steps)
 	}
 }
 

@@ -26,11 +26,11 @@ func TestRunAgentCaseCapturesGoldenReadPath(t *testing.T) {
 	if len(result.Failures) > 0 {
 		t.Fatalf("failures=%+v", result.Failures)
 	}
-	if len(result.Events) != 2 || result.Events[0].Kind != "agent.tool" || result.Events[1].Kind != "agent.answer" {
-		t.Fatalf("events=%+v, want tool and answer events", result.Events)
+	if len(result.Events) != 3 || result.Events[0].Kind != "agent.plan" || result.Events[1].Kind != "agent.tool" || result.Events[2].Kind != "agent.answer" {
+		t.Fatalf("events=%+v, want plan, tool, and answer events", result.Events)
 	}
-	if len(result.Steps) != 2 || result.Steps[0].Kind != "agent.tool" || result.Steps[1].Kind != "agent.answer" {
-		t.Fatalf("steps=%+v, want durable tool and answer steps", result.Steps)
+	if len(result.Steps) != 3 || result.Steps[0].Kind != "agent.plan" || result.Steps[1].Kind != "agent.tool" || result.Steps[2].Kind != "agent.answer" {
+		t.Fatalf("steps=%+v, want durable plan, tool, and answer steps", result.Steps)
 	}
 	if result.Response.RunID == "" || len(result.StartedRuns) != 1 || len(result.CompletedRuns) != 1 {
 		t.Fatalf("result=%+v, want durable run lifecycle", result)

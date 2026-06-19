@@ -11,6 +11,7 @@ import (
 type Snippet struct {
 	ID        string
 	Source    string
+	ChannelID string
 	AuthorID  string
 	Text      string
 	Score     float64
@@ -227,6 +228,7 @@ func RestoreHandle(sourceID string, fingerprint string) string {
 func normalizeSnippet(snippet Snippet) Snippet {
 	snippet.ID = strings.TrimSpace(snippet.ID)
 	snippet.Source = strings.TrimSpace(snippet.Source)
+	snippet.ChannelID = strings.TrimSpace(snippet.ChannelID)
 	snippet.AuthorID = strings.TrimSpace(snippet.AuthorID)
 	snippet.Text = strings.TrimSpace(snippet.Text)
 	snippet.CreatedAt = strings.TrimSpace(snippet.CreatedAt)

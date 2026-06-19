@@ -7,19 +7,24 @@ import (
 	"sync"
 
 	"github.com/gOps132/GigiDC/internal/contextbroker"
+	"time"
 )
 
 type RunSnapshot struct {
+	RunID        string
 	Intent       string
 	Results      []ToolResult
 	ResponseText string
 	ContextState contextbroker.SessionState
+	CreatedAt    time.Time
 }
 
 func (s RunSnapshot) copy() RunSnapshot {
 	copied := RunSnapshot{
+		RunID:        strings.TrimSpace(s.RunID),
 		Intent:       strings.TrimSpace(s.Intent),
 		ResponseText: strings.TrimSpace(s.ResponseText),
+		CreatedAt:    s.CreatedAt,
 		Results:      make([]ToolResult, 0, len(s.Results)),
 		ContextState: copyContextState(s.ContextState),
 	}
@@ -61,12 +66,21 @@ type FollowUpStore interface {
 }
 
 type MemoryFollowUpStore struct {
-	mu    sync.Mutex
-	items map[string]RunSnapshot
+	mu         sync.Mutex
+	ttl        time.Duration
+	maxEntries int
+	clock      func() time.Time
+	sequence   uint64
+	items      map[string]followUpEntry
 }
 
 func NewMemoryFollowUpStore() *MemoryFollowUpStore {
-	return &MemoryFollowUpStore{items: map[string]RunSnapshot{}}
+	return &MemoryFollowUpStore{
+		ttl:        30 * time.Minute,
+		maxEntries: 1000,
+		clock:      time.Now,
+		items:      map[string]followUpEntry{},
+	}
 }
 
 func (s *MemoryFollowUpStore) Load(ctx context.Context, request Request) (RunSnapshot, bool, error) {
@@ -76,11 +90,15 @@ func (s *MemoryFollowUpStore) Load(ctx context.Context, request Request) (RunSna
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	snapshot, ok := s.items[key]
+	entry, ok := s.items[key]
 	if !ok {
 		return RunSnapshot{}, false, nil
 	}
-	copied := snapshot.copy()
+	if s.expired(entry, s.now()) {
+		delete(s.items, key)
+		return RunSnapshot{}, false, nil
+	}
+	copied := entry.Snapshot.copy()
 	return copied, true, nil
 }
 
@@ -96,10 +114,65 @@ func (s *MemoryFollowUpStore) Save(ctx context.Context, request Request, snapsho
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.items == nil {
-		s.items = map[string]RunSnapshot{}
+		s.items = map[string]followUpEntry{}
 	}
-	s.items[key] = snapshot
+	now := s.now()
+	if snapshot.CreatedAt.IsZero() {
+		snapshot.CreatedAt = now
+	}
+	s.sequence++
+	s.items[key] = followUpEntry{Snapshot: snapshot, SavedAt: now, Sequence: s.sequence}
+	s.purgeLocked(now)
+	s.trimLocked()
 	return nil
+}
+
+func (s *MemoryFollowUpStore) now() time.Time {
+	if s.clock != nil {
+		return s.clock()
+	}
+	return time.Now()
+}
+
+func (s *MemoryFollowUpStore) expired(entry followUpEntry, now time.Time) bool {
+	if s.ttl <= 0 {
+		return false
+	}
+	return !entry.SavedAt.IsZero() && now.Sub(entry.SavedAt) > s.ttl
+}
+
+func (s *MemoryFollowUpStore) purgeLocked(now time.Time) {
+	for key, entry := range s.items {
+		if s.expired(entry, now) {
+			delete(s.items, key)
+		}
+	}
+}
+
+func (s *MemoryFollowUpStore) trimLocked() {
+	if s.maxEntries <= 0 {
+		return
+	}
+	for len(s.items) > s.maxEntries {
+		var oldestKey string
+		var oldest uint64
+		for key, entry := range s.items {
+			if oldestKey == "" || entry.Sequence < oldest {
+				oldestKey = key
+				oldest = entry.Sequence
+			}
+		}
+		if oldestKey == "" {
+			return
+		}
+		delete(s.items, oldestKey)
+	}
+}
+
+type followUpEntry struct {
+	Snapshot RunSnapshot
+	SavedAt  time.Time
+	Sequence uint64
 }
 
 func followUpKey(request Request) string {

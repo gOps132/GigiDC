@@ -6,7 +6,6 @@ import (
 
 	"github.com/gOps132/GigiDC/internal/audit"
 	"github.com/gOps132/GigiDC/internal/capability"
-	"github.com/gOps132/GigiDC/internal/contextbroker"
 	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
 )
 
@@ -26,14 +25,11 @@ type Answerer interface {
 	Answer(context.Context, Request, Plan, []ToolResult) (Response, error)
 }
 
-type ContextSnippetProvider interface {
-	LoadContextSnippets(context.Context, Request) ([]contextbroker.Snippet, error)
-}
-
 type PlanningHandler struct {
 	Planner                      Planner
 	Tools                        Registry
 	Answerer                     Answerer
+	ContextFetcher               ContextFetcher
 	Policy                       PolicyManager
 	Checker                      CapabilityChecker
 	Recorder                     AuditRecorder
@@ -42,7 +38,7 @@ type PlanningHandler struct {
 	NewRunID                     func() string
 	FollowUps                    FollowUpStore
 	RunStore                     RunStore
-	ContextProvider              ContextSnippetProvider
+	TraceSink                    TraceSink
 }
 
 func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request) (Response, bool, error) {
@@ -55,15 +51,16 @@ func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request
 			request.PriorRun = &snapshot
 		}
 	}
-	trace := Trace{Recorder: h.Recorder, Source: "agent"}
+	trace := Trace{Recorder: h.Recorder, Sink: h.TraceSink, Source: "agent"}
 	policy := RoutingPolicy{
 		Policy:                       h.Policy,
 		Checker:                      h.Checker,
 		RequiredCapabilityBeforePlan: h.RequiredCapabilityBeforePlan,
 	}
 	runner := Runner{
-		Planner: h.Planner,
-		Policy:  policy,
+		Planner:        h.Planner,
+		ContextFetcher: h.ContextFetcher,
+		Policy:         policy,
 		Executor: Executor{
 			Tools:     h.Tools,
 			Answerer:  h.Answerer,
@@ -71,11 +68,10 @@ func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request
 			Trace:     trace,
 			FollowUps: h.FollowUps,
 		},
-		Trace:           trace,
-		Limits:          h.Limits,
-		RunStore:        h.RunStore,
-		NewRunID:        h.NewRunID,
-		ContextProvider: h.ContextProvider,
+		Trace:    trace,
+		Limits:   h.Limits,
+		RunStore: h.RunStore,
+		NewRunID: h.NewRunID,
 	}
 	return runner.Run(ctx, request)
 }

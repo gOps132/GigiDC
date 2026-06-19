@@ -21,46 +21,41 @@ type AgentRunManager interface {
 	ResolveConfirmation(context.Context, string, agent.ConfirmationStatus, string) error
 }
 
-func AgentCommands(manager AgentRunManager, recorder AuditRecorder) []Command {
-	return []Command{{
-		Name:        "agent",
-		Description: "Manage durable Gigi agent runs.",
-		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "cancel",
-				Description: "Request cancellation for one of your running agent runs.",
-				Options: []*discordgo.ApplicationCommandOption{
-					stringOption("run", "Agent run id.", nil),
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "pending",
-				Description: "Show a pending confirmation for one of your agent runs.",
-				Options: []*discordgo.ApplicationCommandOption{
-					stringOption("run", "Agent run id.", nil),
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "confirm",
-				Description: "Confirm a pending action for one of your agent runs.",
-				Options: []*discordgo.ApplicationCommandOption{
-					stringOption("run", "Agent run id.", nil),
-				},
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Name:        "reject",
-				Description: "Reject a pending action for one of your agent runs.",
-				Options: []*discordgo.ApplicationCommandOption{
-					stringOption("run", "Agent run id.", nil),
-				},
+func agentRunOptions() []*discordgo.ApplicationCommandOption {
+	return []*discordgo.ApplicationCommandOption{
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "cancel",
+			Description: "Request cancellation for one of your running agent runs.",
+			Options: []*discordgo.ApplicationCommandOption{
+				stringOption("run", "Agent run id.", nil),
 			},
 		},
-		Handle: agentCommandHandler(manager, recorder),
-	}}
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "pending",
+			Description: "Show a pending confirmation for one of your agent runs.",
+			Options: []*discordgo.ApplicationCommandOption{
+				stringOption("run", "Agent run id.", nil),
+			},
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "confirm",
+			Description: "Confirm a pending action for one of your agent runs.",
+			Options: []*discordgo.ApplicationCommandOption{
+				stringOption("run", "Agent run id.", nil),
+			},
+		},
+		{
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Name:        "reject",
+			Description: "Reject a pending action for one of your agent runs.",
+			Options: []*discordgo.ApplicationCommandOption{
+				stringOption("run", "Agent run id.", nil),
+			},
+		},
+	}
 }
 
 type agentCommandRequest struct {

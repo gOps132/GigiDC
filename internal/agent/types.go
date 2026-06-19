@@ -30,11 +30,10 @@ type Request struct {
 	RoleIDs          []string
 	HasAdministrator bool
 	ContextScope     string
-	ContextSnippets  []contextbroker.Snippet
-	ContextPack      contextbroker.Pack
 	Text             string
 	RawText          string
 	PriorRun         *RunSnapshot
+	ContextPack      *contextbroker.Pack
 }
 
 type Response struct {
@@ -88,11 +87,13 @@ func NormalizeRequest(request Request) Request {
 	request.Text = strings.TrimSpace(request.Text)
 	request.RawText = strings.TrimSpace(request.RawText)
 	request.RoleIDs = append([]string(nil), request.RoleIDs...)
-	request.ContextSnippets = append([]contextbroker.Snippet(nil), request.ContextSnippets...)
-	request.ContextPack = copyContextPack(request.ContextPack)
 	if request.PriorRun != nil {
 		snapshot := request.PriorRun.copy()
 		request.PriorRun = &snapshot
+	}
+	if request.ContextPack != nil {
+		pack := copyContextPack(*request.ContextPack)
+		request.ContextPack = &pack
 	}
 	return request
 }

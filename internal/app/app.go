@@ -13,6 +13,7 @@ import (
 	"github.com/gOps132/GigiDC/internal/buildinfo"
 	"github.com/gOps132/GigiDC/internal/capability"
 	"github.com/gOps132/GigiDC/internal/config"
+	"github.com/gOps132/GigiDC/internal/contextbroker"
 	"github.com/gOps132/GigiDC/internal/discord"
 	"github.com/gOps132/GigiDC/internal/llm"
 	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
@@ -104,6 +105,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		assistantHandler := assistant.NewHandler(llmRuntime)
 		assistantHandler.Recorder = conversationStore
 		followUps := agent.NewMemoryFollowUpStore()
+		traceStore := agent.NewMemoryTraceStore(256)
 		agentRuntime := agent.Runtime{
 			Handlers: []agent.Handler{
 				agent.PlanningHandler{
@@ -113,6 +115,10 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 						agent.SemanticMemoryPlannerAdapter{Planner: assistant.SemanticMemoryPlanner{Runtime: llmRuntime}},
 					},
 					Answerer: agent.LLMAnswerer{Runtime: llmRuntime},
+					ContextFetcher: agent.ChannelContextFetcher{
+						Source:  contextbroker.ChannelRecentFetcher{Store: memoryStore},
+						Checker: evaluator,
+					},
 					Tools: agent.NewRegistry(
 						agent.MemoryCountTool{Store: memoryStore, Checker: evaluator},
 						agent.MemorySearchTool{Store: memoryStore, Checker: evaluator},
@@ -125,12 +131,9 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 					Policy:    policyStore,
 					Checker:   evaluator,
 					Recorder:  auditStore,
+					TraceSink: traceStore,
 					FollowUps: followUps,
 					RunStore:  agentRunStore,
-					ContextProvider: agent.MemoryContextProvider{
-						Store:   memoryStore,
-						Checker: evaluator,
-					},
 				},
 				agent.ChatHandler{Responder: assistantHandler},
 			},
@@ -138,9 +141,9 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		semanticPlanner := assistant.SemanticPluginPlanner{Runtime: llmRuntime}
 		commands := discord.CoreCommands()
 		commands = append(commands, discord.AskCommand(agentRuntime))
+		commands = append(commands, discord.AgentCommands(traceStore, agentRunStore, auditStore)...)
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
-		commands = append(commands, discord.AgentCommands(agentRunStore, auditStore)...)
 		commands = append(commands, discord.LLMCommands(providerService, auditStore, discord.LLMCommandConfig{
 			CredentialEntryEnabled: secretSealer != nil,
 			UsageReporter:          usageRecorder,

@@ -58,8 +58,8 @@ Discord Gateway
 - `internal/llm`: provider-backed text client contracts and HTTP callers for OpenAI, Anthropic, Gemini, and custom-compatible providers.
 - `internal/llm/provider`: provider registry, encrypted credentials, model profiles, usage records, provider testing, and credential resolution for OpenAI, Anthropic, Gemini, and future providers.
 - `internal/assistant`: current surface-independent orchestration for guild-mention chat, metadata-only conversation turns, native memory planning, and semantic plugin routing.
-- `internal/agent`: agent runtime core for bounded runs, request planning, policy checks, tool execution, answer composition, confirmation, audit-friendly traces, durable run/step state, and current-channel memory context loading.
-- `internal/contextbroker`: scoped context pack layer for current-channel context, permitted guild memory, enabled plugin catalog summaries, and token-budgeted context packs. The pack builder now assigns stable source IDs, citation labels, stale/invalidation markers, pinned-snippet priority, omitted-unchanged markers, and restore handles; the first provider loads permitted recent channel memory, while richer retrieval providers plug in through later memory slices.
+- `internal/agent`: agent runtime core for bounded runs, request planning, policy checks, tool execution, answer composition, confirmation, audit-friendly traces, durable run/step state, and current-channel context loading.
+- `internal/contextbroker`: scoped context retrieval and packing layer for current-channel retained memory and bounded context packs. The pack builder assigns stable source IDs, citation labels, stale/invalidation markers, pinned-snippet priority, omitted-unchanged markers, and restore handles; permitted cross-channel guild memory, enabled plugin catalog summaries, and richer token budgeting remain future work.
 - `internal/tools`: planned registry for native deterministic tools and enabled external app tool surfaces.
 
 ## Data Boundary

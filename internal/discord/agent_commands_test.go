@@ -11,19 +11,21 @@ import (
 )
 
 func TestAgentCommandsExposeRunManagementSurface(t *testing.T) {
-	commands := AgentCommands(&fakeAgentRunManager{}, nil)
+	commands := AgentCommands(nil, &fakeAgentRunManager{}, nil)
 	if len(commands) != 1 || commands[0].Name != "agent" {
 		t.Fatalf("commands=%+v, want agent command", commands)
 	}
-	if len(commands[0].Options) != 4 {
-		t.Fatalf("options=%+v, want cancel/pending/confirm/reject", commands[0].Options)
+	for _, name := range []string{"trace", "cancel", "pending", "confirm", "reject"} {
+		if findOption(commands[0].Options, name) == nil {
+			t.Fatalf("options=%+v, want %s", commands[0].Options, name)
+		}
 	}
 }
 
 func TestAgentCommandCancelsOwnedRunningRun(t *testing.T) {
 	manager := &fakeAgentRunManager{run: agent.RunRecord{ID: "run-1", GuildID: "guild-id", ActorUserID: "actor-id", Status: agent.RunStatusRunning}}
 	recorder := &fakeAuditRecorder{}
-	handler := AgentCommands(manager, recorder)[0].Handle
+	handler := AgentCommands(nil, manager, recorder)[0].Handle
 
 	response, err := handler(context.Background(), agentInteraction("cancel", "run-1", "actor-id", false))
 	if err != nil {
@@ -54,7 +56,7 @@ func TestAgentCommandShowsAndConfirmsPendingAction(t *testing.T) {
 		},
 		hasConfirmation: true,
 	}
-	handler := AgentCommands(manager, nil)[0].Handle
+	handler := AgentCommands(nil, manager, nil)[0].Handle
 
 	pending, err := handler(context.Background(), agentInteraction("pending", "run-1", "actor-id", false))
 	if err != nil {
@@ -79,7 +81,7 @@ func TestAgentCommandShowsAndConfirmsPendingAction(t *testing.T) {
 func TestAgentCommandRejectsOtherUserRun(t *testing.T) {
 	manager := &fakeAgentRunManager{run: agent.RunRecord{ID: "run-1", GuildID: "guild-id", ActorUserID: "owner-id", Status: agent.RunStatusRunning}}
 	recorder := &fakeAuditRecorder{}
-	handler := AgentCommands(manager, recorder)[0].Handle
+	handler := AgentCommands(nil, manager, recorder)[0].Handle
 
 	response, err := handler(context.Background(), agentInteraction("cancel", "run-1", "actor-id", false))
 	if err != nil {
@@ -98,7 +100,7 @@ func TestAgentCommandRejectsOtherUserRun(t *testing.T) {
 
 func TestAgentCommandAllowsAdministratorForOtherUserRun(t *testing.T) {
 	manager := &fakeAgentRunManager{run: agent.RunRecord{ID: "run-1", GuildID: "guild-id", ActorUserID: "owner-id", Status: agent.RunStatusRunning}}
-	handler := AgentCommands(manager, nil)[0].Handle
+	handler := AgentCommands(nil, manager, nil)[0].Handle
 
 	response, err := handler(context.Background(), agentInteraction("cancel", "run-1", "admin-id", true))
 	if err != nil {
