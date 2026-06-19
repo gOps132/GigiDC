@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/gOps132/GigiDC/internal/audit"
@@ -302,6 +303,28 @@ func TestTraceSkipsEmptyActorAndAddsSource(t *testing.T) {
 	}
 }
 
+func TestTraceSanitizesMetadataBeforeDurableStep(t *testing.T) {
+	store := &fakeRunStore{}
+	trace := Trace{Store: store, RunID: "run-id", Source: "agent-test"}
+
+	if err := trace.Record(context.Background(), agentTestRequest(), "agent.tool", audit.StatusSucceeded, "", map[string]string{
+		"tool":    "memory.search",
+		"api_key": "sk-secret",
+		"value":   "sk-secret",
+	}); err != nil {
+		t.Fatalf("Record returned error: %v", err)
+	}
+	if len(store.steps) != 1 {
+		t.Fatalf("steps=%+v, want one durable step", store.steps)
+	}
+	if _, ok := store.steps[0].Observation["api_key"]; ok {
+		t.Fatalf("observation=%+v, want sensitive key removed", store.steps[0].Observation)
+	}
+	if store.steps[0].Observation["value"] != "[REDACTED]" {
+		t.Fatalf("observation=%+v, want sensitive value redacted", store.steps[0].Observation)
+	}
+}
+
 func TestRunnerTraceIncludesRunIDAndOrderedSteps(t *testing.T) {
 	recorder := &fakeAgentAuditRecorder{}
 	runner := Runner{
@@ -509,4 +532,331 @@ func TestRunnerSkipsAnswererWhenLLMBudgetExceeded(t *testing.T) {
 	if len(recorder.events) != 3 || recorder.events[2].Kind != "agent.answer" || recorder.events[2].Reason != "llm_budget_exceeded" {
 		t.Fatalf("events=%+v, want answer budget trace", recorder.events)
 	}
+}
+
+func TestRunnerPersistsRunLifecycleAndSteps(t *testing.T) {
+	store := &fakeRunStore{}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "multi", ToolCalls: []ToolCall{{Name: "fake.tool"}}}},
+		Policy:  RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools: NewRegistry(&fakeTool{}),
+		},
+		Trace:    Trace{Source: "agent-test"},
+		Limits:   Limits{MaxSteps: 4, MaxToolCalls: 2, Budget: Budget{MaxLLMCalls: 1, MaxInputTokens: 3000, MaxOutputTokens: 500}},
+		RunStore: store,
+		NewRunID: func() string { return "run-1" },
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "fake result" {
+		t.Fatalf("response=%+v handled=%v, want handled tool result", response, handled)
+	}
+	if len(store.started) != 1 || store.started[0].ID != "run-1" || store.started[0].MaxSteps != 4 || store.started[0].MaxToolCalls != 2 || store.started[0].MaxLLMCalls != 1 || store.started[0].MaxInputTokens != 3000 || store.started[0].MaxOutputTokens != 500 {
+		t.Fatalf("started=%+v, want run with budgets", store.started)
+	}
+	if len(store.completed) != 1 || store.completed[0].status != RunStatusSucceeded || store.completed[0].reason != TerminationCompleted {
+		t.Fatalf("completed=%+v, want succeeded completed run", store.completed)
+	}
+	if len(store.steps) != 3 || store.steps[0].Kind != "agent.plan" || store.steps[1].Kind != "agent.tool" || store.steps[2].Kind != "agent.answer" || store.steps[0].RunID != "run-1" {
+		t.Fatalf("steps=%+v, want plan, tool, and answer durable steps", store.steps)
+	}
+}
+
+func TestRunnerCompletesRunWithDryRunTermination(t *testing.T) {
+	store := &fakeRunStore{}
+	runner := Runner{
+		Planner:  &fakePlanner{ok: true, plan: Plan{Intent: "dry", ToolCalls: []ToolCall{{Name: "fake.tool"}}}},
+		Policy:   RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingDryRun}},
+		Executor: Executor{Tools: NewRegistry(&fakeTool{})},
+		RunStore: store,
+		NewRunID: func() string { return "run-dry" },
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || !strings.Contains(response.Text, "dry-run") {
+		t.Fatalf("response=%+v handled=%v, want dry-run response", response, handled)
+	}
+	if len(store.completed) != 1 || store.completed[0].status != RunStatusDryRun || store.completed[0].reason != TerminationDryRun {
+		t.Fatalf("completed=%+v, want dry-run completion", store.completed)
+	}
+}
+
+func TestRunnerStopsWhenDurableRunCanceled(t *testing.T) {
+	store := &fakeRunStore{canceled: true}
+	planner := &fakePlanner{ok: true}
+	runner := Runner{
+		Planner:  planner,
+		Policy:   RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		RunStore: store,
+		NewRunID: func() string { return "run-cancel" },
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "Agent run was canceled." {
+		t.Fatalf("response=%+v handled=%v, want canceled response", response, handled)
+	}
+	if planner.called {
+		t.Fatal("planner called after run cancellation")
+	}
+	if len(store.completed) != 1 || store.completed[0].status != RunStatusCanceled || store.completed[0].reason != TerminationCanceled {
+		t.Fatalf("completed=%+v, want canceled completion", store.completed)
+	}
+}
+
+func TestRunnerCompletesWriteToolAsConfirmationRequired(t *testing.T) {
+	store := &fakeRunStore{}
+	runner := Runner{
+		Planner:  &fakePlanner{ok: true, plan: Plan{Intent: "write", ToolCalls: []ToolCall{{Name: "fake.tool"}}}},
+		Policy:   RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{Tools: NewRegistry(&fakeTool{kind: ToolKindWrite})},
+		RunStore: store,
+		NewRunID: func() string { return "run-confirm" },
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || !strings.Contains(response.Text, "confirmation is required") {
+		t.Fatalf("response=%+v handled=%v, want confirmation response", response, handled)
+	}
+	if len(store.completed) != 1 || store.completed[0].status != RunStatusConfirmationRequired || store.completed[0].reason != TerminationConfirmationRequired {
+		t.Fatalf("completed=%+v, want confirmation-required completion", store.completed)
+	}
+}
+
+func TestRunnerCompletesToolDenialAsDenied(t *testing.T) {
+	store := &fakeRunStore{}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "denied", ToolCalls: []ToolCall{{Name: "fake.tool"}}}},
+		Policy:  RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools:  NewRegistry(&fakeTool{capability: "memory.read.guild"}),
+			Policy: RoutingPolicy{Checker: fakeAgentCapabilityChecker{decision: capability.Decision{Allowed: false, Reason: capability.ReasonMissingCapability}}},
+		},
+		RunStore: store,
+		NewRunID: func() string { return "run-deny" },
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "Permission denied for agent tool." {
+		t.Fatalf("response=%+v handled=%v, want denied response", response, handled)
+	}
+	if len(store.completed) != 1 || store.completed[0].status != RunStatusDenied || store.completed[0].reason != TerminationPermissionDenied {
+		t.Fatalf("completed=%+v, want denied completion", store.completed)
+	}
+}
+
+func TestRunnerStopsBetweenToolsWhenRunCanceled(t *testing.T) {
+	store := &fakeRunStore{cancelAfterStepCount: 1}
+	secondTool := &fakeTool{name: "tool.b"}
+	answerer := &fakeAnswerer{}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "cancel", ToolCalls: []ToolCall{
+			{Name: "tool.a"},
+			{Name: "tool.b"},
+		}}},
+		Policy: RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools:    NewRegistry(&fakeTool{name: "tool.a"}, secondTool),
+			Answerer: answerer,
+		},
+		RunStore: store,
+		NewRunID: func() string { return "run-cancel-mid" },
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "Agent run was canceled." {
+		t.Fatalf("response=%+v handled=%v, want canceled response", response, handled)
+	}
+	if secondTool.called || answerer.called {
+		t.Fatalf("secondTool.called=%v answerer.called=%v, want stop before next tool/answer", secondTool.called, answerer.called)
+	}
+	if len(store.completed) != 1 || store.completed[0].status != RunStatusCanceled || store.completed[0].reason != TerminationCanceled {
+		t.Fatalf("completed=%+v, want canceled completion", store.completed)
+	}
+}
+
+func TestRunnerStopsBeforeAnswerWhenRunCanceled(t *testing.T) {
+	store := &fakeRunStore{cancelAfterStepCount: 1}
+	answerer := &fakeAnswerer{}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "cancel", ToolCalls: []ToolCall{
+			{Name: "fake.tool"},
+		}}},
+		Policy: RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools:    NewRegistry(&fakeTool{}),
+			Answerer: answerer,
+		},
+		RunStore: store,
+		NewRunID: func() string { return "run-cancel-answer" },
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "Agent run was canceled." {
+		t.Fatalf("response=%+v handled=%v, want canceled response", response, handled)
+	}
+	if answerer.called {
+		t.Fatal("answerer called after run cancellation")
+	}
+	if len(store.completed) != 1 || store.completed[0].status != RunStatusCanceled || store.completed[0].reason != TerminationCanceled {
+		t.Fatalf("completed=%+v, want canceled completion", store.completed)
+	}
+}
+
+func TestRunnerDoesNotClassifyTerminationFromResponseText(t *testing.T) {
+	store := &fakeRunStore{}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "text", ToolCalls: []ToolCall{{Name: "fake.tool"}}}},
+		Policy:  RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{Tools: NewRegistry(&fakeTool{
+			result: ToolResult{Name: "fake.tool", Summary: "no failures found"},
+		})},
+		RunStore: store,
+		NewRunID: func() string { return "run-text" },
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "no failures found" {
+		t.Fatalf("response=%+v handled=%v, want normal result text", response, handled)
+	}
+	if len(store.completed) != 1 || store.completed[0].status != RunStatusSucceeded || store.completed[0].reason != TerminationCompleted {
+		t.Fatalf("completed=%+v, want typed success despite response text", store.completed)
+	}
+}
+
+func TestRunnerCreatesPendingConfirmationRecordForWriteTool(t *testing.T) {
+	store := &fakeRunStore{}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "write", ToolCalls: []ToolCall{{
+			Name: "fake.write",
+			Args: map[string]string{"target": "message-id", "api_key": "sk-secret"},
+		}}}},
+		Policy: RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools: NewRegistry(&fakeTool{name: "fake.write", kind: ToolKindWrite}),
+		},
+		RunStore: store,
+		NewRunID: func() string { return "run-confirm" },
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || !strings.Contains(response.Text, "confirmation is required") {
+		t.Fatalf("response=%+v handled=%v, want confirmation response", response, handled)
+	}
+	if len(store.confirmations) != 1 || store.confirmations[0].RunID != "run-confirm" || store.confirmations[0].Status != ConfirmationStatusPending || store.confirmations[0].ToolName != "fake.write" {
+		t.Fatalf("confirmations=%+v, want pending write confirmation", store.confirmations)
+	}
+	if _, ok := store.confirmations[0].Payload["api_key"]; ok {
+		t.Fatalf("confirmation payload=%+v, want sensitive key removed", store.confirmations[0].Payload)
+	}
+}
+
+func TestRunnerFailsWhenPendingConfirmationCannotBeStored(t *testing.T) {
+	store := &fakeRunStore{confirmErr: errors.New("db down")}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "write", ToolCalls: []ToolCall{{Name: "fake.write"}}}},
+		Policy:  RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools: NewRegistry(&fakeTool{name: "fake.write", kind: ToolKindWrite}),
+		},
+		RunStore: store,
+		NewRunID: func() string { return "run-confirm-fail" },
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "Agent confirmation failed." {
+		t.Fatalf("response=%+v handled=%v, want confirmation failure", response, handled)
+	}
+	if len(store.completed) != 1 || store.completed[0].status != RunStatusFailed || store.completed[0].reason != TerminationExecutorFailed {
+		t.Fatalf("completed=%+v, want failed completion", store.completed)
+	}
+}
+
+type fakeRunStore struct {
+	started              []RunRecord
+	completed            []runCompletion
+	steps                []StepRecord
+	confirmations        []ConfirmationRecord
+	canceled             bool
+	cancelAfterStepCount int
+	confirmErr           error
+}
+
+type runCompletion struct {
+	id     string
+	status RunStatus
+	reason TerminationReason
+}
+
+func (s *fakeRunStore) StartRun(_ context.Context, record RunRecord) error {
+	s.started = append(s.started, record)
+	return nil
+}
+
+func (s *fakeRunStore) CompleteRun(_ context.Context, runID string, status RunStatus, reason TerminationReason) error {
+	s.completed = append(s.completed, runCompletion{id: runID, status: status, reason: reason})
+	return nil
+}
+
+func (s *fakeRunStore) RecordStep(_ context.Context, record StepRecord) error {
+	s.steps = append(s.steps, record)
+	return nil
+}
+
+func (s *fakeRunStore) IsRunCanceled(_ context.Context, runID string) (bool, error) {
+	return s.canceled || (s.cancelAfterStepCount > 0 && len(s.steps) >= s.cancelAfterStepCount), nil
+}
+
+func (s *fakeRunStore) RequestCancelRun(_ context.Context, runID string, actorID string) error {
+	s.canceled = true
+	return nil
+}
+
+func (s *fakeRunStore) CreateConfirmation(_ context.Context, record ConfirmationRecord) error {
+	if s.confirmErr != nil {
+		return s.confirmErr
+	}
+	s.confirmations = append(s.confirmations, record)
+	return nil
+}
+
+func (s *fakeRunStore) PendingConfirmation(context.Context, string) (ConfirmationRecord, bool, error) {
+	if len(s.confirmations) == 0 {
+		return ConfirmationRecord{}, false, nil
+	}
+	return s.confirmations[0], true, nil
+}
+
+func (s *fakeRunStore) ResolveConfirmation(context.Context, string, ConfirmationStatus, string) error {
+	return nil
 }

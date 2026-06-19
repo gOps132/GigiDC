@@ -10,6 +10,7 @@ import (
 
 type CommandPlan struct {
 	Manifest             Manifest
+	Action               Action
 	Trigger              Trigger
 	Command              string
 	Arguments            string
@@ -23,10 +24,11 @@ func PlanCommand(manifests []Manifest, surface string, text string) (CommandPlan
 		return CommandPlan{}, false
 	}
 	for _, manifest := range manifests {
-		if !supportsSurface(manifest, surface) {
-			continue
-		}
-		for _, trigger := range manifest.Triggers {
+		for _, action := range manifest.NormalizedActions() {
+			if !supportsActionSurface(action, surface) {
+				continue
+			}
+			trigger := action.Trigger
 			if strings.TrimSpace(trigger.Kind) != "prefix" {
 				continue
 			}
@@ -36,10 +38,11 @@ func PlanCommand(manifests []Manifest, surface string, text string) (CommandPlan
 			}
 			return CommandPlan{
 				Manifest:             manifest,
+				Action:               action,
 				Trigger:              trigger,
 				Command:              command,
 				Arguments:            args,
-				RequiredCapabilities: requiredCapabilities(manifest),
+				RequiredCapabilities: requiredActionCapabilities(action),
 			}, true
 		}
 	}
@@ -54,28 +57,44 @@ func PlanCommandFromTrigger(manifests []Manifest, surface string, pluginID strin
 		return CommandPlan{}, false
 	}
 	for _, manifest := range manifests {
-		if strings.TrimSpace(manifest.ID) != pluginID || !supportsSurface(manifest, surface) {
+		if strings.TrimSpace(manifest.ID) != pluginID {
 			continue
 		}
-		for _, trigger := range manifest.Triggers {
+		for _, action := range manifest.NormalizedActions() {
+			if !supportsActionSurface(action, surface) {
+				continue
+			}
+			trigger := action.Trigger
 			if strings.TrimSpace(trigger.Kind) != "prefix" || strings.TrimSpace(trigger.Value) != triggerValue {
 				continue
 			}
 			args := strings.TrimSpace(arguments)
 			return CommandPlan{
 				Manifest:             manifest,
+				Action:               action,
 				Trigger:              trigger,
 				Command:              buildCommand(trigger.Value, args),
 				Arguments:            args,
-				RequiredCapabilities: requiredCapabilities(manifest),
+				RequiredCapabilities: requiredActionCapabilities(action),
 			}, true
 		}
 	}
 	return CommandPlan{}, false
 }
 
-func supportsSurface(manifest Manifest, surface string) bool {
-	for _, candidate := range manifest.Surfaces {
+func (p CommandPlan) DispatchMode() DispatchMode {
+	if p.Action.Dispatch != "" {
+		return p.Action.Dispatch
+	}
+	return normalizedDispatchMode(p.Manifest.Dispatch)
+}
+
+func (p CommandPlan) PublicAction() bool {
+	return p.Action.Safety == SafetyClassPublic && len(p.RequiredCapabilities) == 0
+}
+
+func supportsActionSurface(action Action, surface string) bool {
+	for _, candidate := range action.Surfaces {
 		if strings.TrimSpace(candidate) == surface {
 			return true
 		}
@@ -150,9 +169,9 @@ func buildCommand(trigger string, args string) string {
 	return trigger + " " + args
 }
 
-func requiredCapabilities(manifest Manifest) []capability.Capability {
-	capabilities := make([]capability.Capability, 0, len(manifest.Permissions))
-	for _, permission := range manifest.Permissions {
+func requiredActionCapabilities(action Action) []capability.Capability {
+	capabilities := make([]capability.Capability, 0, len(action.Permissions))
+	for _, permission := range action.Permissions {
 		capability, err := capability.Normalize(permission)
 		if err != nil {
 			continue

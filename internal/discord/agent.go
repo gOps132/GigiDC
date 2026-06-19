@@ -36,7 +36,7 @@ func AgentMessageHandler(runtime AgentRuntime, fallback MessageHandler) MessageH
 		if strings.TrimSpace(response.Text) == "" {
 			return fallback.HandleMessage(ctx, message)
 		}
-		return MessageResponse{Content: response.Text}, nil
+		return MessageResponse{Content: appendAgentRunHint(response.Text, response)}, nil
 	})
 }
 
@@ -52,4 +52,25 @@ func AgentHandlerAdapter(handler agent.Handler) AgentRuntime {
 		return nil
 	}
 	return agent.Runtime{Handlers: []agent.Handler{handler}}
+}
+
+func appendAgentRunHint(content string, response agent.Response) string {
+	content = strings.TrimSpace(content)
+	if strings.TrimSpace(response.RunID) == "" {
+		return content
+	}
+	switch response.RunStatus {
+	case agent.RunStatusConfirmationRequired:
+		if strings.TrimSpace(response.ConfirmationID) != "" {
+			return content + "\n\nPending action: `/agent pending run:" + safeInline(response.RunID) + "` then `/agent confirm run:" + safeInline(response.RunID) + "` or `/agent reject run:" + safeInline(response.RunID) + "`."
+		}
+		return content + "\n\nRun: `" + safeInline(response.RunID) + "`."
+	case agent.RunStatusCanceled:
+		return content + "\n\nRun: `" + safeInline(response.RunID) + "` canceled."
+	default:
+		if strings.TrimSpace(response.RunID) != "" && response.RunStatus == agent.RunStatusRunning {
+			return content + "\n\nRun: `" + safeInline(response.RunID) + "`. Cancel with `/agent cancel run:" + safeInline(response.RunID) + "`."
+		}
+		return content
+	}
 }

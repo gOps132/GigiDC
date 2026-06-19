@@ -14,11 +14,11 @@ type AgentTraceReader interface {
 	LastTrace(context.Context, agent.TraceQuery) (agent.TraceRun, bool, error)
 }
 
-func AgentCommands(reader AgentTraceReader) []Command {
+func AgentCommands(reader AgentTraceReader, manager AgentRunManager, recorder AuditRecorder) []Command {
 	return []Command{{
 		Name:        "agent",
-		Description: "Inspect Gigi agent runtime diagnostics.",
-		Options: []*discordgo.ApplicationCommandOption{{
+		Description: "Manage Gigi agent runs and diagnostics.",
+		Options: append([]*discordgo.ApplicationCommandOption{{
 			Type:        discordgo.ApplicationCommandOptionSubCommandGroup,
 			Name:        "trace",
 			Description: "Inspect safe agent traces.",
@@ -33,9 +33,20 @@ func AgentCommands(reader AgentTraceReader) []Command {
 					}),
 				},
 			}},
-		}},
-		Handle: agentTraceHandler(reader),
+		}}, agentRunOptions()...),
+		Handle: agentHandler(reader, manager, recorder),
 	}}
+}
+
+func agentHandler(reader AgentTraceReader, manager AgentRunManager, recorder AuditRecorder) CommandHandler {
+	traceHandler := agentTraceHandler(reader)
+	runHandler := agentCommandHandler(manager, recorder)
+	return func(ctx context.Context, interaction Interaction) (CommandResponse, error) {
+		if len(interaction.Options) == 1 && interaction.Options[0].Name == "trace" {
+			return traceHandler(ctx, interaction)
+		}
+		return runHandler(ctx, interaction)
+	}
 }
 
 func agentTraceHandler(reader AgentTraceReader) CommandHandler {

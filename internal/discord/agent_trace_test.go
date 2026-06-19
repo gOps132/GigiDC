@@ -9,7 +9,7 @@ import (
 )
 
 func TestAgentCommandsExposeTraceLast(t *testing.T) {
-	commands := AgentCommands(&fakeAgentTraceReader{})
+	commands := AgentCommands(&fakeAgentTraceReader{}, nil, nil)
 	if len(commands) != 1 || commands[0].Name != "agent" {
 		t.Fatalf("commands = %+v, want agent command", commands)
 	}

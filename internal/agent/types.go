@@ -37,8 +37,12 @@ type Request struct {
 }
 
 type Response struct {
-	Text       string
-	Visibility Visibility
+	Text              string
+	Visibility        Visibility
+	RunID             string
+	ConfirmationID    string
+	RunStatus         RunStatus
+	TerminationReason TerminationReason
 }
 
 type Handler interface {
@@ -97,10 +101,7 @@ func NormalizeRequest(request Request) Request {
 func NormalizeResponse(response Response) Response {
 	response.Text = strings.TrimSpace(response.Text)
 	response.Visibility = Visibility(strings.TrimSpace(string(response.Visibility)))
+	response.RunID = strings.TrimSpace(response.RunID)
+	response.ConfirmationID = strings.TrimSpace(response.ConfirmationID)
 	return response
-}
-
-func copyContextPack(pack contextbroker.Pack) contextbroker.Pack {
-	pack.Snippets = append([]contextbroker.Snippet(nil), pack.Snippets...)
-	return pack
 }

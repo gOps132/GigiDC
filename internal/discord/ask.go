@@ -37,7 +37,7 @@ func askHandler(runtime AgentRuntime) CommandHandler {
 			return CommandResponse{Content: "Question is required.", Ephemeral: true}, nil
 		}
 		contextScope := normalizeAskContext(optionByName(interaction.Options, "context"))
-		visibility := normalizeAskVisibility(optionByName(interaction.Options, "visibility"))
+		visibility := normalizeAskVisibility(optionByName(interaction.Options, "visibility"), contextScope)
 		response, err := runtime.Run(ctx, agent.Request{
 			Surface:          agent.SurfaceGuildMention,
 			GuildID:          interaction.GuildID,
@@ -56,7 +56,9 @@ func askHandler(runtime AgentRuntime) CommandHandler {
 		if content == "" {
 			content = "I could not answer that."
 		}
-		return CommandResponse{Content: content, Ephemeral: visibility == "private"}, nil
+		content = appendAgentRunHint(content, response)
+		ephemeral := visibility == "private" || response.Visibility == agent.VisibilityPrivate
+		return CommandResponse{Content: content, Ephemeral: ephemeral}, nil
 	}
 }
 
@@ -71,9 +73,14 @@ func normalizeAskContext(value string) string {
 	}
 }
 
-func normalizeAskVisibility(value string) string {
+func normalizeAskVisibility(value string, contextScope string) string {
 	switch strings.TrimSpace(value) {
-	case "", "public":
+	case "":
+		if contextScope == "channel" {
+			return "private"
+		}
+		return "public"
+	case "public":
 		return "public"
 	case "private":
 		return "private"

@@ -12,6 +12,7 @@ import (
 
 type Trace struct {
 	Recorder AuditRecorder
+	Store    RunStore
 	Sink     TraceSink
 	Source   string
 	RunID    string
@@ -95,6 +96,9 @@ func (t Trace) inherit(parent Trace) Trace {
 	if t.Recorder == nil {
 		t.Recorder = parent.Recorder
 	}
+	if t.Store == nil {
+		t.Store = parent.Store
+	}
 	if t.Sink == nil {
 		t.Sink = parent.Sink
 	}
@@ -111,10 +115,7 @@ func (t Trace) Record(ctx context.Context, request Request, kind string, status 
 	if strings.TrimSpace(request.ActorUserID) == "" {
 		return nil
 	}
-	cleanMetadata := map[string]string{}
-	for key, value := range metadata {
-		cleanMetadata[safeAuditValue(key)] = safeAuditValue(value)
-	}
+	cleanMetadata := sanitizeTraceMetadata(metadata)
 	source := strings.TrimSpace(t.Source)
 	if source == "" {
 		source = "agent"
@@ -125,6 +126,16 @@ func (t Trace) Record(ctx context.Context, request Request, kind string, status 
 	}
 	if t.Step > 0 {
 		cleanMetadata["step_index"] = strconv.Itoa(t.Step)
+	}
+	if t.Store != nil && strings.TrimSpace(t.RunID) != "" {
+		_ = t.Store.RecordStep(ctx, StepRecord{
+			RunID:       t.RunID,
+			StepIndex:   t.Step,
+			Kind:        strings.TrimSpace(kind),
+			Status:      status,
+			Reason:      strings.TrimSpace(reason),
+			Observation: cleanMetadata,
+		})
 	}
 	event := TraceEvent{
 		RunID:       cleanMetadata["run_id"],
@@ -149,7 +160,27 @@ func (t Trace) Record(ctx context.Context, request Request, kind string, status 
 	if t.Recorder == nil {
 		return nil
 	}
-	return t.Recorder.Record(ctx, audit.Event{Kind: kind, GuildID: request.GuildID, ActorID: request.ActorUserID, Status: status, Reason: safeAuditValue(reason), Metadata: cleanMetadata})
+	return t.Recorder.Record(ctx, audit.Event{
+		Kind:     safeAuditValue(kind),
+		GuildID:  request.GuildID,
+		ActorID:  request.ActorUserID,
+		Status:   status,
+		Reason:   safeAuditValue(reason),
+		Metadata: cleanMetadata,
+	})
+}
+
+func sanitizeTraceMetadata(metadata map[string]string) map[string]string {
+	sanitized := audit.SanitizeMetadata(metadata)
+	cleaned := map[string]string{}
+	for key, value := range sanitized {
+		key = safeAuditValue(key)
+		value = safeAuditValue(value)
+		if key != "" {
+			cleaned[key] = value
+		}
+	}
+	return cleaned
 }
 
 func (s *MemoryTraceStore) RecordTraceEvent(ctx context.Context, request Request, event TraceEvent) error {
@@ -250,6 +281,8 @@ func traceRunKey(scopeKey string, runID string) string {
 
 func tracePhase(kind string) string {
 	switch strings.TrimSpace(kind) {
+	case "agent.context":
+		return "context"
 	case "agent.plan":
 		return "plan"
 	case "agent.tool":

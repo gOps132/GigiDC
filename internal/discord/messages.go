@@ -152,6 +152,28 @@ func (r *MessageRouter) HandleMessage(ctx context.Context, sender messageSender,
 	return nil
 }
 
+func (r *MessageRouter) HandleMessageDelete(ctx context.Context, event *discordgo.MessageDelete) error {
+	if event == nil || event.Message == nil {
+		return nil
+	}
+	r.enqueueMemoryDelete(event.Message)
+	return nil
+}
+
+func (r *MessageRouter) HandleMessageDeleteBulk(ctx context.Context, event *discordgo.MessageDeleteBulk) error {
+	if event == nil || strings.TrimSpace(event.GuildID) == "" {
+		return nil
+	}
+	for _, messageID := range event.Messages {
+		r.enqueueMemoryDelete(&discordgo.Message{
+			ID:        messageID,
+			GuildID:   event.GuildID,
+			ChannelID: event.ChannelID,
+		})
+	}
+	return nil
+}
+
 func (r *MessageRouter) enqueueMemory(message *discordgo.Message) {
 	if r == nil || r.memoryIngestor == nil || message == nil || message.Author == nil || strings.TrimSpace(message.GuildID) == "" {
 		return
@@ -163,6 +185,18 @@ func (r *MessageRouter) enqueueMemory(message *discordgo.Message) {
 		AuthorUserID: message.Author.ID,
 		Content:      message.Content,
 		CreatedAt:    message.Timestamp,
+	})
+}
+
+func (r *MessageRouter) enqueueMemoryDelete(message *discordgo.Message) {
+	if r == nil || r.memoryIngestor == nil || message == nil || strings.TrimSpace(message.GuildID) == "" || strings.TrimSpace(message.ID) == "" {
+		return
+	}
+	r.memoryIngestor.TryEnqueueMessage(memory.MessageEvent{
+		MessageID: message.ID,
+		GuildID:   message.GuildID,
+		ChannelID: message.ChannelID,
+		Deleted:   true,
 	})
 }
 

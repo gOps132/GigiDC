@@ -37,6 +37,7 @@ type PlanningHandler struct {
 	Limits                       Limits
 	NewRunID                     func() string
 	FollowUps                    FollowUpStore
+	RunStore                     RunStore
 	TraceSink                    TraceSink
 }
 
@@ -69,6 +70,7 @@ func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request
 		},
 		Trace:    trace,
 		Limits:   h.Limits,
+		RunStore: h.RunStore,
 		NewRunID: h.NewRunID,
 	}
 	return runner.Run(ctx, request)

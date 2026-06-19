@@ -23,6 +23,26 @@ type SealedSecret struct {
 	KeyID      string
 }
 
+type SecretValue struct {
+	raw string
+}
+
+func NewSecretValue(raw string) SecretValue {
+	return SecretValue{raw: raw}
+}
+
+func (s SecretValue) Raw() string {
+	return s.raw
+}
+
+func (s SecretValue) String() string {
+	return "[secret redacted]"
+}
+
+func (s SecretValue) GoString() string {
+	return "[secret redacted]"
+}
+
 type AESGCMSealer struct {
 	gcm   cipher.AEAD
 	keyID string

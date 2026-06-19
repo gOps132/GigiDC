@@ -150,6 +150,40 @@ func TestMessageRouterEnqueuesGuildMemoryIngestForUnroutedGuildMessages(t *testi
 	}
 }
 
+func TestMessageRouterEnqueuesGuildMemoryDeleteEvents(t *testing.T) {
+	ingestor := &fakeGuildMemoryIngestor{}
+	router, err := NewMessageRouter("bot-id", CoreMessageHandler(), nil, ingestor)
+	if err != nil {
+		t.Fatalf("NewMessageRouter returned error: %v", err)
+	}
+
+	if err := router.HandleMessageDelete(context.Background(), &discordgo.MessageDelete{Message: &discordgo.Message{ID: "message-id", GuildID: "guild-id", ChannelID: "channel-id"}}); err != nil {
+		t.Fatalf("HandleMessageDelete returned error: %v", err)
+	}
+	if len(ingestor.events) != 1 || !ingestor.events[0].Deleted || ingestor.events[0].GuildID != "guild-id" || ingestor.events[0].MessageID != "message-id" {
+		t.Fatalf("ingest events = %+v, want guild memory delete event", ingestor.events)
+	}
+}
+
+func TestMessageRouterEnqueuesGuildMemoryBulkDeleteEvents(t *testing.T) {
+	ingestor := &fakeGuildMemoryIngestor{}
+	router, err := NewMessageRouter("bot-id", CoreMessageHandler(), nil, ingestor)
+	if err != nil {
+		t.Fatalf("NewMessageRouter returned error: %v", err)
+	}
+
+	if err := router.HandleMessageDeleteBulk(context.Background(), &discordgo.MessageDeleteBulk{
+		Messages:  []string{"m1", "m2"},
+		GuildID:   "guild-id",
+		ChannelID: "channel-id",
+	}); err != nil {
+		t.Fatalf("HandleMessageDeleteBulk returned error: %v", err)
+	}
+	if len(ingestor.events) != 2 || !ingestor.events[0].Deleted || ingestor.events[1].MessageID != "m2" {
+		t.Fatalf("ingest events = %+v, want bulk delete tombstones", ingestor.events)
+	}
+}
+
 func TestMessageRouterDoesNotBlockOnFullMemoryQueue(t *testing.T) {
 	ingestor := &fakeGuildMemoryIngestor{returnValue: false}
 	router, err := NewMessageRouter("bot-id", MessageHandlerFunc(func(ctx context.Context, message Message) (MessageResponse, error) {

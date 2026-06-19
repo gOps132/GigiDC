@@ -116,6 +116,7 @@ func TestExternalAppDryRunHandlerDispatchesPublicSendMessageManifest(t *testing.
 	manifest := dryRunManifest()
 	manifest.Permissions = nil
 	manifest.Dispatch = plugins.DispatchModeSendMessage
+	manifest.PublicDispatchAllowed = true
 	recorder := &fakeAuditRecorder{}
 	handler := ExternalAppDryRunHandler(
 		&fakeExternalAppRegistry{manifests: []plugins.Manifest{manifest}},
@@ -144,6 +145,74 @@ func TestExternalAppDryRunHandlerDispatchesPublicSendMessageManifest(t *testing.
 	}
 }
 
+func TestExternalAppDryRunHandlerDispatchesActionPublicSendMessage(t *testing.T) {
+	manifest := dryRunManifest()
+	manifest.Permissions = []string{"plugin.install"}
+	manifest.Dispatch = plugins.DispatchModeDryRun
+	manifest.PublicDispatchAllowed = true
+	manifest.Triggers = nil
+	manifest.Actions = []plugins.Action{{
+		ID:       "play",
+		Trigger:  plugins.Trigger{Kind: "prefix", Value: "!play", Aliases: []string{"play"}},
+		Surfaces: []string{"guild_text"},
+		Safety:   plugins.SafetyClassPublic,
+		Dispatch: plugins.DispatchModeSendMessage,
+		Adapter:  plugins.DispatchAdapterPrefixCommand,
+	}}
+	recorder := &fakeAuditRecorder{}
+	handler := ExternalAppDryRunHandler(
+		&fakeExternalAppRegistry{manifests: []plugins.Manifest{manifest}},
+		nil,
+		recorder,
+		CoreMessageHandler(),
+	)
+
+	response, err := handler.HandleMessage(context.Background(), Message{
+		Surface: MessageSurfaceGuildMention,
+		GuildID: "guild-id",
+		UserID:  "user-id",
+		Text:    "play never gonna give you up",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if response.Content != "!play never gonna give you up" {
+		t.Fatalf("response = %q, want action dispatched command", response.Content)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Kind != "discord.external_app.dispatch" || recorder.events[0].Metadata["action_id"] != "play" {
+		t.Fatalf("audit events = %+v, want action dispatch audit", recorder.events)
+	}
+}
+
+func TestExternalAppDryRunHandlerDoesNotDispatchPublicManifestWithoutImportApproval(t *testing.T) {
+	manifest := dryRunManifest()
+	manifest.Permissions = nil
+	manifest.Dispatch = plugins.DispatchModeSendMessage
+	recorder := &fakeAuditRecorder{}
+	handler := ExternalAppDryRunHandler(
+		&fakeExternalAppRegistry{manifests: []plugins.Manifest{manifest}},
+		nil,
+		recorder,
+		CoreMessageHandler(),
+	)
+
+	response, err := handler.HandleMessage(context.Background(), Message{
+		Surface: MessageSurfaceGuildMention,
+		GuildID: "guild-id",
+		UserID:  "user-id",
+		Text:    "play never gonna give you up",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if response.Content == "!play never gonna give you up" || !strings.Contains(response.Content, "Dry-run only; no command sent.") {
+		t.Fatalf("response = %q, want dry-run without import approval", response.Content)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Kind != "discord.external_app.dry_run" {
+		t.Fatalf("audit events = %+v, want dry-run audit", recorder.events)
+	}
+}
+
 func TestExternalAppDryRunHandlerDoesNotDispatchRestrictedManifest(t *testing.T) {
 	manifest := dryRunManifest()
 	manifest.Dispatch = plugins.DispatchModeSendMessage
@@ -169,6 +238,40 @@ func TestExternalAppDryRunHandlerDoesNotDispatchRestrictedManifest(t *testing.T)
 	}
 	if len(recorder.events) != 1 || recorder.events[0].Kind != "discord.external_app.dry_run" {
 		t.Fatalf("audit events = %+v, want dry-run audit", recorder.events)
+	}
+}
+
+func TestExternalAppDryRunHandlerDoesNotDispatchRestrictedAction(t *testing.T) {
+	manifest := dryRunManifest()
+	manifest.PublicDispatchAllowed = true
+	manifest.Triggers = nil
+	manifest.Actions = []plugins.Action{{
+		ID:          "skip",
+		Trigger:     plugins.Trigger{Kind: "prefix", Value: "!skip"},
+		Surfaces:    []string{"guild_text"},
+		Permissions: []string{"plugin.install"},
+		Safety:      plugins.SafetyClassRestricted,
+		Dispatch:    plugins.DispatchModeSendMessage,
+		Adapter:     plugins.DispatchAdapterPrefixCommand,
+	}}
+	handler := ExternalAppDryRunHandler(
+		&fakeExternalAppRegistry{manifests: []plugins.Manifest{manifest}},
+		&fakeCapabilityChecker{decision: capability.Decision{Allowed: true, Capability: "plugin.install", Reason: capability.ReasonRoleGrant}},
+		nil,
+		CoreMessageHandler(),
+	)
+
+	response, err := handler.HandleMessage(context.Background(), Message{
+		Surface: MessageSurfaceGuildMention,
+		GuildID: "guild-id",
+		UserID:  "user-id",
+		Text:    "!skip",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if response.Content == "!skip" || !strings.Contains(response.Content, "Dry-run only; no command sent.") {
+		t.Fatalf("response = %q, want restricted action dry-run", response.Content)
 	}
 }
 
@@ -258,6 +361,7 @@ func TestExternalAppSemanticRoutingEnabledDispatchesPublicManifest(t *testing.T)
 	manifest := dryRunManifest()
 	manifest.Permissions = nil
 	manifest.Dispatch = plugins.DispatchModeSendMessage
+	manifest.PublicDispatchAllowed = true
 	recorder := &fakeAuditRecorder{}
 	handler := ExternalAppDryRunHandlerWithSemanticPolicy(
 		&fakeExternalAppRegistry{manifests: []plugins.Manifest{manifest}},

@@ -219,6 +219,21 @@ func formatRunSnapshot(snapshot RunSnapshot, maxChars int) string {
 		b.WriteString(snapshot.ResponseText)
 		b.WriteString("\n")
 	}
+	if len(snapshot.ContextState.Seen) > 0 {
+		b.WriteString("context_state:\n")
+		keys := make([]string, 0, len(snapshot.ContextState.Seen))
+		for key := range snapshot.ContextState.Seen {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			b.WriteString("- source_id: ")
+			b.WriteString(key)
+			b.WriteString("\n  fingerprint: ")
+			b.WriteString(snapshot.ContextState.Seen[key])
+			b.WriteString("\n")
+		}
+	}
 	output := b.String()
 	if maxChars > 0 && len(output) > maxChars {
 		output = output[:maxChars]
@@ -227,39 +242,65 @@ func formatRunSnapshot(snapshot RunSnapshot, maxChars int) string {
 }
 
 func formatContextPack(pack contextbroker.Pack, maxChars int) string {
+	if len(pack.Items) == 0 && len(pack.Omitted) == 0 && len(pack.Invalidations) == 0 {
+		return ""
+	}
 	var b strings.Builder
-	b.WriteString("BEGIN_FETCHED_CONTEXT_JSONL\n")
-	b.WriteString(mustMarshalContextLine(map[string]any{
-		"type":      "metadata",
-		"source":    contextbroker.SourceMemoryCurrentChannel,
-		"count":     len(pack.Snippets),
-		"truncated": pack.Truncated,
-	}))
-	b.WriteString("\n")
-	for _, snippet := range pack.Snippets {
-		b.WriteString(mustMarshalContextLine(map[string]any{
-			"type":       "snippet",
-			"id":         snippet.ID,
-			"source":     snippet.Source,
-			"channel_id": snippet.ChannelID,
-			"author_id":  snippet.AuthorID,
-			"created_at": snippet.CreatedAt,
-			"text":       snippet.Text,
-		}))
+	for _, item := range pack.Items {
+		b.WriteString("- [")
+		b.WriteString(item.Citation.Label)
+		b.WriteString("] status: ")
+		b.WriteString(string(item.Status))
+		b.WriteString("\n  source_id: ")
+		b.WriteString(item.SourceID)
+		b.WriteString("\n  restore_handle: ")
+		b.WriteString(item.RestoreHandle)
+		if item.StalePrevious {
+			b.WriteString("\n  stale_previous: true")
+		}
+		if item.Snippet.Text != "" {
+			b.WriteString("\n  text: ")
+			b.WriteString(quoteContextText(item.Snippet.Text))
+		}
 		b.WriteString("\n")
 	}
-	b.WriteString("END_FETCHED_CONTEXT_JSONL\n")
+	if len(pack.Omitted) > 0 {
+		b.WriteString("omitted:\n")
+		for _, omitted := range pack.Omitted {
+			b.WriteString("- status: ")
+			b.WriteString(string(omitted.Status))
+			b.WriteString("\n  source_id: ")
+			b.WriteString(omitted.SourceID)
+			b.WriteString("\n  restore_handle: ")
+			b.WriteString(omitted.RestoreHandle)
+			b.WriteString("\n  reason: ")
+			b.WriteString(omitted.Reason)
+			b.WriteString("\n")
+		}
+	}
+	if len(pack.Invalidations) > 0 {
+		b.WriteString("invalidations:\n")
+		for _, invalidation := range pack.Invalidations {
+			b.WriteString("- status: ")
+			b.WriteString(string(invalidation.Status))
+			b.WriteString("\n  source_id: ")
+			b.WriteString(invalidation.SourceID)
+			b.WriteString("\n  restore_handle: ")
+			b.WriteString(invalidation.RestoreHandle)
+			b.WriteString("\n")
+		}
+	}
 	output := b.String()
 	if maxChars > 0 && len(output) > maxChars {
 		output = output[:maxChars]
 	}
-	return output
+	return strings.TrimSpace(output)
 }
 
-func mustMarshalContextLine(value map[string]any) string {
-	encoded, err := json.Marshal(value)
+func quoteContextText(value string) string {
+	encoded, err := json.Marshal(strings.TrimSpace(value))
 	if err != nil {
-		return "{}"
+		return `""`
 	}
 	return string(encoded)
 }

@@ -70,6 +70,49 @@ func TestAskCommandDefaultsToNoContextPublic(t *testing.T) {
 	}
 }
 
+func TestAskCommandDefaultsChannelContextToPrivate(t *testing.T) {
+	runtime := &fakeAgentRuntime{response: agent.Response{Text: "memory answer"}}
+
+	response, err := askHandler(runtime)(context.Background(), Interaction{
+		GuildID:   "guild-id",
+		ChannelID: "channel-id",
+		UserID:    "user-id",
+		Options: []InteractionOption{
+			{Name: "question", Value: "what did we say?"},
+			{Name: "context", Value: "channel"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if !response.Ephemeral {
+		t.Fatalf("response = %+v, want private channel-context default", response)
+	}
+	if runtime.request.ContextScope != "channel" {
+		t.Fatalf("context = %q, want channel", runtime.request.ContextScope)
+	}
+}
+
+func TestAskCommandHonorsPrivateAgentResponse(t *testing.T) {
+	runtime := &fakeAgentRuntime{response: agent.Response{Text: "private answer", Visibility: agent.VisibilityPrivate}}
+
+	response, err := askHandler(runtime)(context.Background(), Interaction{
+		GuildID:   "guild-id",
+		ChannelID: "channel-id",
+		UserID:    "user-id",
+		Options: []InteractionOption{
+			{Name: "question", Value: "what did we say?"},
+			{Name: "visibility", Value: "public"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	if !response.Ephemeral {
+		t.Fatalf("response = %+v, want private agent response to force ephemeral", response)
+	}
+}
+
 func TestAskCommandRequiresQuestion(t *testing.T) {
 	response, err := askHandler(&fakeAgentRuntime{})(context.Background(), Interaction{})
 	if err != nil {

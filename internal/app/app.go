@@ -92,6 +92,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		providerService := llmprovider.NewServiceWithTester(providerStore, secretSealer, llmprovider.DefaultRegistry(), llmprovider.NewHTTPTester(nil))
 		usageRecorder := llmprovider.NewSQLUsageRecorder(db, func() string { return storage.NewID("llmusage") })
 		memoryStore := memory.NewSQLStore(db)
+		agentRunStore := agent.NewSQLRunStore(db)
 		memoryIngestor := memory.NewLiveIngestor(memoryStore, 512)
 		conversationStore := assistant.NewSQLConversationStore(db, func() string { return storage.NewID("asstturn") })
 		evaluator := capability.NewEvaluator(grantStore)
@@ -132,6 +133,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 					Recorder:  auditStore,
 					TraceSink: traceStore,
 					FollowUps: followUps,
+					RunStore:  agentRunStore,
 				},
 				agent.ChatHandler{Responder: assistantHandler},
 			},
@@ -139,7 +141,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		semanticPlanner := assistant.SemanticPluginPlanner{Runtime: llmRuntime}
 		commands := discord.CoreCommands()
 		commands = append(commands, discord.AskCommand(agentRuntime))
-		commands = append(commands, discord.AgentCommands(traceStore)...)
+		commands = append(commands, discord.AgentCommands(traceStore, agentRunStore, auditStore)...)
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
 		commands = append(commands, discord.LLMCommands(providerService, auditStore, discord.LLMCommandConfig{

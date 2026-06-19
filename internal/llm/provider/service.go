@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
@@ -60,6 +61,50 @@ type ResolvedModel struct {
 	APIKey           string
 	BillingOwnerType OwnerType
 	BillingOwnerID   string
+}
+
+type redactedResolvedModel struct {
+	Owner            Scope
+	Purpose          Purpose
+	ProviderID       ProviderID
+	ModelID          string
+	ParamsJSON       string
+	CredentialID     string
+	CredentialLabel  string
+	APIKey           SecretValue
+	BillingOwnerType OwnerType
+	BillingOwnerID   string
+}
+
+func (m ResolvedModel) String() string {
+	return fmt.Sprintf("%+v", m.redacted())
+}
+
+func (m ResolvedModel) GoString() string {
+	return fmt.Sprintf("%#v", m.redacted())
+}
+
+func (m ResolvedModel) MarshalJSON() ([]byte, error) {
+	return json.Marshal(m.redacted())
+}
+
+func (m ResolvedModel) LogValue() slog.Value {
+	return slog.AnyValue(m.redacted())
+}
+
+func (m ResolvedModel) redacted() redactedResolvedModel {
+	return redactedResolvedModel{
+		Owner:            m.Owner,
+		Purpose:          m.Purpose,
+		ProviderID:       m.ProviderID,
+		ModelID:          m.ModelID,
+		ParamsJSON:       m.ParamsJSON,
+		CredentialID:     m.CredentialID,
+		CredentialLabel:  m.CredentialLabel,
+		APIKey:           NewSecretValue(m.APIKey),
+		BillingOwnerType: m.BillingOwnerType,
+		BillingOwnerID:   m.BillingOwnerID,
+	}
 }
 
 func NewService(store CredentialStore, sealer SecretSealer, registry Registry) Service {
@@ -209,7 +254,7 @@ func (s Service) TestCredential(ctx context.Context, req TestCredentialRequest) 
 
 	result, err := s.Tester.TestCredential(ctx, ProviderTestRequest{
 		ProviderID: record.ProviderID,
-		APIKey:     string(secret),
+		APIKey:     NewSecretValue(string(secret)),
 	})
 	if err != nil {
 		_ = s.Store.UpdateCredentialTestResult(ctx, record.ID, TestStatusFailed, TestErrorRequestFailed)

@@ -39,12 +39,49 @@ func TestPluginCatalogMigrationAddsDiscordIdentityLookup(t *testing.T) {
 		"discord_application_id",
 		"discord_bot_user_id",
 		"manifest_url",
+		"public_dispatch_allowed",
 		"source_kind",
 		"plugins_discord_application_id_idx",
 		"plugins_discord_bot_user_id_idx",
 	} {
 		if !strings.Contains(sql, want) {
 			t.Fatalf("plugin catalog migration missing %q", want)
+		}
+	}
+}
+
+func TestPluginPublicDispatchApprovalMigrationExists(t *testing.T) {
+	sqlBytes, err := os.ReadFile("../../db/migrations/000008_plugin_public_dispatch_approval.sql")
+	if err != nil {
+		t.Fatalf("public dispatch approval migration must exist: %v", err)
+	}
+	if !strings.Contains(string(sqlBytes), "public_dispatch_allowed boolean not null default false") {
+		t.Fatalf("public dispatch approval migration missing approval column")
+	}
+}
+
+func TestAgentRunsMigrationExists(t *testing.T) {
+	sqlBytes, err := os.ReadFile("../../db/migrations/000009_agent_runs.sql")
+	if err != nil {
+		t.Fatalf("agent runs migration must exist: %v", err)
+	}
+	sql := string(sqlBytes)
+	for _, want := range []string{
+		"create table if not exists agent_runs",
+		"create table if not exists agent_run_steps",
+		"create table if not exists agent_run_confirmations",
+		"termination_reason",
+		"max_input_tokens",
+		"steps_used",
+		"cancel_requested_at",
+		"cancel_requested_by_user_id",
+		"canceled_at",
+		"agent_run_steps_run_step_idx",
+		"resolved_by_user_id",
+		"confirmed_at",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("agent runs migration missing %q", want)
 		}
 	}
 }
