@@ -14,7 +14,11 @@ type AgentTraceReader interface {
 	LastTrace(context.Context, agent.TraceQuery) (agent.TraceRun, bool, error)
 }
 
-func AgentCommands(reader AgentTraceReader, manager AgentRunManager, recorder AuditRecorder) []Command {
+func AgentCommands(reader AgentTraceReader, manager AgentRunManager, recorder AuditRecorder, configs ...AgentCommandConfig) []Command {
+	cfg := AgentCommandConfig{}
+	if len(configs) > 0 {
+		cfg = configs[0]
+	}
 	return []Command{{
 		Name:        "agent",
 		Description: "Manage Gigi agent runs and diagnostics.",
@@ -33,17 +37,21 @@ func AgentCommands(reader AgentTraceReader, manager AgentRunManager, recorder Au
 					}),
 				},
 			}},
-		}}, agentRunOptions()...),
-		Handle: agentHandler(reader, manager, recorder),
+		}, agentStatsOptions()}, agentRunOptions()...),
+		Handle: agentHandler(reader, manager, recorder, cfg),
 	}}
 }
 
-func agentHandler(reader AgentTraceReader, manager AgentRunManager, recorder AuditRecorder) CommandHandler {
+func agentHandler(reader AgentTraceReader, manager AgentRunManager, recorder AuditRecorder, cfg AgentCommandConfig) CommandHandler {
 	traceHandler := agentTraceHandler(reader)
+	statsHandler := agentStatsHandler(cfg.StatsReader, cfg.StatsAuthorizer, recorder, cfg.Clock)
 	runHandler := agentCommandHandler(manager, recorder)
 	return func(ctx context.Context, interaction Interaction) (CommandResponse, error) {
 		if len(interaction.Options) == 1 && interaction.Options[0].Name == "trace" {
 			return traceHandler(ctx, interaction)
+		}
+		if len(interaction.Options) == 1 && interaction.Options[0].Name == "stats" {
+			return statsHandler(ctx, interaction)
 		}
 		return runHandler(ctx, interaction)
 	}

@@ -347,7 +347,7 @@ Revoked `job.admin` for user @person.
 
 | Preset | Capabilities |
 | --- | --- |
-| `gigi-admin` | `capability.manage`, `plugin.install`, `job.admin`, `llm.provider.write`, `llm.provider.test`, `llm.provider.select`, `memory.read.guild`, `memory.manage.guild` |
+| `gigi-admin` | `capability.manage`, `plugin.install`, `job.admin`, `agent.analytics`, `llm.provider.write`, `llm.provider.test`, `llm.provider.select`, `memory.read.guild`, `memory.manage.guild` |
 | `plugin-manager` | `plugin.install` |
 | `llm-manager` | `llm.provider.write`, `llm.provider.test`, `llm.provider.select` |
 | `memory-reader` | `memory.read.guild` |
@@ -361,6 +361,7 @@ Revoked `job.admin` for user @person.
 | `capability.manage` | Grant or revoke role/user capabilities |
 | `plugin.install` | Install or configure guild external app integrations |
 | `job.admin` | Inspect, retry, or cancel durable jobs |
+| `agent.analytics` | View aggregate guild agent-runtime stats |
 | `memory.read.guild` | Read permitted guild memory scope |
 | `memory.manage.guild` | Enable guild memory channels, configure retention, queue sync, and purge memory |
 | `relay.dispatch` | Ask Gigi to send a mediated message |
@@ -686,6 +687,55 @@ Failure cases:
 
 Privacy and audit: trace output is safe metadata only. It does not include raw prompts, raw memory snippets, provider responses, secrets, or raw external commands.
 
+### `/agent stats guild`
+
+Status: live.
+
+Surface: slash command.
+
+Required Gigi capability: `agent.analytics`.
+
+Discord bot permissions: normal slash command access.
+
+Options:
+
+- `period`: optional fixed window, one of `24h`, `7d`, `30d`, or `all`; defaults to `7d`.
+
+Syntax:
+
+```text
+/agent stats guild
+/agent stats guild period:7d
+```
+
+Example:
+
+```text
+/agent stats guild period:7d
+```
+
+Expected response:
+
+```text
+Agent stats for this server (last 7 days):
+runs: `9` total (`6` succeeded, `2` failed, `1` canceled)
+latency: avg `1.5s`, p50 `1.0s`, p95 `3.0s`, max `4.0s`
+steps: `21` total, `14` tool, `5` llm
+top reasons: `planner_failed` `2`; `tool_failed` `1`
+top tools: `memory.search` `3` ok / `1` failed; `permissions.check` `2` ok / `0` failed
+```
+
+Use this to inspect aggregate agent-runtime health for the current server. The response is ephemeral. If no period is provided, Gigi uses `7d`. If no runs match the selected period, Gigi returns a zero-run aggregate summary for that window.
+
+Failure cases:
+
+- requester lacks `agent.analytics`
+- command is used outside a guild
+- stats permission is not configured
+- stats storage is unavailable
+
+Privacy and audit: reads aggregate guild counters only. It may show aggregate latency, status counts, termination reasons, and top tool names, but it does not show user IDs, per-user prompts, raw prompt text, memory snippets, provider responses, tool arguments, planned commands, secrets, or individual run details.
+
 ### `/agent cancel`
 
 Status: live.
@@ -761,7 +811,7 @@ Expected response:
 Rejected pending agent action `plugin.dispatch` for run `agentrun_...`.
 ```
 
-Agent command privacy and audit: run management responses are ephemeral. Audit metadata stores action names, run IDs, confirmation IDs, tool names, and step indexes, but not raw prompts or raw tool arguments.
+Agent command privacy and audit: run management and stats responses are ephemeral. Run-management audit metadata may include action names, run IDs, confirmation IDs, tool names, and step indexes; stats audit metadata records the stats scope, period, and required capability. Audit events do not include raw prompts or raw tool arguments.
 
 ## Planned LLM Commands
 

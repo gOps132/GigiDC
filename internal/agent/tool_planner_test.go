@@ -75,6 +75,19 @@ func TestHeuristicToolPlannerPlansRecentMemory(t *testing.T) {
 	}
 }
 
+func TestHeuristicToolPlannerLabelsRecentChatSummaryIntent(t *testing.T) {
+	request := agentTestRequest()
+	request.Text = "can you summarize the recent chats"
+
+	plan, ok, err := HeuristicToolPlanner{}.Plan(context.Background(), request, []ToolSpec{{Name: ToolMemoryRecent}})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if !ok || plan.Intent != "summarize_recent_chat" || plan.ToolCalls[0].Name != ToolMemoryRecent {
+		t.Fatalf("plan=%+v ok=%v, want summarize_recent_chat memory plan", plan, ok)
+	}
+}
+
 func TestHeuristicToolPlannerSkipsUnavailableTool(t *testing.T) {
 	request := agentTestRequest()
 	request.Text = "show enabled plugins"
