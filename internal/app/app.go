@@ -110,11 +110,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		agentRuntime := agent.Runtime{
 			Handlers: []agent.Handler{
 				agent.PlanningHandler{
-					Planner: agent.MultiPlanner{
-						agent.HeuristicToolPlanner{},
-						agent.LLMPlanner{Runtime: llmRuntime},
-						agent.SemanticMemoryPlannerAdapter{Planner: assistant.SemanticMemoryPlanner{Runtime: llmRuntime}},
-					},
+					Planner:  guildMentionPlanner(llmRuntime),
 					Answerer: agent.LLMAnswerer{Runtime: llmRuntime},
 					ContextFetcher: agent.ChannelContextFetcher{
 						Source:  contextbroker.ChannelRecentFetcher{Store: memoryStore},
@@ -194,6 +190,13 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 	}
 
 	return application, nil
+}
+
+func guildMentionPlanner(llmRuntime llm.Runtime) agent.Planner {
+	return agent.MultiPlanner{
+		agent.LLMPlanner{Runtime: llmRuntime},
+		agent.SemanticMemoryPlannerAdapter{Planner: assistant.SemanticMemoryPlanner{Runtime: llmRuntime}},
+	}
 }
 
 func (a *App) Run(ctx context.Context) error {

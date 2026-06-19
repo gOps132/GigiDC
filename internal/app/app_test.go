@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gOps132/GigiDC/internal/agent"
 	"github.com/gOps132/GigiDC/internal/config"
+	"github.com/gOps132/GigiDC/internal/llm"
 )
 
 func TestRunStartsAndShutdownClosesDiscordClient(t *testing.T) {
@@ -98,6 +100,22 @@ func TestRunClosesDiscordClientWhenHTTPFails(t *testing.T) {
 	case <-discordClient.closed:
 	case <-time.After(time.Second):
 		t.Fatal("discord client did not close after HTTP failure")
+	}
+}
+
+func TestGuildMentionPlannerStartsWithLLMPlanner(t *testing.T) {
+	planner, ok := guildMentionPlanner(llm.Runtime{}).(agent.MultiPlanner)
+	if !ok {
+		t.Fatalf("planner type = %T, want agent.MultiPlanner", guildMentionPlanner(llm.Runtime{}))
+	}
+	if len(planner) != 2 {
+		t.Fatalf("planner length = %d, want LLM planner plus semantic memory compatibility planner", len(planner))
+	}
+	if _, ok := planner[0].(agent.LLMPlanner); !ok {
+		t.Fatalf("first planner = %T, want agent.LLMPlanner", planner[0])
+	}
+	if _, ok := planner[1].(agent.SemanticMemoryPlannerAdapter); !ok {
+		t.Fatalf("second planner = %T, want agent.SemanticMemoryPlannerAdapter", planner[1])
 	}
 }
 

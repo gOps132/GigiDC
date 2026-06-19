@@ -622,6 +622,12 @@ Privacy and audit: reads aggregate token and request counts only. Usage events d
 
 ## Agent Commands
 
+### Guild mention boundary
+
+Guild mentions are conversational agent input, not a broad heuristic command parser. Current deterministic pre-planner behavior should stay narrow: liveness `ping`, enabled external app prefix matching, and exact current-channel memory count questions documented below. Flexible mention text should route through LLM planning, registered tools, policy checks, and answer composition.
+
+For explicit behavior, prefer exact slash commands such as `/ask`, `/memory count`, `/plugins dry-run`, `/llm routing show`, and `/agent trace last`. Slash commands are the deterministic source for stable syntax, required capabilities, response shape, and failure cases.
+
 ### `/ask`
 
 Status: live.
