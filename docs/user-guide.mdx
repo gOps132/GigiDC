@@ -7,7 +7,7 @@ description: Current user-facing status for Gigi.
 
 Gigi is in a foundation rebuild.
 
-The current runtime can log in to Discord when enabled, sync `/ping`, answer DM or guild-mention `ping` messages, let authorized admins manage role/user capability grants through `/permissions`, manage guild-scoped LLM credentials, model profiles, and routing policy through `/llm`, route `/ask` through the agent runtime, dry-run match enabled external app prefix triggers, route flexible guild mentions through a configured routing model when guild policy allows it, answer unmatched guild mentions through a configured chat model, dispatch public `send_message` prefix triggers declared by approved manifests, and use current-channel guild memory count/search for enabled channels. Rich DM chat, reasoning chat, restricted external app dispatch, tasks, and relay actions are not live yet.
+The current runtime can log in to Discord when enabled, sync `/ping`, answer DM or guild-mention `ping` messages, let authorized admins manage role/user capability grants through `/permissions`, manage guild-scoped LLM credentials, model profiles, and routing policy through `/llm`, route `/ask` through the agent runtime with `context:none` or dynamic current-channel context fetching through `context:channel`, opportunistically fetch current-channel context for guild mentions when memory permission allows it, dry-run match enabled external app prefix triggers, route flexible guild mentions through a configured routing model when guild policy allows it, answer unmatched guild mentions through a configured chat model, dispatch public `send_message` prefix triggers declared by approved manifests, and use current-channel guild memory count/search for enabled channels. Rich DM chat, reasoning chat, restricted external app dispatch, tasks, and relay actions are not live yet.
 
 ## Current Live Checks
 
@@ -16,9 +16,10 @@ The current runtime can log in to Discord when enabled, sync `/ping`, answer DM 
 - `/ping`: replies `pong` in Discord when command sync is enabled.
 - `/permissions`: creates/assigns Discord roles and grants or revokes role/user capabilities for authorized admins.
 - `/llm`: lists, adds, tests, rotates, deletes, and selects guild-scoped provider credentials and model profiles when `GIGI_LLM_SECRET_KEY_BASE64` is configured for credential entry.
-- `/ask`: sends a question through the agent runtime with explicit `context:none` or `context:channel` and `visibility:public` or `visibility:private`.
+- `/ask`: sends a question through the agent runtime. `context:none` avoids memory fetches; `context:channel` can fetch permitted retained messages from the current channel and answer from bounded context/tool results.
 - Guild mention external app matching: replies with a dry-run plan, or sends the planned command when an enabled public manifest declares `dispatch: "send_message"`.
 - Guild mention semantic routing: after deterministic matching fails, a configured routing model can propose validated native memory or manifest-grounded plans when `/llm routing` is `dry-run` or `enabled`.
+- Guild mention context: Gigi attempts current-channel context when available, but missing memory permission should not block normal non-memory chat.
 - Guild mention chat fallback: after plugin routing fails, a configured chat model can answer the mention.
 - DM `ping`: replies `pong`.
 - Other DM text: replies that rich chat needs a server LLM profile first; rich DM chat is not live.

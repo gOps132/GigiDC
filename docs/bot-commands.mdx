@@ -625,7 +625,7 @@ Privacy and audit: reads aggregate token and request counts only. Usage events d
 
 Status: live.
 
-Required Gigi capability: none for `context:none`; channel memory tools still require `memory.read.guild` when `context:channel` and tool routing are enabled.
+Required Gigi capability: none for `context:none`; dynamic channel context and channel memory tools require `memory.read.guild` when `context:channel` and tool routing are enabled.
 
 Syntax:
 
@@ -633,7 +633,7 @@ Syntax:
 /ask question:<text> context:<none|channel> visibility:<public|private>
 ```
 
-`context:none` routes through the agent chat path without memory tools. `context:channel` allows the agent planner to choose current-channel memory tools such as `memory.count`, `memory.search`, and `memory.recent` when `/llm routing` allows it and the requester has memory permission.
+`context:none` routes through agent chat without memory fetches. `context:channel` lets the agent planner receive current-channel context. When `/llm routing` allows tools and the requester has `memory.read.guild`, Gigi can fetch retained messages from this channel, pack bounded snippets, run memory tools such as `memory.count`, `memory.search`, and `memory.recent`, then answer from those results.
 
 Examples:
 
@@ -642,7 +642,14 @@ Examples:
 /ask question:how often did we mention postgres here context:channel visibility:public
 ```
 
-Privacy and audit: the agent path records scoped metadata such as tool names, status, and intent. It does not store raw prompt text, raw memory snippets, provider responses, or secrets in audit metadata.
+Privacy and audit: dynamic context fetches are scoped to the current guild channel and require enabled memory plus `memory.read.guild`. Agent traces record metadata such as `run_id`, `step_index`, context scope, source type, result count, truncation flag, tool names, status, capabilities, and safe source/message IDs. Audit metadata does not store raw prompt text, raw fetched snippets, provider responses, embeddings, planned commands, or secrets.
+
+Failure cases and notes:
+
+- `context:channel` but channel memory is off may leave Gigi with no fetched snippets
+- requester lacks `memory.read.guild`
+- `/llm routing` is off or tool routing is unavailable
+- context packs may be truncated because of budget; Gigi should still answer from the bounded pack
 
 ## Planned LLM Commands
 
@@ -1026,7 +1033,7 @@ Failure cases:
 ## Not Implemented Yet
 
 - rich DM chat
-- memory retrieval commands
+- semantic `/memory ask`, cross-channel retrieval, and citation-rich retrieval
 - tasks
 - relay actions
 - LLM-driven external app dispatch

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gOps132/GigiDC/internal/audit"
 	"github.com/gOps132/GigiDC/internal/capability"
+	"github.com/gOps132/GigiDC/internal/contextbroker"
 	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
 )
 
@@ -46,6 +47,134 @@ func TestRunnerRoutingOffSkipsPlanner(t *testing.T) {
 	}
 	if handled || response.Text != "" || planner.called {
 		t.Fatalf("response=%+v handled=%v planner.called=%v, want skip", response, handled, planner.called)
+	}
+}
+
+func TestRunnerFetchesChannelContextBeforePlanner(t *testing.T) {
+	fetcher := &fakeContextFetcher{pack: contextbroker.Pack{Snippets: []contextbroker.Snippet{{ID: "m1", Text: "postgres deploy"}}}}
+	planner := &fakePlanner{ok: true, plan: Plan{Intent: "answer_from_context"}}
+	runner := Runner{
+		Planner:        planner,
+		ContextFetcher: fetcher,
+		Policy:         RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor:       Executor{},
+	}
+	request := agentTestRequest()
+	request.ContextScope = "channel"
+
+	response, handled, err := runner.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "No agent tool results." {
+		t.Fatalf("response=%+v handled=%v, want handled fallback answer", response, handled)
+	}
+	if !fetcher.called || !planner.sawContext {
+		t.Fatalf("fetcher.called=%v planner.sawContext=%v, want fetched context before planner", fetcher.called, planner.sawContext)
+	}
+}
+
+func TestRunnerSkipsContextFetchWhenScopeNone(t *testing.T) {
+	fetcher := &fakeContextFetcher{}
+	planner := &fakePlanner{ok: true}
+	runner := Runner{
+		Planner:        planner,
+		ContextFetcher: fetcher,
+		Policy:         RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+	}
+	request := agentTestRequest()
+	request.ContextScope = "none"
+
+	response, handled, err := runner.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if handled || response.Text != "" || fetcher.called || planner.called {
+		t.Fatalf("response=%+v handled=%v fetcher.called=%v planner.called=%v, want skip", response, handled, fetcher.called, planner.called)
+	}
+}
+
+func TestRunnerMasksContextFetchErrorAndRecordsTrace(t *testing.T) {
+	recorder := &fakeAgentAuditRecorder{}
+	fetcher := &fakeContextFetcher{err: errors.New("raw database failure")}
+	planner := &fakePlanner{ok: true}
+	runner := Runner{
+		Planner:        planner,
+		ContextFetcher: fetcher,
+		Policy:         RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Trace:          Trace{Recorder: recorder},
+	}
+	request := agentTestRequest()
+	request.ContextScope = "channel"
+
+	response, handled, err := runner.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "Agent context fetch failed." {
+		t.Fatalf("response=%+v handled=%v, want masked context failure", response, handled)
+	}
+	if planner.called {
+		t.Fatalf("planner called after context fetch failure")
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Kind != "agent.context" || recorder.events[0].Status != audit.StatusFailed {
+		t.Fatalf("events=%+v, want failed context trace", recorder.events)
+	}
+}
+
+func TestRunnerDeniesContextFetchPermission(t *testing.T) {
+	recorder := &fakeAgentAuditRecorder{}
+	fetcher := &fakeContextFetcher{err: ErrContextPermissionDenied}
+	planner := &fakePlanner{ok: true}
+	runner := Runner{
+		Planner:        planner,
+		ContextFetcher: fetcher,
+		Policy:         RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Trace:          Trace{Recorder: recorder},
+	}
+	request := agentTestRequest()
+	request.ContextScope = "channel"
+
+	response, handled, err := runner.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "Permission denied for agent context." {
+		t.Fatalf("response=%+v handled=%v, want permission denied", response, handled)
+	}
+	if planner.called {
+		t.Fatalf("planner called after context permission denial")
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Kind != "agent.context" || recorder.events[0].Status != audit.StatusDenied {
+		t.Fatalf("events=%+v, want denied context trace", recorder.events)
+	}
+}
+
+func TestRunnerContinuesWhenOptionalChannelContextDenied(t *testing.T) {
+	recorder := &fakeAgentAuditRecorder{}
+	fetcher := &fakeContextFetcher{err: ErrContextPermissionDenied}
+	planner := &fakePlanner{ok: true, plan: Plan{Intent: "chat"}}
+	runner := Runner{
+		Planner:        planner,
+		ContextFetcher: fetcher,
+		Policy:         RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Trace:          Trace{Recorder: recorder},
+	}
+	request := agentTestRequest()
+	request.ContextScope = "channel-auto"
+
+	response, handled, err := runner.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "No agent tool results." {
+		t.Fatalf("response=%+v handled=%v, want planner fallback", response, handled)
+	}
+	if !planner.called || planner.sawContext {
+		t.Fatalf("planner.called=%v planner.sawContext=%v, want planner without context", planner.called, planner.sawContext)
+	}
+	if len(recorder.events) != 2 || recorder.events[0].Kind != "agent.context" || recorder.events[0].Status != audit.StatusDenied {
+		t.Fatalf("events=%+v, want denied optional context trace then answer", recorder.events)
 	}
 }
 
@@ -276,6 +405,32 @@ func TestRunnerStopsWhenStepBudgetExceeded(t *testing.T) {
 	}
 	if tool.called {
 		t.Fatalf("tool called after step budget exceeded")
+	}
+}
+
+func TestRunnerCountsContextFetchAgainstStepBudget(t *testing.T) {
+	tool := &fakeTool{}
+	runner := Runner{
+		Planner:        &fakePlanner{ok: true, plan: Plan{Intent: "steps", ToolCalls: []ToolCall{{Name: "fake.tool"}}}},
+		ContextFetcher: &fakeContextFetcher{pack: contextbroker.Pack{Snippets: []contextbroker.Snippet{{ID: "m1", Text: "postgres"}}}},
+		Policy:         RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools: NewRegistry(tool),
+		},
+		Limits: Limits{MaxSteps: 3},
+	}
+	request := agentTestRequest()
+	request.ContextScope = "channel"
+
+	response, handled, err := runner.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "Agent step budget exceeded." {
+		t.Fatalf("response=%+v handled=%v, want step budget response", response, handled)
+	}
+	if tool.called {
+		t.Fatalf("tool called after context-aware step budget exceeded")
 	}
 }
 

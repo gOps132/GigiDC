@@ -12,13 +12,14 @@ type Executor struct {
 	SkipAnswerReason string
 	Policy           RoutingPolicy
 	Trace            Trace
+	TraceStepOffset  int
 	FollowUps        FollowUpStore
 }
 
 func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Response, error) {
 	results := make([]ToolResult, 0, len(plan.ToolCalls))
 	for index, call := range plan.ToolCalls {
-		trace := e.Trace.WithStep(index + 1)
+		trace := e.Trace.WithStep(e.TraceStepOffset + index + 1)
 		tool, spec, err := e.Tools.Lookup(call.Name)
 		if err != nil {
 			_ = trace.Record(ctx, request, "agent.tool", audit.StatusFailed, "tool_failed", map[string]string{"tool": safeAuditValue(call.Name)})
@@ -64,7 +65,7 @@ func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Resp
 		results = append(results, result)
 		_ = trace.Record(ctx, request, "agent.tool", audit.StatusSucceeded, "", metadata)
 	}
-	answerTrace := e.Trace.WithStep(len(plan.ToolCalls) + 1)
+	answerTrace := e.Trace.WithStep(e.TraceStepOffset + len(plan.ToolCalls) + 1)
 	if e.Answerer != nil {
 		if e.SkipAnswerReason != "" {
 			_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusFailed, e.SkipAnswerReason, map[string]string{"intent": safeAuditValue(plan.Intent)})

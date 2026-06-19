@@ -29,6 +29,7 @@ type PlanningHandler struct {
 	Planner                      Planner
 	Tools                        Registry
 	Answerer                     Answerer
+	ContextFetcher               ContextFetcher
 	Policy                       PolicyManager
 	Checker                      CapabilityChecker
 	Recorder                     AuditRecorder
@@ -55,8 +56,9 @@ func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request
 		RequiredCapabilityBeforePlan: h.RequiredCapabilityBeforePlan,
 	}
 	runner := Runner{
-		Planner: h.Planner,
-		Policy:  policy,
+		Planner:        h.Planner,
+		ContextFetcher: h.ContextFetcher,
+		Policy:         policy,
 		Executor: Executor{
 			Tools:     h.Tools,
 			Answerer:  h.Answerer,

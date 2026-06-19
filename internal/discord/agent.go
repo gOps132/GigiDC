@@ -26,6 +26,7 @@ func AgentMessageHandler(runtime AgentRuntime, fallback MessageHandler) MessageH
 			ActorUserID:      message.UserID,
 			RoleIDs:          message.RoleIDs,
 			HasAdministrator: message.HasAdministrator,
+			ContextScope:     defaultAgentMessageContext(message),
 			Text:             message.Text,
 			RawText:          message.RawContent,
 		})
@@ -37,6 +38,13 @@ func AgentMessageHandler(runtime AgentRuntime, fallback MessageHandler) MessageH
 		}
 		return MessageResponse{Content: response.Text}, nil
 	})
+}
+
+func defaultAgentMessageContext(message Message) string {
+	if message.Surface == MessageSurfaceGuildMention {
+		return "channel-auto"
+	}
+	return ""
 }
 
 func AgentHandlerAdapter(handler agent.Handler) AgentRuntime {

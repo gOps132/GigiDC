@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"strings"
+
+	"github.com/gOps132/GigiDC/internal/contextbroker"
 )
 
 type Surface string
@@ -31,6 +33,7 @@ type Request struct {
 	Text             string
 	RawText          string
 	PriorRun         *RunSnapshot
+	ContextPack      *contextbroker.Pack
 }
 
 type Response struct {
@@ -84,6 +87,10 @@ func NormalizeRequest(request Request) Request {
 		snapshot := request.PriorRun.copy()
 		request.PriorRun = &snapshot
 	}
+	if request.ContextPack != nil {
+		pack := copyContextPack(*request.ContextPack)
+		request.ContextPack = &pack
+	}
 	return request
 }
 
@@ -91,4 +98,9 @@ func NormalizeResponse(response Response) Response {
 	response.Text = strings.TrimSpace(response.Text)
 	response.Visibility = Visibility(strings.TrimSpace(string(response.Visibility)))
 	return response
+}
+
+func copyContextPack(pack contextbroker.Pack) contextbroker.Pack {
+	pack.Snippets = append([]contextbroker.Snippet(nil), pack.Snippets...)
+	return pack
 }
