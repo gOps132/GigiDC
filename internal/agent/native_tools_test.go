@@ -111,11 +111,10 @@ func TestPermissionsCheckToolReportsDecision(t *testing.T) {
 	}
 }
 
-func TestPlanningHandlerExecutesHeuristicUsageTool(t *testing.T) {
+func TestPlanningHandlerExecutesUsageToolPlan(t *testing.T) {
 	request := agentTestRequest()
-	request.Text = "how many LLM tokens used here?"
 	handler := PlanningHandler{
-		Planner: HeuristicToolPlanner{},
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: ToolLLMUsageGuild, ToolCalls: []ToolCall{{Name: ToolLLMUsageGuild}}}},
 		Policy:  fakePolicy{mode: llmprovider.ToolRoutingEnabled},
 		Checker: fakeAgentCapabilityChecker{decision: capability.Decision{Allowed: true, Reason: capability.ReasonRoleGrant}},
 		Tools: NewRegistry(LLMUsageGuildTool{Reporter: fakeUsageReporter{summary: llmprovider.UsageSummary{
@@ -133,12 +132,14 @@ func TestPlanningHandlerExecutesHeuristicUsageTool(t *testing.T) {
 	}
 }
 
-func TestPlanningHandlerExecutesHeuristicPluginPlan(t *testing.T) {
+func TestPlanningHandlerExecutesPluginPlanToolPlan(t *testing.T) {
 	request := agentTestRequest()
-	request.Text = "plugin plan play never gonna give you up"
 	handler := PlanningHandler{
-		Planner: HeuristicToolPlanner{},
-		Policy:  fakePolicy{mode: llmprovider.ToolRoutingEnabled},
+		Planner: &fakePlanner{ok: true, plan: Plan{
+			Intent:    ToolPluginsPlan,
+			ToolCalls: []ToolCall{{Name: ToolPluginsPlan, Args: map[string]string{"text": "play never gonna give you up"}}},
+		}},
+		Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled},
 		Tools: NewRegistry(PluginPlanTool{
 			Registry: fakePluginRegistry{manifests: []plugins.Manifest{testPluginManifest()}},
 			Checker:  fakeAgentCapabilityChecker{decision: capability.Decision{Allowed: true, Reason: capability.ReasonRoleGrant}},
