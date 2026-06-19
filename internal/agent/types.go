@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"strings"
+
+	"github.com/gOps132/GigiDC/internal/contextbroker"
 )
 
 type Surface string
@@ -28,14 +30,20 @@ type Request struct {
 	RoleIDs          []string
 	HasAdministrator bool
 	ContextScope     string
+	ContextSnippets  []contextbroker.Snippet
+	ContextPack      contextbroker.Pack
 	Text             string
 	RawText          string
 	PriorRun         *RunSnapshot
 }
 
 type Response struct {
-	Text       string
-	Visibility Visibility
+	Text              string
+	Visibility        Visibility
+	RunID             string
+	ConfirmationID    string
+	RunStatus         RunStatus
+	TerminationReason TerminationReason
 }
 
 type Handler interface {
@@ -80,6 +88,8 @@ func NormalizeRequest(request Request) Request {
 	request.Text = strings.TrimSpace(request.Text)
 	request.RawText = strings.TrimSpace(request.RawText)
 	request.RoleIDs = append([]string(nil), request.RoleIDs...)
+	request.ContextSnippets = append([]contextbroker.Snippet(nil), request.ContextSnippets...)
+	request.ContextPack = copyContextPack(request.ContextPack)
 	if request.PriorRun != nil {
 		snapshot := request.PriorRun.copy()
 		request.PriorRun = &snapshot
@@ -90,5 +100,7 @@ func NormalizeRequest(request Request) Request {
 func NormalizeResponse(response Response) Response {
 	response.Text = strings.TrimSpace(response.Text)
 	response.Visibility = Visibility(strings.TrimSpace(string(response.Visibility)))
+	response.RunID = strings.TrimSpace(response.RunID)
+	response.ConfirmationID = strings.TrimSpace(response.ConfirmationID)
 	return response
 }

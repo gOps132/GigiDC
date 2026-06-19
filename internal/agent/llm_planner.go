@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gOps132/GigiDC/internal/contextbroker"
 	"github.com/gOps132/GigiDC/internal/llm"
 	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
 )
@@ -76,6 +77,11 @@ func llmPlannerPrompt(request Request, specs []ToolSpec) string {
 			b.WriteString("\n  capability: ")
 			b.WriteString(spec.Capability)
 		}
+		b.WriteString("\n")
+	}
+	if contextText := formatContextPack(request.ContextPack); contextText != "" {
+		b.WriteString("\nContext pack:\n")
+		b.WriteString(contextText)
 		b.WriteString("\n")
 	}
 	if request.PriorRun != nil {
@@ -208,9 +214,76 @@ func formatRunSnapshot(snapshot RunSnapshot, maxChars int) string {
 		b.WriteString(snapshot.ResponseText)
 		b.WriteString("\n")
 	}
+	if len(snapshot.ContextState.Seen) > 0 {
+		b.WriteString("context_state:\n")
+		keys := make([]string, 0, len(snapshot.ContextState.Seen))
+		for key := range snapshot.ContextState.Seen {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			b.WriteString("- source_id: ")
+			b.WriteString(key)
+			b.WriteString("\n  fingerprint: ")
+			b.WriteString(snapshot.ContextState.Seen[key])
+			b.WriteString("\n")
+		}
+	}
 	output := b.String()
 	if maxChars > 0 && len(output) > maxChars {
 		output = output[:maxChars]
 	}
 	return output
+}
+
+func formatContextPack(pack contextbroker.Pack) string {
+	if len(pack.Items) == 0 && len(pack.Omitted) == 0 && len(pack.Invalidations) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, item := range pack.Items {
+		b.WriteString("- [")
+		b.WriteString(item.Citation.Label)
+		b.WriteString("] status: ")
+		b.WriteString(string(item.Status))
+		b.WriteString("\n  source_id: ")
+		b.WriteString(item.SourceID)
+		b.WriteString("\n  restore_handle: ")
+		b.WriteString(item.RestoreHandle)
+		if item.StalePrevious {
+			b.WriteString("\n  stale_previous: true")
+		}
+		if item.Snippet.Text != "" {
+			b.WriteString("\n  text: ")
+			b.WriteString(item.Snippet.Text)
+		}
+		b.WriteString("\n")
+	}
+	if len(pack.Omitted) > 0 {
+		b.WriteString("omitted:\n")
+		for _, omitted := range pack.Omitted {
+			b.WriteString("- status: ")
+			b.WriteString(string(omitted.Status))
+			b.WriteString("\n  source_id: ")
+			b.WriteString(omitted.SourceID)
+			b.WriteString("\n  restore_handle: ")
+			b.WriteString(omitted.RestoreHandle)
+			b.WriteString("\n  reason: ")
+			b.WriteString(omitted.Reason)
+			b.WriteString("\n")
+		}
+	}
+	if len(pack.Invalidations) > 0 {
+		b.WriteString("invalidations:\n")
+		for _, invalidation := range pack.Invalidations {
+			b.WriteString("- status: ")
+			b.WriteString(string(invalidation.Status))
+			b.WriteString("\n  source_id: ")
+			b.WriteString(invalidation.SourceID)
+			b.WriteString("\n  restore_handle: ")
+			b.WriteString(invalidation.RestoreHandle)
+			b.WriteString("\n")
+		}
+	}
+	return strings.TrimSpace(b.String())
 }

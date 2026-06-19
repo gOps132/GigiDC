@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gOps132/GigiDC/internal/capability"
+	"github.com/gOps132/GigiDC/internal/contextbroker"
 	"github.com/gOps132/GigiDC/internal/memory"
 )
 
@@ -198,9 +199,10 @@ func formatMemoryResultsSummary(title string, results []memory.SearchResult) str
 	if len(results) == 0 {
 		return title + ": no retained full-mode matches."
 	}
-	lines := []string{fmt.Sprintf("%s (%d):", title, len(results))}
-	for _, result := range results {
-		lines = append(lines, fmt.Sprintf("- <@%s>: %s", safeInline(result.AuthorUserID), safeInlineLimit(result.Text, 140)))
+	pack := memoryEvidencePack(results)
+	lines := []string{fmt.Sprintf("%s (%d):", title, len(pack.Items))}
+	for _, item := range pack.Items {
+		lines = append(lines, fmt.Sprintf("- [%s] %s", item.Citation.Label, safeInlineLimit(item.Snippet.Text, 180)))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -209,18 +211,31 @@ func memoryResultsData(results []memory.SearchResult) map[string]string {
 	data := map[string]string{}
 	messageIDs := make([]string, 0, len(results))
 	authors := make([]string, 0, len(results))
-	snippets := make([]string, 0, len(results))
+	sourceIDs := make([]string, 0, len(results))
+	citationLabels := make([]string, 0, len(results))
+	restoreHandles := make([]string, 0, len(results))
+	retentionUntils := make([]string, 0, len(results))
+	retrievedAts := make([]string, 0, len(results))
 	var newest time.Time
 	var oldest time.Time
+	pack := memoryEvidencePack(results)
+	for _, item := range pack.Items {
+		if item.Citation.Label != "" {
+			citationLabels = append(citationLabels, item.Citation.Label)
+		}
+		if item.SourceID != "" {
+			sourceIDs = append(sourceIDs, item.SourceID)
+		}
+		if item.RestoreHandle != "" {
+			restoreHandles = append(restoreHandles, item.RestoreHandle)
+		}
+	}
 	for _, result := range results {
 		if result.MessageID != "" {
 			messageIDs = append(messageIDs, result.MessageID)
 		}
 		if result.AuthorUserID != "" {
 			authors = append(authors, result.AuthorUserID)
-		}
-		if result.Text != "" {
-			snippets = append(snippets, safeInlineLimit(result.Text, 180))
 		}
 		if !result.CreatedAt.IsZero() {
 			if newest.IsZero() || result.CreatedAt.After(newest) {
@@ -230,6 +245,12 @@ func memoryResultsData(results []memory.SearchResult) map[string]string {
 				oldest = result.CreatedAt
 			}
 		}
+		if !result.RetentionUntil.IsZero() {
+			retentionUntils = append(retentionUntils, result.RetentionUntil.UTC().Format(time.RFC3339))
+		}
+		if !result.RetrievedAt.IsZero() {
+			retrievedAts = append(retrievedAts, result.RetrievedAt.UTC().Format(time.RFC3339))
+		}
 	}
 	if len(messageIDs) > 0 {
 		data["message_ids"] = strings.Join(messageIDs, ",")
@@ -237,8 +258,20 @@ func memoryResultsData(results []memory.SearchResult) map[string]string {
 	if len(authors) > 0 {
 		data["author_user_ids"] = strings.Join(authors, ",")
 	}
-	if len(snippets) > 0 {
-		data["snippets"] = strings.Join(snippets, "\n")
+	if len(citationLabels) > 0 {
+		data["citation_labels"] = strings.Join(citationLabels, ",")
+	}
+	if len(sourceIDs) > 0 {
+		data["source_ids"] = strings.Join(sourceIDs, ",")
+	}
+	if len(restoreHandles) > 0 {
+		data["restore_handles"] = strings.Join(restoreHandles, ",")
+	}
+	if len(retentionUntils) > 0 {
+		data["retention_untils"] = strings.Join(retentionUntils, ",")
+	}
+	if len(retrievedAts) > 0 {
+		data["retrieved_at"] = strings.Join(retrievedAts, ",")
 	}
 	if !newest.IsZero() {
 		data["newest_created_at"] = newest.UTC().Format(time.RFC3339)
@@ -247,6 +280,13 @@ func memoryResultsData(results []memory.SearchResult) map[string]string {
 		data["oldest_created_at"] = oldest.UTC().Format(time.RFC3339)
 	}
 	return data
+}
+
+func memoryEvidencePack(results []memory.SearchResult) contextbroker.Pack {
+	return contextbroker.BuildPack(contextbroker.BuildRequest{
+		Snippets: memoryResultsContextSnippets(results),
+		MaxChars: 2400,
+	})
 }
 
 func mergeToolData(base map[string]string, extra map[string]string) map[string]string {

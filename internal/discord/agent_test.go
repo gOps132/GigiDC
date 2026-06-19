@@ -33,6 +33,9 @@ func TestAgentMessageHandlerAdaptsDiscordMessage(t *testing.T) {
 	if len(runtime.request.RoleIDs) != 1 || runtime.request.RoleIDs[0] != "role-1" || !runtime.request.HasAdministrator {
 		t.Fatalf("request = %+v, want authority context", runtime.request)
 	}
+	if runtime.request.ContextScope != "channel" {
+		t.Fatalf("request = %+v, want guild mention channel context", runtime.request)
+	}
 }
 
 func TestAgentMessageHandlerUsesFallbackWhenRuntimeMissing(t *testing.T) {

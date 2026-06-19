@@ -23,6 +23,7 @@ func NewStore(db ExecDB, newID IDFunc) Store {
 }
 
 func (s Store) Record(ctx context.Context, event Event) error {
+	event.Metadata = SanitizeMetadata(event.Metadata)
 	if err := event.Validate(); err != nil {
 		return err
 	}

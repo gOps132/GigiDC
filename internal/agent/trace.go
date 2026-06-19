@@ -10,6 +10,7 @@ import (
 
 type Trace struct {
 	Recorder AuditRecorder
+	Store    RunStore
 	Source   string
 	RunID    string
 	Step     int
@@ -29,6 +30,9 @@ func (t Trace) inherit(parent Trace) Trace {
 	if t.Recorder == nil {
 		t.Recorder = parent.Recorder
 	}
+	if t.Store == nil {
+		t.Store = parent.Store
+	}
 	if strings.TrimSpace(t.Source) == "" {
 		t.Source = parent.Source
 	}
@@ -39,12 +43,12 @@ func (t Trace) inherit(parent Trace) Trace {
 }
 
 func (t Trace) Record(ctx context.Context, request Request, kind string, status audit.Status, reason string, metadata map[string]string) error {
-	if t.Recorder == nil || strings.TrimSpace(request.ActorUserID) == "" {
+	if strings.TrimSpace(request.ActorUserID) == "" {
 		return nil
 	}
-	cleanMetadata := map[string]string{}
-	for key, value := range metadata {
-		cleanMetadata[key] = value
+	cleanMetadata := audit.SanitizeMetadata(metadata)
+	if cleanMetadata == nil {
+		cleanMetadata = map[string]string{}
 	}
 	source := strings.TrimSpace(t.Source)
 	if source == "" {
@@ -56,6 +60,19 @@ func (t Trace) Record(ctx context.Context, request Request, kind string, status 
 	}
 	if t.Step > 0 {
 		cleanMetadata["step_index"] = strconv.Itoa(t.Step)
+	}
+	if t.Store != nil && strings.TrimSpace(t.RunID) != "" {
+		_ = t.Store.RecordStep(ctx, StepRecord{
+			RunID:       t.RunID,
+			StepIndex:   t.Step,
+			Kind:        strings.TrimSpace(kind),
+			Status:      status,
+			Reason:      strings.TrimSpace(reason),
+			Observation: cleanMetadata,
+		})
+	}
+	if t.Recorder == nil {
+		return nil
 	}
 	return t.Recorder.Record(ctx, audit.Event{
 		Kind:     kind,

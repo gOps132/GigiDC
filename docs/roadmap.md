@@ -21,7 +21,7 @@ description: Planned evolution of the Go foundation rebuild.
 - DM handling
 - permission model
 
-Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, `/ask`, capability evaluator, identity resolver contract, DB-backed role-first `/permissions` command, guild-scoped `/llm` provider and model controls, agent-backed guild mention chat fallback, startup migration runner, guild memory settings/status/count/search scaffold, semantic memory/tool routing policy, and durable audit-log seam are started. Rich DM conversation, semantic retrieval, assignment/task commands, and restricted action execution remain.
+Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, `/ask`, capability evaluator, identity resolver contract, DB-backed role-first `/permissions` command, guild-scoped `/llm` provider and model controls, agent-backed guild mention chat fallback, startup migration runner, guild memory settings/status/count/search scaffold, semantic memory/tool routing policy, cited context-pack builder with permitted recent-channel memory, durable agent run/step/confirmation records, and durable audit-log seam are started. Rich DM conversation, semantic retrieval, assignment/task commands, and restricted action execution remain.
 
 ## v0 Agent Runtime Core Slice
 
@@ -30,11 +30,11 @@ Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing,
 - model profiles for chat, reasoning, embedding, and routing
 - agent handler behind deterministic Discord/plugin routing
 - typed planner contract for intents, context requests, tool calls, clarification, and confirmation
-- context broker for current-channel context, permitted guild memory, and enabled plugin catalog context
+- context broker for current-channel context, permitted guild memory, and enabled plugin catalog context, with stable source IDs, citation labels, stale markers, pinned snippets, omitted-unchanged records, and restore handles
 - native tool registry for deterministic capabilities such as `memory.count`, `memory.search`, `memory.recent`, `plugins.plan`, and `llm.chat`
 - policy layer for capability checks, channel visibility, confirmation, redaction, and audit classification
 - token-budgeted context packing with citations/tool result summaries
-- durable jobs
+- durable jobs and durable agent run/step records
 - opt-in guild memory policy
 - async message ingestion for enabled channels
 - deterministic memory count queries
@@ -48,6 +48,20 @@ Current agent direction: Gigi should become a Discord agent runtime, not a chatb
 Current LLM direction: build the data model and resolver for `guild`, `user`, and `tenant` credential owners from the start, but expose only guild/admin-scoped provider configuration in v0. Personal BYOK remains disabled in v0 product behavior. See [LLM And Cognitive Layer Plan](./llm-cognitive-plan).
 
 Current memory direction: memory starts off, is enabled per channel, ingests through a bounded async live queue, and exposes deterministic tools for exact counts and search. Questions such as `@Gigi how many times did @sam mention "postgres"?` or `@Gigi how often do we talk about postgres here?` can use the planner to choose `memory.count`, but SQL computes the count over indexed, permitted messages. Embeddings are batched in workers and use the guild `embedding` profile, never personal BYOK for shared guild memory.
+
+### Recommended Execution Order
+
+Use the [LLM And Cognitive Layer Plan](./llm-cognitive-plan) as the canonical implementation plan. Build the remaining agent-runtime work in this order:
+
+1. safety rails
+2. context broker
+3. durable agent runs
+4. memory retrieval
+5. plugin manifest v1
+6. Discord UX
+7. eval and observability harness
+
+Each slice should be small enough for focused caveman-style subagents. Recommended split: one planning subagent to map scope and risks, one builder subagent for the bounded code change, one reviewer subagent for diff review, one tester subagent for focused verification, and one docs subagent for user/admin documentation.
 
 ## v1 Personal BYOK Slice
 
@@ -63,8 +77,8 @@ Current memory direction: memory starts off, is enabled per channel, ingests thr
 - approved external app catalog
 - guild enable/configure flow
 - external app declared prefix dry-run matching
-- opt-in public `send_message` prefix dispatch
+- consented opt-in public `send_message` prefix dispatch
 - external app permissions and audit logs
 - external app behavior through approved manifests
 
-Current status: manifest validation, exact Discord application/bot identity lookup, manifest source metadata, approved-manifest storage, enabled-guild manifest loading, Discord `/plugins` admin commands, deterministic guild mention dry-run matching, semantic dry-run routing, and public `send_message` prefix dispatch are started. Command publishing, restricted dispatch, confirmed per-message approval, and richer external app execution remain future slices. Any domain behavior only exists if an approved installed external app manifest declares it and the external app supports it.
+Current status: manifest validation, exact Discord application/bot identity lookup, manifest source metadata, approved-manifest storage, stored public-dispatch consent, enabled-guild manifest loading, Discord `/plugins` admin commands, deterministic guild mention dry-run matching, semantic dry-run routing, and public `send_message` prefix dispatch are started. Command publishing, restricted dispatch, confirmed per-message approval, and richer external app execution remain future slices. Any domain behavior only exists if an approved installed external app manifest declares it and the external app supports it.

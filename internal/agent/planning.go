@@ -6,6 +6,7 @@ import (
 
 	"github.com/gOps132/GigiDC/internal/audit"
 	"github.com/gOps132/GigiDC/internal/capability"
+	"github.com/gOps132/GigiDC/internal/contextbroker"
 	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
 )
 
@@ -25,6 +26,10 @@ type Answerer interface {
 	Answer(context.Context, Request, Plan, []ToolResult) (Response, error)
 }
 
+type ContextSnippetProvider interface {
+	LoadContextSnippets(context.Context, Request) ([]contextbroker.Snippet, error)
+}
+
 type PlanningHandler struct {
 	Planner                      Planner
 	Tools                        Registry
@@ -36,6 +41,8 @@ type PlanningHandler struct {
 	Limits                       Limits
 	NewRunID                     func() string
 	FollowUps                    FollowUpStore
+	RunStore                     RunStore
+	ContextProvider              ContextSnippetProvider
 }
 
 func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request) (Response, bool, error) {
@@ -64,9 +71,11 @@ func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request
 			Trace:     trace,
 			FollowUps: h.FollowUps,
 		},
-		Trace:    trace,
-		Limits:   h.Limits,
-		NewRunID: h.NewRunID,
+		Trace:           trace,
+		Limits:          h.Limits,
+		RunStore:        h.RunStore,
+		NewRunID:        h.NewRunID,
+		ContextProvider: h.ContextProvider,
 	}
 	return runner.Run(ctx, request)
 }

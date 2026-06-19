@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/gOps132/GigiDC/internal/contextbroker"
 )
 
 type RunSnapshot struct {
 	Intent       string
 	Results      []ToolResult
 	ResponseText string
+	ContextState contextbroker.SessionState
 }
 
 func (s RunSnapshot) copy() RunSnapshot {
@@ -18,10 +21,37 @@ func (s RunSnapshot) copy() RunSnapshot {
 		Intent:       strings.TrimSpace(s.Intent),
 		ResponseText: strings.TrimSpace(s.ResponseText),
 		Results:      make([]ToolResult, 0, len(s.Results)),
+		ContextState: copyContextState(s.ContextState),
 	}
 	for _, result := range s.Results {
 		copied.Results = append(copied.Results, copyToolResult(result))
 	}
+	return copied
+}
+
+func copyContextState(state contextbroker.SessionState) contextbroker.SessionState {
+	copied := contextbroker.SessionState{Seen: map[string]string{}}
+	for key, value := range state.Seen {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key != "" && value != "" {
+			copied.Seen[key] = value
+		}
+	}
+	if len(copied.Seen) == 0 {
+		copied.Seen = nil
+	}
+	return copied
+}
+
+func copyContextPack(pack contextbroker.Pack) contextbroker.Pack {
+	copied := pack
+	copied.Snippets = append([]contextbroker.Snippet(nil), pack.Snippets...)
+	copied.Items = append([]contextbroker.ContextItem(nil), pack.Items...)
+	copied.Omitted = append([]contextbroker.OmittedContext(nil), pack.Omitted...)
+	copied.Invalidations = append([]contextbroker.ContextInvalidation(nil), pack.Invalidations...)
+	copied.Citations = append([]contextbroker.Citation(nil), pack.Citations...)
+	copied.NextState = copyContextState(pack.NextState)
 	return copied
 }
 

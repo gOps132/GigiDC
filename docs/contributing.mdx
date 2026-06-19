@@ -16,6 +16,7 @@ GigiDC is being rebuilt in small, reviewable slices. Contributions should keep s
 - Update architecture docs when runtime boundaries, storage, permissions, memory, LLM, or external app integration behavior changes.
 - Attribute external resources, libraries, APIs, examples, generated assets, and source material in docs or the relevant deliverable.
 - Review code, docs, configs, logs, tests, fixtures, and generated output for secrets or private Discord content before commit.
+- Use `internal/evalharness` for repeatable agent golden cases that need response, audit, durable-step, confirmation, or redaction assertions without a live Discord, database, or provider.
 - Keep agent artifacts only in ignored local `.agents/`.
 - Do not track superpowers artifacts, agent plans, agent reports, scratch notes, private planning files, local harnesses, tokens, `.env` files, or raw exported private data.
 - Before commit, verify docs commands, paths, environment variables, examples, and migration notes against the current repository state.
@@ -32,10 +33,11 @@ Each manifest must keep the same format as Gigi's runtime validator:
 - exact `discord_application_id` or `discord_bot_user_id`
 - optional `manifest_url` when source kind is `manifest_url`
 - `capabilities` with name and description
-- `triggers` with kind and value; optional trigger `aliases` for user-facing mention text
-- `surfaces`
-- `permissions`
-- optional `dispatch`: `dry_run` or `send_message`
+- `actions` with id, trigger, surfaces, safety class, optional permissions, optional dispatch, optional adapter, and optional `arg_schema`
+- legacy top-level `triggers`, `surfaces`, `permissions`, and `dispatch` are accepted, but new contributions should use `actions`
+- top-level `surfaces`
+- optional top-level `permissions` only for legacy manifests
+- optional top-level `dispatch` only for legacy manifests
 - optional `config_schema`
 - `audit_events`
 - `attribution` with name, use, and source
@@ -44,10 +46,10 @@ Contribution rules for manifests:
 
 - Use exact Discord application ID or bot user ID; do not rely on bot display names, role names, domains, or fuzzy matches.
 - Declare only behavior verified from public docs, maintainer-owned source, or direct admin-owned configuration.
-- Keep trigger `value` as the exact external app command Gigi should send. Use `aliases` only for alternate text Gigi may accept from a user mention.
+- Keep action trigger `value` as the exact external app command Gigi should send. Use `aliases` only for alternate text Gigi may accept from a user mention.
 - Do not include secrets, provider keys, private URLs, private Discord messages, private guild data, or hidden prompts.
 - Do not scrape private content or submit LLM-guessed behavior as fact.
-- Use `dispatch: "send_message"` only for public prefix actions that are safe to send as Gigi; otherwise omit it or use `dry_run`.
+- Use action-level `dispatch: "send_message"` only for public prefix actions that are safe to send as Gigi; otherwise omit it or use `dry_run`.
 - Include attribution for Discord docs, external app docs, provider docs, and any examples used to build the manifest.
 - Keep one plugin manifest contribution per PR unless multiple manifests share one small schema fix.
 - Use `source_kind: "uploaded_file"` only for manifests imported from Discord attachments; URL imports are normalized to `manifest_url`.
@@ -56,6 +58,6 @@ Discord application IDs, bot user IDs, and application command behavior are base
 
 ## Current Limits
 
-Gigi can validate and store approved manifests, dispatch public `send_message` prefix actions when a guild enables an approved manifest, and use configured semantic routing to propose validated dry-run plans. Restricted dispatch, richer command surfaces, and LLM-driven dispatch are still future work. Contributor manifests prepare that catalog one known external app at a time.
+Gigi can validate and store approved manifests, dispatch public `send_message` prefix actions when a guild enables an approved manifest version with stored public-dispatch consent, and use configured semantic routing to propose validated dry-run plans. Restricted dispatch, richer command surfaces, and LLM-driven dispatch are still future work. Contributor manifests prepare that catalog one known external app at a time.
 
 Do not document an external app integration as usable until the runtime can import, enable, authorize, audit, and drive that external app behavior.
