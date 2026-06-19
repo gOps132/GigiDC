@@ -173,8 +173,8 @@ func TestRunnerContinuesWhenOptionalChannelContextDenied(t *testing.T) {
 	if !planner.called || planner.sawContext {
 		t.Fatalf("planner.called=%v planner.sawContext=%v, want planner without context", planner.called, planner.sawContext)
 	}
-	if len(recorder.events) != 2 || recorder.events[0].Kind != "agent.context" || recorder.events[0].Status != audit.StatusDenied {
-		t.Fatalf("events=%+v, want denied optional context trace then answer", recorder.events)
+	if len(recorder.events) != 3 || recorder.events[0].Kind != "agent.context" || recorder.events[0].Status != audit.StatusDenied || recorder.events[1].Kind != "agent.plan" || recorder.events[2].Kind != "agent.answer" {
+		t.Fatalf("events=%+v, want denied optional context trace then plan and answer", recorder.events)
 	}
 }
 
@@ -222,7 +222,7 @@ func TestExecutorMasksToolErrorAndRecordsTrace(t *testing.T) {
 	if !handled || response.Text != "Agent tool failed." {
 		t.Fatalf("response=%+v handled=%v, want masked tool failure", response, handled)
 	}
-	if len(recorder.events) != 1 || recorder.events[0].Kind != "agent.tool" || recorder.events[0].Status != audit.StatusFailed {
+	if len(recorder.events) != 2 || recorder.events[1].Kind != "agent.tool" || recorder.events[1].Status != audit.StatusFailed {
 		t.Fatalf("events=%+v, want failed tool trace", recorder.events)
 	}
 }
@@ -251,7 +251,7 @@ func TestExecutorDeniesToolCapabilityBeforeExecute(t *testing.T) {
 	if tool.called {
 		t.Fatalf("tool executed after capability denied")
 	}
-	if len(recorder.events) != 1 || recorder.events[0].Status != audit.StatusDenied || recorder.events[0].Metadata["decision_reason"] == "" {
+	if len(recorder.events) != 2 || recorder.events[1].Status != audit.StatusDenied || recorder.events[1].Metadata["decision_reason"] == "" {
 		t.Fatalf("events=%+v, want denied tool trace", recorder.events)
 	}
 }
@@ -279,7 +279,7 @@ func TestExecutorRequiresConfirmationForWriteTool(t *testing.T) {
 	if tool.called {
 		t.Fatalf("write tool executed without confirmation")
 	}
-	if len(recorder.events) != 1 || recorder.events[0].Reason != "confirmation_required" {
+	if len(recorder.events) != 2 || recorder.events[1].Reason != "confirmation_required" {
 		t.Fatalf("events=%+v, want confirmation trace", recorder.events)
 	}
 }
@@ -324,17 +324,64 @@ func TestRunnerTraceIncludesRunIDAndOrderedSteps(t *testing.T) {
 	if !handled || response.Text != "fake result\nfake result" {
 		t.Fatalf("response=%+v handled=%v, want combined results", response, handled)
 	}
-	if len(recorder.events) != 3 {
-		t.Fatalf("events=%+v, want 2 tools + answer", recorder.events)
+	if len(recorder.events) != 4 {
+		t.Fatalf("events=%+v, want plan + 2 tools + answer", recorder.events)
 	}
 	for index, event := range recorder.events {
 		if event.Metadata["run_id"] != "run-1" || event.Metadata["source"] != "agent-test" {
 			t.Fatalf("event=%+v, want run/source metadata", event)
 		}
-		wantStep := string(rune('1' + index))
+		if index == 0 {
+			continue
+		}
+		wantStep := string(rune('0' + index))
 		if event.Metadata["step_index"] != wantStep {
 			t.Fatalf("event=%+v, want step_index %s", event, wantStep)
 		}
+	}
+}
+
+func TestTraceRecordsSafeLastRun(t *testing.T) {
+	store := NewMemoryTraceStore(10)
+	trace := Trace{Sink: store, Source: "agent-test", RunID: "run-1", Step: 2}
+	if err := trace.Record(context.Background(), agentTestRequest(), "agent.tool", audit.StatusSucceeded, "", map[string]string{
+		"tool":       "memory.recent",
+		"kind":       "read",
+		"capability": "memory.read.guild",
+	}); err != nil {
+		t.Fatalf("Record returned error: %v", err)
+	}
+	run, ok, err := store.LastTrace(context.Background(), TraceQuery{GuildID: "guild-id", ChannelID: "channel-id", ActorUserID: "actor-id"})
+	if err != nil {
+		t.Fatalf("LastTrace returned error: %v", err)
+	}
+	if !ok || run.RunID != "run-1" || len(run.Events) != 1 {
+		t.Fatalf("run=%+v ok=%v, want one trace event", run, ok)
+	}
+	event := run.Events[0]
+	if event.Phase != "tool" || event.StepIndex != 2 || event.ToolName != "memory.recent" || event.Capability != "memory.read.guild" {
+		t.Fatalf("event=%+v, want safe tool metadata", event)
+	}
+}
+
+func TestTraceStoreScopesDuplicateRunIDs(t *testing.T) {
+	store := NewMemoryTraceStore(10)
+	first := agentTestRequest()
+	second := agentTestRequest()
+	second.ActorUserID = "other-actor"
+	trace := Trace{Sink: store, RunID: "same-run", Step: 1}
+	if err := trace.Record(context.Background(), first, "agent.tool", audit.StatusSucceeded, "", map[string]string{"tool": "memory.recent"}); err != nil {
+		t.Fatalf("Record first returned error: %v", err)
+	}
+	if err := trace.Record(context.Background(), second, "agent.tool", audit.StatusSucceeded, "", map[string]string{"tool": "plugins.enabled"}); err != nil {
+		t.Fatalf("Record second returned error: %v", err)
+	}
+	run, ok, err := store.LastTrace(context.Background(), TraceQuery{GuildID: "guild-id", ChannelID: "channel-id", ActorUserID: "actor-id"})
+	if err != nil {
+		t.Fatalf("LastTrace returned error: %v", err)
+	}
+	if !ok || len(run.Events) != 1 || run.Events[0].ToolName != "memory.recent" {
+		t.Fatalf("run=%+v ok=%v, want first actor trace only", run, ok)
 	}
 }
 
@@ -459,7 +506,7 @@ func TestRunnerSkipsAnswererWhenLLMBudgetExceeded(t *testing.T) {
 	if answerer.called {
 		t.Fatalf("answerer called after LLM budget exceeded")
 	}
-	if len(recorder.events) != 2 || recorder.events[1].Kind != "agent.answer" || recorder.events[1].Reason != "llm_budget_exceeded" {
+	if len(recorder.events) != 3 || recorder.events[2].Kind != "agent.answer" || recorder.events[2].Reason != "llm_budget_exceeded" {
 		t.Fatalf("events=%+v, want answer budget trace", recorder.events)
 	}
 }

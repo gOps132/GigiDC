@@ -104,6 +104,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		assistantHandler := assistant.NewHandler(llmRuntime)
 		assistantHandler.Recorder = conversationStore
 		followUps := agent.NewMemoryFollowUpStore()
+		traceStore := agent.NewMemoryTraceStore(256)
 		agentRuntime := agent.Runtime{
 			Handlers: []agent.Handler{
 				agent.PlanningHandler{
@@ -129,6 +130,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 					Policy:    policyStore,
 					Checker:   evaluator,
 					Recorder:  auditStore,
+					TraceSink: traceStore,
 					FollowUps: followUps,
 				},
 				agent.ChatHandler{Responder: assistantHandler},
@@ -137,6 +139,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		semanticPlanner := assistant.SemanticPluginPlanner{Runtime: llmRuntime}
 		commands := discord.CoreCommands()
 		commands = append(commands, discord.AskCommand(agentRuntime))
+		commands = append(commands, discord.AgentCommands(traceStore)...)
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
 		commands = append(commands, discord.LLMCommands(providerService, auditStore, discord.LLMCommandConfig{
