@@ -54,6 +54,7 @@ Future Discord slices should keep the earlier authority rule: surface is present
 | `plugin.run.<id>` | Use an approved external app command or trigger |
 | `capability.manage` | Grant or revoke role/user capabilities |
 | `job.admin` | Inspect, retry, or cancel durable jobs |
+| `agent.analytics` | View aggregate guild agent-runtime stats |
 | `memory.read.guild` | Read permitted guild memory scope |
 | `memory.manage.guild` | Enable guild memory channels, configure retention, queue sync, and purge memory |
 | `relay.dispatch` | Ask Gigi to send a mediated message |
@@ -68,7 +69,7 @@ The LLM provider store should be multi-owner internally, with `guild`, `user`, a
 
 | Preset | Capabilities |
 | --- | --- |
-| `gigi-admin` | `capability.manage`, `plugin.install`, `job.admin`, `llm.provider.write`, `llm.provider.test`, `llm.provider.select`, `memory.read.guild`, `memory.manage.guild` |
+| `gigi-admin` | `capability.manage`, `plugin.install`, `job.admin`, `agent.analytics`, `llm.provider.write`, `llm.provider.test`, `llm.provider.select`, `memory.read.guild`, `memory.manage.guild` |
 | `plugin-manager` | `plugin.install` |
 | `llm-manager` | `llm.provider.write`, `llm.provider.test`, `llm.provider.select` |
 | `memory-reader` | `memory.read.guild` |

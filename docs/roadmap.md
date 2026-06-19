@@ -21,7 +21,7 @@ description: Planned evolution of the Go foundation rebuild.
 - DM handling
 - permission model
 
-Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, `/ask`, capability evaluator, identity resolver contract, DB-backed role-first `/permissions` command, guild-scoped `/llm` provider and model controls, agent-backed guild mention chat fallback, startup migration runner, guild memory settings/status/count/search scaffold, dynamic current-channel context fetching, semantic memory/tool routing policy, cited context-pack builder with permitted recent-channel memory, durable agent run/step/confirmation records, and durable audit-log seam are started. Rich DM conversation, semantic retrieval, assignment/task commands, and restricted action execution remain.
+Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing, DM routing, guild-mention routing, `/ask`, capability evaluator, identity resolver contract, DB-backed role-first `/permissions` command, guild-scoped `/llm` provider and model controls, agent-backed guild mention chat fallback, startup migration runner, guild memory settings/status/count/search scaffold, dynamic current-channel context fetching, semantic memory/tool routing policy, cited context-pack builder with permitted recent-channel memory, durable agent run/step/confirmation records, aggregate `/agent stats guild` diagnostics, and durable audit-log seam are started. Rich DM conversation, semantic retrieval, assignment/task commands, and restricted action execution remain.
 
 ## v0 Agent Runtime Core Slice
 
@@ -41,11 +41,11 @@ Current status: gateway adapter, `/ping` slash handler, opt-in slash publishing,
 - semantic retrieval with citations
 - tasks
 - relays with confirmation
-- usage tracking
+- usage tracking and aggregate agent stats
 
 Current agent direction: Gigi should become a Discord agent runtime, not a chatbot plus scattered plugins. Natural language should map to deterministic tools through an LLM planner. Gigi validates, checks permissions, enforces channel visibility, executes tools in Go, composes answers, and audits the path. This prevents writing one parser for every phrasing while keeping exact tools such as `memory.count` and `memory.search` as sources of truth.
 
-Agent runtime work now includes dynamic context fetching for `/ask context:channel` and guild mentions: the planner can receive current-channel memory context, the broker fetches only permitted retained messages, the packer trims snippets deterministically, and context/tool/answer steps emit redacted traces.
+Agent runtime work now includes dynamic context fetching for `/ask context:channel` and guild mentions: the planner can receive current-channel memory context, the broker fetches only permitted retained messages, the packer trims snippets deterministically, context/tool/answer steps emit redacted traces, and `/agent stats guild` reports aggregate server-level run health without exposing raw prompts, snippets, provider payloads, tool arguments, or per-user details.
 
 Current LLM direction: build the data model and resolver for `guild`, `user`, and `tenant` credential owners from the start, but expose only guild/admin-scoped provider configuration in v0. Personal BYOK remains disabled in v0 product behavior. See [LLM And Cognitive Layer Plan](./llm-cognitive-plan).
 

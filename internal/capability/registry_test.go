@@ -8,6 +8,7 @@ func TestKnownCapabilitiesIncludeFixedPermissionChoices(t *testing.T) {
 		CapabilityManage,
 		"plugin.install",
 		"job.admin",
+		"agent.analytics",
 		"memory.read.guild",
 		"memory.manage.guild",
 		"relay.dispatch",
@@ -30,8 +31,8 @@ func TestPresetCapabilities(t *testing.T) {
 	if !ok {
 		t.Fatal("gigi-admin preset missing")
 	}
-	if !contains(adminCaps, "memory.read.guild") || !contains(adminCaps, "memory.manage.guild") {
-		t.Fatalf("gigi-admin caps = %+v, want memory read/manage", adminCaps)
+	if !contains(adminCaps, "memory.read.guild") || !contains(adminCaps, "memory.manage.guild") || !contains(adminCaps, "agent.analytics") {
+		t.Fatalf("gigi-admin caps = %+v, want memory read/manage and agent analytics", adminCaps)
 	}
 
 	memoryCaps, ok := PresetCapabilities("memory-manager")

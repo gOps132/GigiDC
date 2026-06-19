@@ -61,6 +61,12 @@ func (a LLMAnswerer) answerPrompt(request Request, plan Plan, results []ToolResu
 	b.WriteString(userText)
 	b.WriteString("\nEND_USER_MESSAGE_UNTRUSTED\n\nPlan intent:\n")
 	b.WriteString(plan.Intent)
+	if plan.Intent == IntentSummarizeRecentChat {
+		b.WriteString("\n\nResponse requirements:\n")
+		b.WriteString("- summarize the recent chat in 1-3 concise sentences.\n")
+		b.WriteString("- Do not return the raw tool-result bullet list or enumerate each message.\n")
+		b.WriteString("- include at least one valid citation label from the provided evidence.\n")
+	}
 	if strings.TrimSpace(contextText) != "" {
 		b.WriteString("\n\nBEGIN_FETCHED_CONTEXT_UNTRUSTED\n")
 		b.WriteString(contextText)

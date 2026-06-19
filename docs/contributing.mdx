@@ -17,6 +17,7 @@ GigiDC is being rebuilt in small, reviewable slices. Contributions should keep s
 - Update architecture docs when runtime boundaries, storage, permissions, memory, LLM, or external app integration behavior changes.
 - Attribute external resources, libraries, APIs, examples, generated assets, and source material in docs or the relevant deliverable.
 - Review code, docs, configs, logs, tests, fixtures, and generated output for secrets or private Discord content before commit.
+- For observability docs such as agent stats, traces, LLM usage, memory counts, and audit views, state whether output is aggregate, actor-scoped, or per-record, and never imply raw prompts, memory snippets, provider payloads, tool arguments, secrets, or private Discord content are exposed.
 - Use `internal/evalharness` for repeatable agent golden cases that need response, audit, durable-step, confirmation, or redaction assertions without a live Discord, database, or provider.
 - Keep agent artifacts only in ignored local `.agents/`.
 - Do not track superpowers artifacts, agent plans, agent reports, scratch notes, private planning files, local harnesses, tokens, `.env` files, or raw exported private data.

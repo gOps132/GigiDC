@@ -93,6 +93,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		usageRecorder := llmprovider.NewSQLUsageRecorder(db, func() string { return storage.NewID("llmusage") })
 		memoryStore := memory.NewSQLStore(db)
 		agentRunStore := agent.NewSQLRunStore(db)
+		agentStatsReader := agent.NewSQLAnalyticsReader(db)
 		memoryIngestor := memory.NewLiveIngestor(memoryStore, 512)
 		conversationStore := assistant.NewSQLConversationStore(db, func() string { return storage.NewID("asstturn") })
 		evaluator := capability.NewEvaluator(grantStore)
@@ -139,9 +140,13 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			},
 		}
 		semanticPlanner := assistant.SemanticPluginPlanner{Runtime: llmRuntime}
+		authorizer := discord.NewCapabilityAuthorizer(evaluator, auditStore)
 		commands := discord.CoreCommands()
 		commands = append(commands, discord.AskCommand(agentRuntime))
-		commands = append(commands, discord.AgentCommands(traceStore, agentRunStore, auditStore)...)
+		commands = append(commands, discord.AgentCommands(traceStore, agentRunStore, auditStore, discord.AgentCommandConfig{
+			StatsReader:     agentStatsReader,
+			StatsAuthorizer: authorizer,
+		})...)
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
 		commands = append(commands, discord.LLMCommands(providerService, auditStore, discord.LLMCommandConfig{
@@ -156,7 +161,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			_ = db.Close()
 			return nil, err
 		}
-		router.SetAuthorizer(discord.NewCapabilityAuthorizer(evaluator, auditStore))
+		router.SetAuthorizer(authorizer)
 
 		externalAppHandler := discord.ExternalAppDryRunHandlerWithSemanticPolicy(
 			pluginStore,

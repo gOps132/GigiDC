@@ -45,8 +45,12 @@ func (p HeuristicToolPlanner) Plan(ctx context.Context, request Request, specs [
 			return Plan{Intent: ToolPermissionsCheck, ToolCalls: []ToolCall{{Name: ToolPermissionsCheck, Args: map[string]string{"capability": string(required)}}}}, true, nil
 		}
 	}
-	if available[ToolMemoryRecent] && mentionsAny(text, "recent messages", "recent chat", "last messages", "summarize chat", "summarise chat") {
-		return Plan{Intent: ToolMemoryRecent, ToolCalls: []ToolCall{{Name: ToolMemoryRecent, Args: map[string]string{"limit": "10"}}}}, true, nil
+	if available[ToolMemoryRecent] && mentionsAny(text, "recent messages", "recent chat", "recent chats", "last messages", "summarize chat", "summarise chat") {
+		intent := ToolMemoryRecent
+		if wantsRecentChatSummary(text) {
+			intent = IntentSummarizeRecentChat
+		}
+		return Plan{Intent: intent, ToolCalls: []ToolCall{{Name: ToolMemoryRecent, Args: map[string]string{"limit": "10"}}}}, true, nil
 	}
 	return Plan{}, false, nil
 }
@@ -69,6 +73,11 @@ func mentionsAny(text string, needles ...string) bool {
 		}
 	}
 	return false
+}
+
+func wantsRecentChatSummary(text string) bool {
+	return mentionsAny(text, "summarize", "summarise", "summary", "recap") &&
+		mentionsAny(text, "chat", "chats", "messages")
 }
 
 func pluginPlanText(text string) string {

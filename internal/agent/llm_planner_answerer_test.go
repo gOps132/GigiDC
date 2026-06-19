@@ -141,6 +141,24 @@ func TestLLMAnswererSynthesizesToolResults(t *testing.T) {
 	}
 }
 
+func TestLLMAnswererPromptRequiresSummarizedRecentChat(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: "The recent chat was mostly summary requests. [S1]"}}
+
+	_, err := (LLMAnswerer{Runtime: runtime}).Answer(context.Background(), agentTestRequest(), Plan{Intent: "summarize_recent_chat"}, []ToolResult{{
+		Name:    ToolMemoryRecent,
+		Summary: "Recent retained full-mode messages in this channel (2):\n- [S1] alice: summarize this\n- [S2] bob: postgres",
+		Data:    map[string]string{"citation_labels": "S1,S2"},
+	}})
+	if err != nil {
+		t.Fatalf("Answer returned error: %v", err)
+	}
+	for _, want := range []string{"summarize_recent_chat", "summarize the recent chat", "Do not return the raw tool-result bullet list", "include at least one valid citation label"} {
+		if !strings.Contains(runtime.req.Input, want) && !strings.Contains(runtime.req.Instructions, want) {
+			t.Fatalf("instructions=%q input=%q, want %q", runtime.req.Instructions, runtime.req.Input, want)
+		}
+	}
+}
+
 func TestLLMAnswererPromptIncludesContextPackCitationRule(t *testing.T) {
 	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: "Use [S1]."}}
 	request := agentTestRequest()
