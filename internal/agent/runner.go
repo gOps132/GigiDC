@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/gOps132/GigiDC/internal/audit"
@@ -23,12 +24,13 @@ type Limits struct {
 }
 
 type Runner struct {
-	Planner  Planner
-	Policy   RoutingPolicy
-	Executor Executor
-	Trace    Trace
-	Limits   Limits
-	NewRunID func() string
+	Planner        Planner
+	ContextFetcher ContextFetcher
+	Policy         RoutingPolicy
+	Executor       Executor
+	Trace          Trace
+	Limits         Limits
+	NewRunID       func() string
 }
 
 func (r Runner) Run(ctx context.Context, request Request) (Response, bool, error) {
@@ -62,6 +64,26 @@ func (r Runner) Run(ctx context.Context, request Request) (Response, bool, error
 		_ = trace.Record(ctx, request, "agent.plan", audit.StatusDenied, string(decision.Reason), mergeMetadata(planMetadata, capabilityMetadata(r.Policy.RequiredCapabilityBeforePlan)))
 		return Response{Text: "Permission denied for agent tools."}, true, nil
 	}
+	if isChannelContextScope(request.ContextScope) && request.ContextPack == nil && r.ContextFetcher != nil {
+		pack, err := r.ContextFetcher.FetchContext(ctx, request)
+		metadata := contextMetadata(pack)
+		if err != nil {
+			if isOptionalContextScope(request.ContextScope) {
+				_ = trace.WithStep(1).Record(ctx, request, "agent.context", contextFailureStatus(err), contextFailureReason(err), metadata)
+				executor.TraceStepOffset = 1
+			} else if errors.Is(err, ErrContextPermissionDenied) {
+				_ = trace.WithStep(1).Record(ctx, request, "agent.context", audit.StatusDenied, "permission_denied", metadata)
+				return Response{Text: "Permission denied for agent context."}, true, nil
+			} else {
+				_ = trace.WithStep(1).Record(ctx, request, "agent.context", audit.StatusFailed, "context_fetch_failed", metadata)
+				return Response{Text: "Agent context fetch failed."}, true, nil
+			}
+		} else {
+			request.ContextPack = &pack
+			executor.TraceStepOffset = 1
+			_ = trace.WithStep(1).Record(ctx, request, "agent.context", audit.StatusSucceeded, "", metadata)
+		}
+	}
 	plan, ok, err := r.Planner.Plan(ctx, request, executor.Tools.Specs())
 	if err != nil {
 		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, "planner_failed", planMetadata)
@@ -82,7 +104,7 @@ func (r Runner) Run(ctx context.Context, request Request) (Response, bool, error
 		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "dry_run", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return Response{Text: formatDryRunPlan(plan)}, true, nil
 	}
-	if r.maxSteps() > 0 && plannedStepCount(plan) > r.maxSteps() {
+	if r.maxSteps() > 0 && plannedStepCount(plan)+executor.TraceStepOffset > r.maxSteps() {
 		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, "step_budget_exceeded", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return Response{Text: "Agent step budget exceeded."}, true, nil
 	}
@@ -141,4 +163,27 @@ func mergeMetadata(maps ...map[string]string) map[string]string {
 
 func plannedStepCount(plan Plan) int {
 	return 2 + len(plan.ToolCalls)
+}
+
+func isChannelContextScope(scope string) bool {
+	scope = strings.TrimSpace(scope)
+	return scope == "channel" || scope == "channel-auto"
+}
+
+func isOptionalContextScope(scope string) bool {
+	return strings.TrimSpace(scope) == "channel-auto"
+}
+
+func contextFailureStatus(err error) audit.Status {
+	if errors.Is(err, ErrContextPermissionDenied) {
+		return audit.StatusDenied
+	}
+	return audit.StatusFailed
+}
+
+func contextFailureReason(err error) string {
+	if errors.Is(err, ErrContextPermissionDenied) {
+		return "permission_denied"
+	}
+	return "context_fetch_failed"
 }

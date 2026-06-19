@@ -9,6 +9,7 @@ import (
 
 	"github.com/gOps132/GigiDC/internal/audit"
 	"github.com/gOps132/GigiDC/internal/capability"
+	"github.com/gOps132/GigiDC/internal/contextbroker"
 	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
 	"github.com/gOps132/GigiDC/internal/memory"
 )
@@ -195,15 +196,31 @@ func agentTestRequest() Request {
 }
 
 type fakePlanner struct {
-	called bool
-	plan   Plan
-	ok     bool
-	err    error
+	called     bool
+	sawContext bool
+	plan       Plan
+	ok         bool
+	err        error
 }
 
 func (p *fakePlanner) Plan(ctx context.Context, request Request, specs []ToolSpec) (Plan, bool, error) {
 	p.called = true
+	p.sawContext = request.ContextPack != nil && len(request.ContextPack.Snippets) > 0
 	return p.plan, p.ok, p.err
+}
+
+type fakeContextFetcher struct {
+	called bool
+	pack   contextbroker.Pack
+	err    error
+}
+
+func (f *fakeContextFetcher) FetchContext(ctx context.Context, request Request) (contextbroker.Pack, error) {
+	f.called = true
+	if f.err != nil {
+		return contextbroker.Pack{}, f.err
+	}
+	return f.pack, nil
 }
 
 type fakePolicy struct {

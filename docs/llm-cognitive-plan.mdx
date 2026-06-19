@@ -119,9 +119,9 @@ Current and planned V0 LLM/provider foundation includes:
 - Guild-mention cognitive fallback chat after deterministic external app matching fails.
 - Metadata-only conversation turn storage with no raw prompt or completion columns.
 - Semantic routing that treats LLM output as a proposal, validates it against native tools and enabled manifests, applies capability checks, and returns dry-run or allowed read-only/public-safe results only.
-- `/ask` command routing through the agent runtime with explicit `context:none` or `context:channel`.
+- `/ask` command routing through the agent runtime with explicit `context:none` or dynamic current-channel context fetching through `context:channel`.
 - Initial `internal/agent` runtime contracts, planner handler, native tool registry, memory count/search/recent tools, plugin plan/list tools, permission check tool, LLM usage summary tool, and chat fallback adapter.
-- Initial `internal/contextbroker` context packer seam for bounded snippet packing.
+- Initial `internal/contextbroker` context fetcher/packer seam for current-channel retained memory and bounded snippet packing.
 - Guild policy storage that defaults personal keys to `off`.
 - No per-user BYOK for guild mentions, shared memory, embeddings, or semantic routing.
 - No silent fallback between billing owners.
@@ -133,12 +133,14 @@ Agent-runtime V0 should add:
 - A general `AgentRunner` with `MaxSteps`, `MaxToolCalls`, LLM-call budget, and redacted trace. Started with a compatibility runner that preserves current mention and `/ask` behavior while moving orchestration out of one-shot planning handlers.
 - A split policy/executor/answerer core. Started with policy-owned routing mode and capability checks, executor-owned tool lookup/execution/masked errors, deterministic write-tool confirmation guards, LLM answer synthesis over tool results, bounded short-term per-user/channel follow-up context, safe in-process `/agent trace last` diagnostics, and audit trace metadata for `run_id`, `step_index`, tool kind, and capability.
 - A native tool registry with at least `memory.count`, `memory.search`, `memory.recent`, `plugins.enabled`, `plugins.plan`, `permissions.check`, `llm.usage.guild`, and `llm.chat`. Started with the read-only tools plus chat fallback; `llm.chat` remains an answerer/fallback concern instead of an LLM-calling tool.
-- A context broker that decides whether a question needs no context, current-channel context, permitted guild memory, or enabled plugin catalog context. Started with bounded snippet packing.
-- A token packer that reserves budget for system instructions, tool results, citations, and output, then trims context deterministically. Started with deterministic character-budget snippet packing.
+- A context broker that decides whether a run needs no context or current-channel memory context, fetches only enabled-channel retained messages after capability and channel checks, and returns a bounded pack for answer synthesis. Cross-channel guild context and plugin catalog context remain future slices.
+- A token packer that reserves budget for tool results, fetched context snippets, citations/source IDs, and output, then trims snippets deterministically. Current implementation uses character budgets until token accounting lands.
 - Read-only tool execution for memory, plugin planning, permission checks, and usage-style queries after capability and channel visibility checks. Started with current-channel memory tools, bounded memory result snippets/message IDs, `plugins.enabled`, `plugins.plan`, `permissions.check`, and `llm.usage.guild`.
 - Public-safe external app dispatch only through existing manifest-grounded `send_message` rules; restricted actions remain dry-run or confirmation-required.
 - Audits for `agent.plan`, `agent.tool`, `agent.answer`, and `agent.confirmation` using request IDs, run IDs, ordered step indexes, status, scopes, tool names, tool kind, capability, token counts, and redacted metadata only. Current debug trace output is actor/channel-scoped and safe-metadata-only; it does not expose raw prompts, memory snippets, provider responses, or secrets.
 - Compatibility migration from current wrappers: keep exact fast paths while agent-native tools replace `SemanticMemoryHandler`, `AssistantFallbackHandler`, and later semantic plugin handling.
+
+Dynamic context fetching must not widen storage or audit exposure. Trace metadata may record `run_id`, `step_index`, context scope, fetch status, source type, result count, truncation flag, tool name, tool kind, capability, and message/source IDs. It must not store raw user prompts, raw fetched snippets, provider payloads, planned commands, embeddings, or secrets.
 
 Deferred beyond V0:
 
@@ -404,14 +406,14 @@ Planned memory commands:
 Planned agent commands:
 
 ```text
-/ask question:<text> visibility:<public|private> context:<none|channel|guild>
+/ask question:<text> visibility:<public|private> context:<none|channel>
 /gigi settings view
-/gigi settings set ask-enabled:<true|false> default-context:<none|channel|guild> default-visibility:<public|private>
+/gigi settings set ask-enabled:<true|false> default-context:<none|channel> default-visibility:<public|private>
 /gigi audit recent target:<request|user|channel|plugin>
 /gigi confirm request:<request-id>
 ```
 
-`/ask` should route through the same agent runtime as guild mentions. `context:none` means normal chat without memory. `context:channel` can use current-channel memory tools when policy and capability checks pass. `context:guild` is future behavior until channel visibility filtering is strong enough across multiple channels.
+`/ask` should route through the same agent runtime as guild mentions. `context:none` means normal chat without memory. `context:channel` can fetch bounded current-channel context and use current-channel memory tools when policy and capability checks pass. `context:guild` is future behavior until channel visibility filtering is strong enough across multiple channels.
 
 Slash responses should default to ephemeral. If `visibility:channel` is supported, it should post only safe summaries, not raw hidden/private content.
 
