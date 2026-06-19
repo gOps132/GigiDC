@@ -86,6 +86,24 @@ func TestAgentRunsMigrationExists(t *testing.T) {
 	}
 }
 
+func TestDiscordGuildSettingsMigrationExists(t *testing.T) {
+	sqlBytes, err := os.ReadFile("../../db/migrations/000010_discord_guild_settings.sql")
+	if err != nil {
+		t.Fatalf("discord guild settings migration must exist: %v", err)
+	}
+	sql := string(sqlBytes)
+	for _, want := range []string{
+		"create table if not exists discord_guild_settings",
+		"guild_id text primary key",
+		"reply_latency_enabled boolean not null default false",
+		"updated_at timestamptz not null default now()",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("discord guild settings migration missing %q", want)
+		}
+	}
+}
+
 func TestLLMProviderCredentialsMigrationExists(t *testing.T) {
 	if _, err := os.Stat("../../db/migrations/000003_llm_provider_credentials.sql"); err != nil {
 		t.Fatalf("llm provider credentials migration must exist: %v", err)

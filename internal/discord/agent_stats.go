@@ -15,11 +15,13 @@ import (
 )
 
 const agentAnalyticsCapability capability.Capability = "agent.analytics"
+const agentReplyLatencyManageCapability capability.Capability = "agent.reply_latency.manage"
 
 type AgentCommandConfig struct {
-	StatsReader     AgentStatsReader
-	StatsAuthorizer CommandAuthorizer
-	Clock           func() time.Time
+	StatsReader       AgentStatsReader
+	StatsAuthorizer   CommandAuthorizer
+	Clock             func() time.Time
+	ReplyLatencyStore GuildReplyLatencyStore
 }
 
 type AgentStatsReader interface {
@@ -27,9 +29,11 @@ type AgentStatsReader interface {
 }
 
 type agentStatsRequest struct {
-	Period string
-	Since  time.Time
-	Until  time.Time
+	Period              string
+	Since               time.Time
+	Until               time.Time
+	ReplyLatencySet     bool
+	ReplyLatencyEnabled bool
 }
 
 func agentStatsOptions() *discordgo.ApplicationCommandOption {
@@ -48,20 +52,53 @@ func agentStatsOptions() *discordgo.ApplicationCommandOption {
 					{Name: "30d", Value: "30d"},
 					{Name: "all", Value: "all"},
 				}),
+				optionalStringOption("reply-latency", "Append response time to guild replies.", []*discordgo.ApplicationCommandOptionChoice{
+					{Name: "off", Value: "off"},
+					{Name: "on", Value: "on"},
+				}),
 			},
 		}},
 	}
 }
 
-func agentStatsHandler(reader AgentStatsReader, authorizer CommandAuthorizer, recorder AuditRecorder, clock func() time.Time) CommandHandler {
+func agentStatsHandler(reader AgentStatsReader, authorizer CommandAuthorizer, recorder AuditRecorder, clock func() time.Time, replyLatencyStores ...GuildReplyLatencyStore) CommandHandler {
 	if clock == nil {
 		clock = time.Now
+	}
+	replyLatencyStore := defaultGuildReplyLatencyStore
+	if len(replyLatencyStores) > 0 && replyLatencyStores[0] != nil {
+		replyLatencyStore = replyLatencyStores[0]
 	}
 	return func(ctx context.Context, interaction Interaction) (CommandResponse, error) {
 		request, err := parseAgentStatsRequest(interaction, clock)
 		if err != nil {
 			_ = recordAgentStats(ctx, recorder, interaction, request, audit.StatusFailed, "invalid_request")
 			return CommandResponse{Content: err.Error(), Ephemeral: true}, nil
+		}
+		if request.ReplyLatencySet {
+			if authorizer == nil {
+				_ = recordAgentStats(ctx, recorder, interaction, request, audit.StatusDenied, "authorizer_missing")
+				return CommandResponse{Content: "Permission denied.", Ephemeral: true}, nil
+			}
+			decision, err := authorizer.Check(ctx, interaction, agentReplyLatencyManageCapability)
+			if err != nil {
+				_ = recordAgentStats(ctx, recorder, interaction, request, audit.StatusFailed, "permission_check_failed")
+				return CommandResponse{Content: "Permission check failed.", Ephemeral: true}, nil
+			}
+			if !decision.Allowed {
+				_ = recordAgentStats(ctx, recorder, interaction, request, audit.StatusDenied, string(decision.Reason))
+				return CommandResponse{Content: "Permission denied.", Ephemeral: true}, nil
+			}
+			if replyLatencyStore == nil {
+				_ = recordAgentStats(ctx, recorder, interaction, request, audit.StatusFailed, "reply_latency_store_missing")
+				return CommandResponse{Content: "Agent reply latency setting is not configured.", Ephemeral: true}, nil
+			}
+			if err := replyLatencyStore.SetGuildReplyLatencyEnabled(ctx, interaction.GuildID, request.ReplyLatencyEnabled); err != nil {
+				_ = recordAgentStats(ctx, recorder, interaction, request, audit.StatusFailed, "reply_latency_set_failed")
+				return CommandResponse{Content: "Agent reply latency setting failed.", Ephemeral: true}, nil
+			}
+			_ = recordAgentStats(ctx, recorder, interaction, request, audit.StatusSucceeded, "")
+			return CommandResponse{Content: "Set guild reply latency display to `" + formatReplyLatencyMode(request.ReplyLatencyEnabled) + "`.", Ephemeral: true}, nil
 		}
 		if reader == nil {
 			_ = recordAgentStats(ctx, recorder, interaction, request, audit.StatusFailed, "reader_missing")
@@ -102,13 +139,20 @@ func parseAgentStatsRequest(interaction Interaction, clock func() time.Time) (ag
 	if len(interaction.Options) != 1 || interaction.Options[0].Name != "stats" || len(interaction.Options[0].Options) != 1 || interaction.Options[0].Options[0].Name != "guild" {
 		return agentStatsRequest{}, fmt.Errorf("Choose an agent stats action.")
 	}
-	period, err := parseAgentStatsPeriod(optionByName(interaction.Options[0].Options[0].Options, "period"))
+	options := interaction.Options[0].Options[0].Options
+	period, err := parseAgentStatsPeriod(optionByName(options, "period"))
+	if err != nil {
+		return agentStatsRequest{}, err
+	}
+	replyLatencyEnabled, replyLatencySet, err := parseReplyLatencyPreference(optionByName(options, "reply-latency"))
 	if err != nil {
 		return agentStatsRequest{}, err
 	}
 	request := agentStatsRequest{
-		Period: period,
-		Until:  clock().UTC(),
+		Period:              period,
+		Until:               clock().UTC(),
+		ReplyLatencySet:     replyLatencySet,
+		ReplyLatencyEnabled: replyLatencyEnabled,
 	}
 	switch period {
 	case "24h":
@@ -134,6 +178,26 @@ func parseAgentStatsPeriod(value string) (string, error) {
 	default:
 		return "", fmt.Errorf("Choose period: `24h`, `7d`, `30d`, or `all`.")
 	}
+}
+
+func parseReplyLatencyPreference(value string) (bool, bool, error) {
+	switch strings.TrimSpace(value) {
+	case "":
+		return false, false, nil
+	case "off":
+		return false, true, nil
+	case "on":
+		return true, true, nil
+	default:
+		return false, false, fmt.Errorf("Choose reply latency: `off` or `on`.")
+	}
+}
+
+func formatReplyLatencyMode(enabled bool) string {
+	if enabled {
+		return "on"
+	}
+	return "off"
 }
 
 func formatAgentStatsSummary(summary agent.AnalyticsSummary, period string) string {
@@ -252,16 +316,27 @@ func recordAgentStats(ctx context.Context, recorder AuditRecorder, interaction I
 	if recorder == nil {
 		return nil
 	}
+	metadata := map[string]string{
+		"scope":      "guild",
+		"period":     safeInline(request.Period),
+		"capability": string(agentStatsCapabilityFor(request)),
+	}
+	if request.ReplyLatencySet {
+		metadata["reply_latency"] = formatReplyLatencyMode(request.ReplyLatencyEnabled)
+	}
 	return recorder.Record(ctx, audit.Event{
-		Kind:    "discord.agent.stats",
-		GuildID: interaction.GuildID,
-		ActorID: interaction.UserID,
-		Status:  status,
-		Reason:  safeInline(reason),
-		Metadata: map[string]string{
-			"scope":      "guild",
-			"period":     safeInline(request.Period),
-			"capability": string(agentAnalyticsCapability),
-		},
+		Kind:     "discord.agent.stats",
+		GuildID:  interaction.GuildID,
+		ActorID:  interaction.UserID,
+		Status:   status,
+		Reason:   safeInline(reason),
+		Metadata: metadata,
 	})
+}
+
+func agentStatsCapabilityFor(request agentStatsRequest) capability.Capability {
+	if request.ReplyLatencySet {
+		return agentReplyLatencyManageCapability
+	}
+	return agentAnalyticsCapability
 }

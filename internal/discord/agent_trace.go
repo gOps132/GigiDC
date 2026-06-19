@@ -44,7 +44,7 @@ func AgentCommands(reader AgentTraceReader, manager AgentRunManager, recorder Au
 
 func agentHandler(reader AgentTraceReader, manager AgentRunManager, recorder AuditRecorder, cfg AgentCommandConfig) CommandHandler {
 	traceHandler := agentTraceHandler(reader)
-	statsHandler := agentStatsHandler(cfg.StatsReader, cfg.StatsAuthorizer, recorder, cfg.Clock)
+	statsHandler := agentStatsHandler(cfg.StatsReader, cfg.StatsAuthorizer, recorder, cfg.Clock, cfg.ReplyLatencyStore)
 	runHandler := agentCommandHandler(manager, recorder)
 	return func(ctx context.Context, interaction Interaction) (CommandResponse, error) {
 		if len(interaction.Options) == 1 && interaction.Options[0].Name == "trace" {

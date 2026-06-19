@@ -28,6 +28,10 @@ func TestAgentCommandsExposeStatsGuild(t *testing.T) {
 	if period == nil || !hasChoice(period, "24h") || !hasChoice(period, "7d") || !hasChoice(period, "30d") || !hasChoice(period, "all") {
 		t.Fatalf("period option = %+v, want fixed period choices", period)
 	}
+	replyLatency := findOption(guild.Options, "reply-latency")
+	if replyLatency == nil || !hasChoice(replyLatency, "off") || !hasChoice(replyLatency, "on") {
+		t.Fatalf("reply latency option = %+v, want off/on choices", replyLatency)
+	}
 }
 
 func TestAgentStatsGuildChecksCapabilityQueriesPeriodAndFormatsAggregateSummary(t *testing.T) {
@@ -120,6 +124,46 @@ func TestAgentStatsGuildAllTimeDoesNotSetTimeBounds(t *testing.T) {
 	}
 }
 
+func TestAgentStatsGuildSetsReplyLatencyPreference(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryGuildReplyLatencyStore()
+	authorizer := &fakeAgentStatsAuthorizer{decision: capability.Decision{Allowed: true, Capability: agentReplyLatencyManageCapability}}
+	handler := agentStatsHandler(nil, authorizer, nil, nil, store)
+
+	response, err := handler(ctx, agentStatsInteractionWithReplyLatency("on"))
+	if err != nil {
+		t.Fatalf("stats returned error: %v", err)
+	}
+	if authorizer.required != agentReplyLatencyManageCapability {
+		t.Fatalf("required capability = %q, want reply latency manage", authorizer.required)
+	}
+	if response.Content != "Set guild reply latency display to `on`." || !response.Ephemeral {
+		t.Fatalf("response = %+v, want private on confirmation", response)
+	}
+	enabled, err := store.GuildReplyLatencyEnabled(ctx, "guild-id")
+	if err != nil {
+		t.Fatalf("GuildReplyLatencyEnabled returned error: %v", err)
+	}
+	if !enabled {
+		t.Fatalf("enabled = %v, want true", enabled)
+	}
+
+	response, err = handler(ctx, agentStatsInteractionWithReplyLatency("off"))
+	if err != nil {
+		t.Fatalf("stats returned error: %v", err)
+	}
+	if response.Content != "Set guild reply latency display to `off`." || !response.Ephemeral {
+		t.Fatalf("response = %+v, want private off confirmation", response)
+	}
+	enabled, err = store.GuildReplyLatencyEnabled(ctx, "guild-id")
+	if err != nil {
+		t.Fatalf("GuildReplyLatencyEnabled returned error: %v", err)
+	}
+	if enabled {
+		t.Fatalf("enabled = %v, want false", enabled)
+	}
+}
+
 func TestAgentStatsGuildDefaultsTo7dAndHandlesNoData(t *testing.T) {
 	now := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
 	reader := &fakeAgentStatsReader{}
@@ -142,6 +186,16 @@ func TestAgentStatsGuildRejectsInvalidPeriod(t *testing.T) {
 	}
 	if response.Content != "Choose period: `24h`, `7d`, `30d`, or `all`." || !response.Ephemeral {
 		t.Fatalf("response = %+v, want period validation", response)
+	}
+}
+
+func TestAgentStatsGuildRejectsInvalidReplyLatencyPreference(t *testing.T) {
+	response, err := agentStatsHandler(&fakeAgentStatsReader{}, &fakeAgentStatsAuthorizer{decision: capability.Decision{Allowed: true, Capability: agentAnalyticsCapability}}, nil, nil)(context.Background(), agentStatsInteractionWithReplyLatency("sometimes"))
+	if err != nil {
+		t.Fatalf("stats returned error: %v", err)
+	}
+	if response.Content != "Choose reply latency: `off` or `on`." || !response.Ephemeral {
+		t.Fatalf("response = %+v, want reply latency validation", response)
 	}
 }
 
@@ -201,6 +255,12 @@ func agentStatsInteraction(period string) Interaction {
 			}},
 		}},
 	}
+}
+
+func agentStatsInteractionWithReplyLatency(value string) Interaction {
+	interaction := agentStatsInteraction("")
+	interaction.Options[0].Options[0].Options = []InteractionOption{{Name: "reply-latency", Value: value}}
+	return interaction
 }
 
 type fakeAgentStatsReader struct {
