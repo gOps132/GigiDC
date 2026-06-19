@@ -77,6 +77,7 @@ type MessageRouter struct {
 	handler        MessageHandler
 	audit          AuditSink
 	memoryIngestor GuildMemoryIngestor
+	replyLatency   replyLatencyConfig
 }
 
 type GuildMemoryIngestor interface {
@@ -99,7 +100,15 @@ func NewMessageRouter(botUserID string, handler MessageHandler, audit AuditSink,
 		handler:        handler,
 		audit:          audit,
 		memoryIngestor: firstMemoryIngestor(memoryIngestors),
+		replyLatency:   resolveReplyLatencyConfig(),
 	}, nil
+}
+
+func (r *MessageRouter) SetReplyLatencyConfig(config ReplyLatencyConfig) {
+	if r == nil {
+		return
+	}
+	r.replyLatency = resolveReplyLatencyConfig(config)
 }
 
 func CoreMessageHandler() MessageHandler {
@@ -123,7 +132,9 @@ func (r *MessageRouter) HandleMessage(ctx context.Context, sender messageSender,
 		return nil
 	}
 
+	startedAt := r.replyLatency.now()
 	response, err := r.handler.HandleMessage(ctx, message)
+	elapsed := r.replyLatency.now().Sub(startedAt)
 	content := strings.TrimSpace(response.Content)
 	audit := AuditEvent{
 		Kind:      "discord.message.routed",
@@ -140,6 +151,9 @@ func (r *MessageRouter) HandleMessage(ctx context.Context, sender messageSender,
 	}
 	if content == "" {
 		content = "ok"
+	}
+	if message.Surface == MessageSurfaceGuildMention && r.replyLatency.enabled(ctx, message.GuildID) {
+		content = appendReplyLatencySuffix(content, elapsed)
 	}
 
 	auditErr := r.audit.RecordDiscordEvent(ctx, audit)

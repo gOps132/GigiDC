@@ -347,7 +347,7 @@ Revoked `job.admin` for user @person.
 
 | Preset | Capabilities |
 | --- | --- |
-| `gigi-admin` | `capability.manage`, `plugin.install`, `job.admin`, `agent.analytics`, `llm.provider.write`, `llm.provider.test`, `llm.provider.select`, `memory.read.guild`, `memory.manage.guild` |
+| `gigi-admin` | `capability.manage`, `plugin.install`, `job.admin`, `agent.analytics`, `agent.reply_latency.manage`, `llm.provider.write`, `llm.provider.test`, `llm.provider.select`, `memory.read.guild`, `memory.manage.guild` |
 | `plugin-manager` | `plugin.install` |
 | `llm-manager` | `llm.provider.write`, `llm.provider.test`, `llm.provider.select` |
 | `memory-reader` | `memory.read.guild` |
@@ -362,6 +362,7 @@ Revoked `job.admin` for user @person.
 | `plugin.install` | Install or configure guild external app integrations |
 | `job.admin` | Inspect, retry, or cancel durable jobs |
 | `agent.analytics` | View aggregate guild agent-runtime stats |
+| `agent.reply_latency.manage` | Enable or disable the guild reply latency footer |
 | `memory.read.guild` | Read permitted guild memory scope |
 | `memory.manage.guild` | Enable guild memory channels, configure retention, queue sync, and purge memory |
 | `relay.dispatch` | Ask Gigi to send a mediated message |
@@ -620,6 +621,8 @@ Failure cases:
 
 Privacy and audit: reads aggregate token and request counts only. Usage events do not store raw prompts, completions, provider responses, or secrets.
 
+This command remains the aggregate token/provider usage view. It is separate from the optional reply latency footer controlled by `/agent stats guild reply-latency:on|off`.
+
 ## Agent Commands
 
 ### Guild mention boundary
@@ -699,25 +702,29 @@ Status: live.
 
 Surface: slash command.
 
-Required Gigi capability: `agent.analytics`.
+Required Gigi capability: `agent.analytics` for aggregate stats. `reply-latency:on|off` requires `agent.reply_latency.manage`.
 
 Discord bot permissions: normal slash command access.
 
 Options:
 
 - `period`: optional fixed window, one of `24h`, `7d`, `30d`, or `all`; defaults to `7d`.
+- `reply-latency`: optional guild setting toggle, either `on` or `off`; enables or disables the reply latency footer for future guild replies.
 
 Syntax:
 
 ```text
 /agent stats guild
 /agent stats guild period:7d
+/agent stats guild reply-latency:on
+/agent stats guild reply-latency:off
 ```
 
 Example:
 
 ```text
 /agent stats guild period:7d
+/agent stats guild reply-latency:on
 ```
 
 Expected response:
@@ -731,16 +738,20 @@ top reasons: `planner_failed` `2`; `tool_failed` `1`
 top tools: `memory.search` `3` ok / `1` failed; `permissions.check` `2` ok / `0` failed
 ```
 
-Use this to inspect aggregate agent-runtime health for the current server. The response is ephemeral. If no period is provided, Gigi uses `7d`. If no runs match the selected period, Gigi returns a zero-run aggregate summary for that window.
+When `reply-latency` is provided, Gigi updates the guild setting and reports the new state. `reply-latency:on` enables a footer on future guild replies; `reply-latency:off` disables it.
+
+Use this to inspect aggregate agent-runtime health for the current server. The stats response is ephemeral. If no period is provided, Gigi uses `7d`. If no runs match the selected period, Gigi returns a zero-run aggregate summary for that window. The reply latency footer is not token usage, provider usage, or billing data; it is response elapsed wall time.
 
 Failure cases:
 
-- requester lacks `agent.analytics`
+- requester lacks `agent.analytics` for aggregate stats, or `agent.reply_latency.manage` for the reply latency setting
 - command is used outside a guild
 - stats permission is not configured
 - stats storage is unavailable
 
 Privacy and audit: reads aggregate guild counters only. It may show aggregate latency, status counts, termination reasons, and top tool names, but it does not show user IDs, per-user prompts, raw prompt text, memory snippets, provider responses, tool arguments, planned commands, secrets, or individual run details.
+
+Reply latency footer privacy: when enabled, the footer exposes only response elapsed time. It does not expose token counts, provider usage, raw prompts, snippets, tool arguments, provider responses, or per-user details.
 
 ### `/agent cancel`
 

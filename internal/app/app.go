@@ -94,6 +94,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		memoryStore := memory.NewSQLStore(db)
 		agentRunStore := agent.NewSQLRunStore(db)
 		agentStatsReader := agent.NewSQLAnalyticsReader(db)
+		replyLatencyStore := discord.NewSQLGuildReplyLatencyStore(db)
 		memoryIngestor := memory.NewLiveIngestor(memoryStore, 512)
 		conversationStore := assistant.NewSQLConversationStore(db, func() string { return storage.NewID("asstturn") })
 		evaluator := capability.NewEvaluator(grantStore)
@@ -138,10 +139,11 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		semanticPlanner := assistant.SemanticPluginPlanner{Runtime: llmRuntime}
 		authorizer := discord.NewCapabilityAuthorizer(evaluator, auditStore)
 		commands := discord.CoreCommands()
-		commands = append(commands, discord.AskCommand(agentRuntime))
+		commands = append(commands, discord.AskCommand(agentRuntime, discord.ReplyLatencyConfig{Store: replyLatencyStore}))
 		commands = append(commands, discord.AgentCommands(traceStore, agentRunStore, auditStore, discord.AgentCommandConfig{
-			StatsReader:     agentStatsReader,
-			StatsAuthorizer: authorizer,
+			StatsReader:       agentStatsReader,
+			StatsAuthorizer:   authorizer,
+			ReplyLatencyStore: replyLatencyStore,
 		})...)
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
@@ -173,6 +175,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			_ = db.Close()
 			return nil, err
 		}
+		messageRouter.SetReplyLatencyConfig(discord.ReplyLatencyConfig{Store: replyLatencyStore})
 		client, err := discord.NewGateway(discord.Options{
 			Token:         cfg.DiscordToken,
 			ClientID:      cfg.DiscordClientID,

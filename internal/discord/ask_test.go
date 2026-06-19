@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gOps132/GigiDC/internal/agent"
 )
@@ -47,6 +48,33 @@ func TestAskCommandRoutesToAgentRuntime(t *testing.T) {
 	}
 	if runtime.request.GuildID != "guild-id" || runtime.request.ActorUserID != "user-id" || !runtime.request.HasAdministrator {
 		t.Fatalf("request = %+v, want interaction context", runtime.request)
+	}
+}
+
+func TestAskCommandAppendsGuildReplyLatencyAfterRunHintWhenEnabled(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryGuildReplyLatencyStore()
+	if err := store.SetGuildReplyLatencyEnabled(ctx, "ask-latency-guild", true); err != nil {
+		t.Fatalf("SetGuildReplyLatencyEnabled returned error: %v", err)
+	}
+	clock := &fakeReplyLatencyClock{times: []time.Time{
+		time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 6, 19, 12, 0, 3, 200*int(time.Millisecond), time.UTC),
+	}}
+	runtime := &fakeAgentRuntime{response: agent.Response{Text: "answer", RunID: "run-1", RunStatus: agent.RunStatusRunning}}
+
+	response, err := askHandler(runtime, ReplyLatencyConfig{Store: store, Clock: clock.Now})(ctx, Interaction{
+		GuildID:   "ask-latency-guild",
+		ChannelID: "channel-id",
+		UserID:    "user-id",
+		Options:   []InteractionOption{{Name: "question", Value: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	want := "answer\n\nRun: `run-1`. Cancel with `/agent cancel run:run-1`. `3.2s`"
+	if response.Content != want {
+		t.Fatalf("response content = %q, want %q", response.Content, want)
 	}
 }
 
