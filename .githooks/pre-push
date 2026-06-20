@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# .githooks/pre-push
+#
+# Verifies that a fresh Grape context pack exists for the current session before
+# changes are pushed. This is the mechanism behind the Grape instruction in
+# AGENTS.md / .agents/context/repository-rules.md: instead of trusting the agent
+# to remember, the push is blocked until context has been fetched.
+#
+# Bypass (emergency only): `git push --no-verify` or GRAPE_CONTEXT_SKIP=1.
+#
+# Wired via: git config core.hooksPath .githooks
+# Install once per clone:
+#   scripts/grape-context install
+
+set -euo pipefail
+
+# Read stdin (list of refs being pushed) and drain it; we gate on existence, not ref.
+cat >/dev/null
+
+# Honor an explicit escape hatch for hotfixes / force-pushes.
+if [[ "${GRAPE_CONTEXT_SKIP:-0}" == "1" ]]; then
+  echo "pre-push: GRAPE_CONTEXT_SKIP=1, skipping grape context check." >&2
+  exit 0
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts"
+HELPER="$SCRIPT_DIR/grape-context"
+
+if [[ ! -x "$HELPER" ]]; then
+  echo "pre-push: helper missing at $HELPER — skipping check." >&2
+  exit 0
+fi
+
+if ! "$HELPER" verify; then
+  cat >&2 <<EOF
+
+pre-push: blocked.
+Grape context for this session is missing or stale. Re-fetch before pushing:
+
+    scripts/grape-context fetch "<short description of this task>"
+
+Emergency bypass (do not use for normal work):
+    GRAPE_CONTEXT_SKIP=1 git push ...   # or   git push --no-verify
+
+EOF
+  exit 1
+fi
+
+exit 0
