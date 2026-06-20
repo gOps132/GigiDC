@@ -71,6 +71,30 @@ func TestRunnerFallsThroughWhenPlannerNeedsNoTools(t *testing.T) {
 	}
 }
 
+func TestRunnerFallsThroughWhenAutoContextNoToolPlanIsPlainChat(t *testing.T) {
+	fetcher := &fakeContextFetcher{pack: contextbroker.Pack{Snippets: []contextbroker.Snippet{{ID: "m1", Text: "recent unrelated context"}}}}
+	planner := &fakePlanner{ok: true, plan: Plan{Intent: "chat"}}
+	answerer := &fakeAnswerer{}
+	runner := Runner{
+		Planner:        planner,
+		ContextFetcher: fetcher,
+		Policy:         RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Answerer: answerer,
+		},
+	}
+	request := agentTestRequest()
+	request.ContextScope = "channel-auto"
+
+	response, handled, err := runner.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if handled || response.Text != "" || !fetcher.called || !planner.called || !planner.sawContext || answerer.called {
+		t.Fatalf("response=%+v handled=%v fetcher.called=%v planner.called=%v planner.sawContext=%v answerer.called=%v, want chat fallback after auto context", response, handled, fetcher.called, planner.called, planner.sawContext, answerer.called)
+	}
+}
+
 func TestRunnerKeepsNoToolPlanWhenPriorRunExists(t *testing.T) {
 	answerer := &fakeAnswerer{}
 	runner := Runner{
