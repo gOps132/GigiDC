@@ -3,6 +3,9 @@ package provider
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 )
@@ -266,7 +269,7 @@ func TestServiceTestCredentialOpensSecretTestsAndUpdatesStatus(t *testing.T) {
 	if string(sealer.openAAD) != "owner_type=guild;guild_id=guild-id;user_id=;provider_id=openai;label=Main" {
 		t.Fatalf("open AAD = %q, want canonical label AAD", sealer.openAAD)
 	}
-	if tester.req.ProviderID != ProviderOpenAI || tester.req.APIKey != "sk-live-test-secret" {
+	if tester.req.ProviderID != ProviderOpenAI || tester.req.APIKey.Raw() != "sk-live-test-secret" {
 		t.Fatalf("tester req = %+v, want provider and plaintext secret", tester.req)
 	}
 	if store.updateTestStatus != TestStatusSucceeded || store.updateErrorCode != TestErrorNone || store.updateCredentialID != "credential-id" {
@@ -415,6 +418,42 @@ func TestServiceResolveActiveModelReportsUserBillingOwner(t *testing.T) {
 	}
 }
 
+func TestResolvedModelFormattingRedactsAPIKey(t *testing.T) {
+	rawKey := "sk-live-format-secret"
+	model := ResolvedModel{
+		Owner:      Scope{OwnerType: OwnerGuild, GuildID: "guild-id"},
+		Purpose:    PurposeChat,
+		ProviderID: ProviderOpenAI,
+		ModelID:    "gpt-4o-mini",
+		APIKey:     rawKey,
+	}
+
+	assertFormatsDoNotContainSecret(t, model, rawKey)
+}
+
+func TestResolvedModelJSONAndSlogRedactAPIKey(t *testing.T) {
+	rawKey := "sk-live-format-secret"
+	model := ResolvedModel{
+		Owner:      Scope{OwnerType: OwnerGuild, GuildID: "guild-id"},
+		Purpose:    PurposeChat,
+		ProviderID: ProviderOpenAI,
+		ModelID:    "gpt-4o-mini",
+		APIKey:     rawKey,
+	}
+
+	raw, err := json.Marshal(model)
+	if err != nil {
+		t.Fatalf("Marshal returned error: %v", err)
+	}
+	if strings.Contains(string(raw), rawKey) {
+		t.Fatalf("json leaked secret: %s", raw)
+	}
+	if value := model.LogValue().String(); strings.Contains(value, rawKey) || !strings.Contains(value, "secret redacted") {
+		t.Fatalf("slog value = %q, want redacted secret", value)
+	}
+	_ = slog.Any("model", model)
+}
+
 func validAddCredentialRequest() AddCredentialRequest {
 	return AddCredentialRequest{
 		Owner:      Scope{OwnerType: OwnerGuild, GuildID: "guild-id"},
@@ -555,4 +594,14 @@ type fakeCredentialTester struct {
 func (t *fakeCredentialTester) TestCredential(_ context.Context, req ProviderTestRequest) (TestCredentialResult, error) {
 	t.req = req
 	return t.result, nil
+}
+
+func assertFormatsDoNotContainSecret(t *testing.T, value any, rawSecret string) {
+	t.Helper()
+	for _, format := range []string{"%+v", "%#v"} {
+		rendered := fmt.Sprintf(format, value)
+		if strings.Contains(rendered, rawSecret) {
+			t.Fatalf("fmt.Sprintf(%q, value) leaked secret: %s", format, rendered)
+		}
+	}
 }

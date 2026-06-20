@@ -7,26 +7,28 @@ description: Current external Discord app manifest catalog model for the Go rebu
 
 In Gigi docs, plugin means an approved external Discord app, bot, or service integration that Gigi can understand through a manifest. It does not mean arbitrary code loaded into Gigi, and Gigi does not run third-party app code.
 
-Plugin catalog work has started. This slice validates, imports, stores, lists, enables, disables, dry-run matches, can propose policy-gated semantic plans through a configured routing model, and can dispatch public prefix commands for approved external app manifests that explicitly opt in with `dispatch: "send_message"`. It does not publish commands declared by manifests, scrape docs, or use unvalidated LLM-driven dispatch.
+Plugin catalog work has started. This slice validates, imports, stores, lists, enables, disables, dry-run matches, can propose policy-gated semantic plans through a configured routing model, and can dispatch public prefix actions for approved external app versions that explicitly opt in with action-level `dispatch: "send_message"` plus stored public-dispatch consent. It does not publish commands declared by manifests, scrape docs, or use unvalidated LLM-driven dispatch.
 
 ## Current Behavior
 
 - external app manifests can be decoded from `gigi-plugin.json`
 - manifests must declare exact Discord application ID or bot user ID
 - manifests can come from the known catalog, an explicitly provided HTTPS manifest URL, or a Discord attachment upload
+- URL imports reject unsafe literal hosts, DNS-resolved unsafe addresses, unsafe redirects, and non-JSON manifest responses
 - approved manifests can be stored in PostgreSQL
 - `/plugins list` shows approved manifests
 - `/plugins import-manifest` imports and approves a URL-sourced manifest
 - `/plugins import-file` imports and approves an uploaded JSON manifest
+- public `send_message` actions with empty `permissions` require explicit `allow-public-dispatch:true` at import time, and that approval is stored on the approved plugin version
 - `/plugins enable` enables an approved external app version for the current guild
 - `/plugins disable` disables an external app integration for the current guild
 - `/plugins enabled` shows enabled guild external app integrations
 - enabled guild external app installs can be loaded from PostgreSQL
-- guild mentions can match enabled `prefix` triggers on `guild_text`
-- dry-run checks manifest permissions before returning a planned command; empty `permissions` means public guild action after enablement
-- `dispatch: "send_message"` sends the planned prefix command as Gigi only when the matched action has empty `permissions`
-- manifests without `dispatch: "send_message"` remain dry-run only
-- restricted actions with non-empty `permissions` remain dry-run only even when the manifest asks for `send_message`
+- guild mentions can match enabled action `prefix` triggers on `guild_text`
+- dry-run checks action permissions before returning a planned command; empty `permissions` means public guild action after enablement
+- action-level `dispatch: "send_message"` sends the planned prefix command as Gigi only when the approved version has stored public-dispatch consent and the matched action has empty `permissions`
+- actions without `dispatch: "send_message"` remain dry-run only
+- restricted actions with non-empty `permissions` remain dry-run only even when the action asks for `send_message`
 - trigger `aliases` can match friendlier Gigi mention text while dispatch still uses the trigger `value`
 - semantic routing runs only after deterministic prefix matching fails and `/llm routing` allows it; it uses the configured `routing` model, validates the LLM proposal against enabled manifests, and either dry-runs or dispatches public actions by policy
 - `/plugins dry-run` can test enabled manifest matching without depending on Discord message-content events
@@ -42,14 +44,16 @@ Each manifest must include:
 - plugin id, name, version, source, and source kind
 - exact Discord application ID or bot user ID
 - capabilities
-- triggers; prefix triggers may include aliases
-- supported surfaces
-- optional Gigi capabilities; empty `permissions` means public guild action
-- optional dispatch mode: `dry_run` or `send_message`
+- actions with id, trigger, surfaces, safety class, optional permissions, optional argument schema, and optional dispatch adapter
+- legacy top-level triggers, surfaces, permissions, and dispatch are still accepted and normalized into actions
+- prefix triggers may include aliases
+- supported surfaces; action surfaces can inherit top-level surfaces
+- optional Gigi capabilities; empty action `permissions` means public guild action
+- optional action dispatch mode: `dry_run` or `send_message`
 - audit events
 - attribution resources
 
-Manifest URL imports must use HTTPS and cannot include user info, query strings, or fragments. Attachment imports must use a `.json` file and are stored as `uploaded_file` source without storing the Discord CDN URL. The current code validates supplied manifest JSON; it does not browse or scrape external app documentation.
+Manifest URL imports must use HTTPS and cannot include user info, query strings, fragments, localhost, loopback, private, link-local, or unspecified literal IP hosts. Redirect targets must pass the same URL policy, and production URL fetches reject unsafe resolved remote addresses. URL responses with a `Content-Type` header must be JSON-like. Attachment imports must use a `.json` file with a JSON-like content type when Discord provides one, reject unsafe redirects, and are stored as `uploaded_file` source without storing the Discord CDN URL. The current code validates supplied manifest JSON; it does not browse or scrape external app documentation.
 
 ```json
 {
@@ -66,16 +70,25 @@ Manifest URL imports must use HTTPS and cannot include user info, query strings,
       "description": "Run the external app's declared action."
     }
   ],
-  "triggers": [
+  "actions": [
     {
-      "kind": "prefix",
-      "value": "m!example",
-      "aliases": ["example"]
+      "id": "example",
+      "name": "Example",
+      "trigger": {
+        "kind": "prefix",
+        "value": "m!example",
+        "aliases": ["example"]
+      },
+      "surfaces": ["guild_text"],
+      "permissions": [],
+      "safety": "public",
+      "dispatch": "send_message",
+      "adapter": "prefix_command",
+      "arg_schema": "{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"}}}"
     }
   ],
   "surfaces": ["guild_text"],
   "permissions": [],
-  "dispatch": "send_message",
   "audit_events": ["plugin.example.run"],
   "attribution": [
     {
@@ -98,4 +111,4 @@ Manifest URL imports must use HTTPS and cannot include user info, query strings,
 - confirmed per-message dispatch approval
 - docs scraping or browser-based discovery
 
-Current send-message dispatch is intentionally small: public prefix actions only, explicitly enabled by manifest. External apps may ignore bot-authored messages, so Gigi can send `!example ...`, but the external app decides whether to act.
+Current send-message dispatch is intentionally small: public prefix actions only, explicitly enabled by manifest and explicitly allowed during import on the approved version. External apps may ignore bot-authored messages, so Gigi can send `!example ...`, but the external app decides whether to act.

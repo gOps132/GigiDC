@@ -7,9 +7,11 @@ description: Discord status for the Go foundation rebuild.
 
 Discord usage is active in a narrow foundation slice.
 
-The current codebase has a disabled-by-default Discord gateway adapter, a `/ping` slash-command handler, opt-in command sync, DM routing, guild-mention routing, admin-gated `/permissions` capability grants, `/llm` guild provider/model/routing controls, `/plugins` catalog controls, deterministic external app dry-run matching, policy-gated semantic routing, guild mention chat fallback through a configured chat model, guild memory count/search scaffolding, and limited public external app dispatch. Rich DM chat, reasoning chat, task actions, relay actions, and restricted external app dispatch are not live yet.
+The current codebase has a disabled-by-default Discord gateway adapter, a `/ping` slash-command handler, opt-in command sync, DM routing, guild-mention routing, admin-gated `/permissions` capability grants, `/llm` guild provider/model/routing controls, `/plugins` catalog controls, deterministic external app dry-run matching, policy-gated semantic routing, guild mention chat fallback through a configured chat model, guild memory count/search scaffolding, cited context-pack metadata for agent routing, durable agent run records, aggregate agent stats, an opt-in reply latency footer setting, gateway memory-delete tombstones, and limited consented public external app dispatch. Rich DM chat, reasoning chat, task actions, relay actions, and restricted external app dispatch are not live yet.
 
 For exact command syntax, required capabilities, responses, and failure cases, use [Bot Commands](/bot-commands) as the canonical command guide.
+
+Guild mentions are the conversational surface. After narrow documented transition gates, Gigi should route `@Gigi` text through LLM planning, registered tools, policy checks, and answer composition. They should not become a broad heuristic command parser. Use exact slash commands when behavior needs deterministic syntax or explicit admin semantics.
 
 ## Current Discord Behavior
 
@@ -18,9 +20,11 @@ For exact command syntax, required capabilities, responses, and failure cases, u
 - `/permissions user grant|revoke` manages direct user capability exceptions.
 - DM `ping` replies `pong`.
 - Guild message `<@Gigi> ping` replies `pong`.
-- Guild mention text first checks enabled external app manifest prefix triggers. Dry-run manifests return the planned command. Public manifests with `dispatch: "send_message"` send the planned command as Gigi.
+- Guild mention text first checks enabled external app manifest prefix triggers. Dry-run manifests return the planned command. Public manifests with `dispatch: "send_message"` send the planned command as Gigi only when the approved version has stored public-dispatch consent.
+- Exact current-channel memory count questions can use the documented memory-count pre-handler; flexible memory questions should route through the planner when tool routing is enabled.
 - If deterministic matching fails and `/llm routing` is `dry-run` or `enabled`, a configured routing model can propose validated native memory or manifest-grounded plans.
 - If plugin routing fails, a configured chat model can answer the guild mention.
+- `/agent stats guild reply-latency:on` enables the optional reply latency footer for future guild replies; `/agent stats guild reply-latency:off` disables it. The setting requires `agent.reply_latency.manage`. The footer shows only response elapsed wall time, not token counts, provider usage, raw prompts, snippets, or per-user details. `/llm usage guild` remains the aggregate token/provider usage command.
 - Other DM text replies that rich chat needs a server LLM profile first; rich DM chat is not live.
 - Ordinary guild messages without a Gigi mention are ignored.
 - Bot-authored messages are ignored.
@@ -51,7 +55,7 @@ Use direct user grants only when one person needs an exception without a Discord
 
 ## Plugin Status
 
-Approved external app manifest validation, storage, import, enable, disable, dry-run matching, semantic dry-run routing, and limited public `send_message` dispatch are started through `/plugins` plus guild mention routing. Discovery is exact-match only by Discord application ID or bot user ID, or by an explicitly approved HTTPS manifest URL or uploaded JSON manifest. Gigi does not scrape external app docs, guess behavior from names, or dispatch restricted external app commands yet. External apps may ignore bot-authored messages.
+Approved external app manifest validation, safe import, stored public-dispatch consent, enable, disable, dry-run matching, semantic dry-run routing, and limited public `send_message` dispatch are started through `/plugins` plus guild mention routing. Discovery is exact-match only by Discord application ID or bot user ID, or by an explicitly approved HTTPS manifest URL or uploaded JSON manifest. Gigi does not scrape external app docs, guess behavior from names, or dispatch restricted external app commands yet. External apps may ignore bot-authored messages.
 
 ## LLM Provider Setup
 

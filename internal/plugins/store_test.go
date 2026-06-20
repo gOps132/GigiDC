@@ -31,6 +31,32 @@ func TestSQLCatalogStoreUpsertsApprovedManifestInTransaction(t *testing.T) {
 	}
 }
 
+func TestSQLCatalogStorePersistsPublicDispatchApprovalOutsideManifestJSON(t *testing.T) {
+	manifest := validManifest()
+	manifest.Permissions = nil
+	manifest.Dispatch = DispatchModeSendMessage
+	manifest.PublicDispatchAllowed = true
+	db := &fakeCatalogDB{tx: &fakeCatalogTx{}}
+	store := NewSQLCatalogStore(db, func() string { return "plugin-version-id" })
+
+	if err := store.UpsertApprovedManifest(context.Background(), manifest, "actor-id"); err != nil {
+		t.Fatalf("UpsertApprovedManifest returned error: %v", err)
+	}
+	if !strings.Contains(db.tx.queries[1], "public_dispatch_allowed") {
+		t.Fatalf("version upsert query = %q, want public dispatch approval column", db.tx.queries[1])
+	}
+	if len(db.tx.args[1]) < 8 || db.tx.args[1][6] != true {
+		t.Fatalf("version upsert args = %+v, want public dispatch approval arg", db.tx.args[1])
+	}
+	rawManifest, ok := db.tx.args[1][3].(string)
+	if !ok {
+		t.Fatalf("manifest arg = %T, want string", db.tx.args[1][3])
+	}
+	if strings.Contains(rawManifest, "public_dispatch_allowed") {
+		t.Fatalf("manifest JSON leaked internal approval flag: %s", rawManifest)
+	}
+}
+
 func TestSQLCatalogStoreRollsBackWhenVersionInsertFails(t *testing.T) {
 	db := &fakeCatalogDB{tx: &fakeCatalogTx{failOnCall: 2, err: errors.New("db down")}}
 	store := NewSQLCatalogStore(db, func() string { return "plugin-version-id" })
@@ -50,17 +76,17 @@ func TestSQLCatalogStoreLoadsEnabledApprovedManifests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Marshal returned error: %v", err)
 	}
-	db := &fakeCatalogDB{rows: &fakeCatalogRows{values: [][]byte{manifestJSON}}}
+	db := &fakeCatalogDB{rows: &fakeCatalogRows{values: [][]byte{manifestJSON}, publicDispatchAllowed: []bool{true}}}
 	store := NewSQLCatalogStore(db, nil)
 
 	got, err := store.EnabledForGuild(context.Background(), "guild-id")
 	if err != nil {
 		t.Fatalf("EnabledForGuild returned error: %v", err)
 	}
-	if len(got) != 1 || got[0].ID != "example-tool" {
-		t.Fatalf("manifests = %+v, want example-tool manifest", got)
+	if len(got) != 1 || got[0].ID != "example-tool" || !got[0].PublicDispatchAllowed {
+		t.Fatalf("manifests = %+v, want example-tool manifest with dispatch approval", got)
 	}
-	if !strings.Contains(db.query, "guild_plugin_installs") || !strings.Contains(db.query, "approved = true") {
+	if !strings.Contains(db.query, "guild_plugin_installs") || !strings.Contains(db.query, "approved = true") || !strings.Contains(db.query, "public_dispatch_allowed") {
 		t.Fatalf("query = %q, want enabled approved install lookup", db.query)
 	}
 }
@@ -71,17 +97,17 @@ func TestSQLCatalogStoreListsApprovedManifests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Marshal returned error: %v", err)
 	}
-	db := &fakeCatalogDB{rows: &fakeCatalogRows{values: [][]byte{manifestJSON}}}
+	db := &fakeCatalogDB{rows: &fakeCatalogRows{values: [][]byte{manifestJSON}, publicDispatchAllowed: []bool{true}}}
 	store := NewSQLCatalogStore(db, nil)
 
 	got, err := store.ApprovedManifests(context.Background())
 	if err != nil {
 		t.Fatalf("ApprovedManifests returned error: %v", err)
 	}
-	if len(got) != 1 || got[0].ID != "example-tool" {
-		t.Fatalf("manifests = %+v, want example-tool manifest", got)
+	if len(got) != 1 || got[0].ID != "example-tool" || !got[0].PublicDispatchAllowed {
+		t.Fatalf("manifests = %+v, want example-tool manifest with dispatch approval", got)
 	}
-	if !strings.Contains(db.query, "pv.approved = true") {
+	if !strings.Contains(db.query, "pv.approved = true") || !strings.Contains(db.query, "public_dispatch_allowed") {
 		t.Fatalf("query = %q, want approved manifest lookup", db.query)
 	}
 }
@@ -199,8 +225,9 @@ func (tx *fakeCatalogTx) Rollback() error {
 }
 
 type fakeCatalogRows struct {
-	values [][]byte
-	index  int
+	values                [][]byte
+	publicDispatchAllowed []bool
+	index                 int
 }
 
 func (r *fakeCatalogRows) Next() bool {
@@ -213,6 +240,15 @@ func (r *fakeCatalogRows) Scan(dest ...any) error {
 		return errors.New("expected bytes scan target")
 	}
 	*target = r.values[r.index]
+	if len(dest) > 1 {
+		publicDispatchAllowed, ok := dest[1].(*bool)
+		if !ok {
+			return errors.New("expected bool scan target")
+		}
+		if r.index < len(r.publicDispatchAllowed) {
+			*publicDispatchAllowed = r.publicDispatchAllowed[r.index]
+		}
+	}
 	r.index++
 	return nil
 }

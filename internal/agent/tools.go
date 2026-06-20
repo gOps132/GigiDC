@@ -14,6 +14,8 @@ const (
 	ToolKindWrite ToolKind = "write"
 )
 
+const IntentSummarizeRecentChat = "summarize_recent_chat"
+
 type ToolSpec struct {
 	Name        string
 	Description string

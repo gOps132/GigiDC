@@ -20,7 +20,7 @@ func TestHTTPTesterCallsOpenAIModelsEndpoint(t *testing.T) {
 	defer server.Close()
 
 	tester := HTTPTester{Client: server.Client(), BaseURLs: map[ProviderID]string{ProviderOpenAI: server.URL}}
-	got, err := tester.TestCredential(context.Background(), ProviderTestRequest{ProviderID: ProviderOpenAI, APIKey: "sk-test"})
+	got, err := tester.TestCredential(context.Background(), ProviderTestRequest{ProviderID: ProviderOpenAI, APIKey: NewSecretValue("sk-test")})
 	if err != nil {
 		t.Fatalf("TestCredential returned error: %v", err)
 	}
@@ -30,6 +30,13 @@ func TestHTTPTesterCallsOpenAIModelsEndpoint(t *testing.T) {
 	if gotAuth != "Bearer sk-test" {
 		t.Fatalf("Authorization = %q, want bearer key", gotAuth)
 	}
+}
+
+func TestProviderTestRequestFormattingRedactsAPIKey(t *testing.T) {
+	rawKey := "sk-live-format-secret"
+	req := ProviderTestRequest{ProviderID: ProviderOpenAI, APIKey: NewSecretValue(rawKey)}
+
+	assertFormatsDoNotContainSecret(t, req, rawKey)
 }
 
 func TestHTTPTesterCallsAnthropicModelsEndpoint(t *testing.T) {
@@ -45,7 +52,7 @@ func TestHTTPTesterCallsAnthropicModelsEndpoint(t *testing.T) {
 	defer server.Close()
 
 	tester := HTTPTester{Client: server.Client(), BaseURLs: map[ProviderID]string{ProviderAnthropic: server.URL}}
-	got, err := tester.TestCredential(context.Background(), ProviderTestRequest{ProviderID: ProviderAnthropic, APIKey: "sk-test"})
+	got, err := tester.TestCredential(context.Background(), ProviderTestRequest{ProviderID: ProviderAnthropic, APIKey: NewSecretValue("sk-test")})
 	if err != nil {
 		t.Fatalf("TestCredential returned error: %v", err)
 	}
@@ -66,7 +73,7 @@ func TestHTTPTesterCallsGeminiModelsEndpoint(t *testing.T) {
 	defer server.Close()
 
 	tester := HTTPTester{Client: server.Client(), BaseURLs: map[ProviderID]string{ProviderGemini: server.URL}}
-	got, err := tester.TestCredential(context.Background(), ProviderTestRequest{ProviderID: ProviderGemini, APIKey: "gemini-key"})
+	got, err := tester.TestCredential(context.Background(), ProviderTestRequest{ProviderID: ProviderGemini, APIKey: NewSecretValue("gemini-key")})
 	if err != nil {
 		t.Fatalf("TestCredential returned error: %v", err)
 	}
@@ -95,7 +102,7 @@ func TestHTTPTesterMapsStatusesToSanitizedErrorCodes(t *testing.T) {
 			defer server.Close()
 			tester := HTTPTester{Client: server.Client(), BaseURLs: map[ProviderID]string{ProviderOpenAI: server.URL}}
 
-			got, err := tester.TestCredential(context.Background(), ProviderTestRequest{ProviderID: ProviderOpenAI, APIKey: "sk-test"})
+			got, err := tester.TestCredential(context.Background(), ProviderTestRequest{ProviderID: ProviderOpenAI, APIKey: NewSecretValue("sk-test")})
 			if err != nil {
 				t.Fatalf("TestCredential returned error: %v", err)
 			}

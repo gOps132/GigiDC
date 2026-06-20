@@ -7,7 +7,7 @@ description: Current user-facing status for Gigi.
 
 Gigi is in a foundation rebuild.
 
-The current runtime can log in to Discord when enabled, sync `/ping`, answer DM or guild-mention `ping` messages, let authorized admins manage role/user capability grants through `/permissions`, manage guild-scoped LLM credentials, model profiles, and routing policy through `/llm`, route `/ask` through the agent runtime, dry-run match enabled external app prefix triggers, route flexible guild mentions through a configured routing model when guild policy allows it, answer unmatched guild mentions through a configured chat model, dispatch public `send_message` prefix triggers declared by approved manifests, and use current-channel guild memory count/search for enabled channels. Rich DM chat, reasoning chat, restricted external app dispatch, tasks, and relay actions are not live yet.
+The current runtime can log in to Discord when enabled, sync `/ping`, answer DM or guild-mention `ping` messages, let authorized admins manage role/user capability grants through `/permissions`, manage guild-scoped LLM credentials, model profiles, and routing policy through `/llm`, route `/ask` through the agent runtime with `context:none` or dynamic current-channel context fetching through `context:channel`, opportunistically fetch current-channel context for guild mentions when memory permission allows it, manage durable runs through `/agent`, show aggregate guild agent stats through `/agent stats guild`, enable or disable the optional reply latency footer through `/agent stats guild reply-latency:on|off`, dry-run match enabled external app prefix triggers, route flexible guild mentions through a configured routing model when guild policy allows it, answer unmatched guild mentions through a configured chat model, dispatch consented public `send_message` prefix triggers declared by approved manifests, build cited context-pack metadata for permitted current-channel memory, persist durable agent run/step/confirmation records, and use current-channel guild memory count/search for enabled channels. Rich DM chat, reasoning chat, restricted external app dispatch, tasks, and relay actions are not live yet.
 
 ## Current Live Checks
 
@@ -16,13 +16,31 @@ The current runtime can log in to Discord when enabled, sync `/ping`, answer DM 
 - `/ping`: replies `pong` in Discord when command sync is enabled.
 - `/permissions`: creates/assigns Discord roles and grants or revokes role/user capabilities for authorized admins.
 - `/llm`: lists, adds, tests, rotates, deletes, and selects guild-scoped provider credentials and model profiles when `GIGI_LLM_SECRET_KEY_BASE64` is configured for credential entry.
-- `/ask`: sends a question through the agent runtime with explicit `context:none` or `context:channel` and `visibility:public` or `visibility:private`.
-- Guild mention external app matching: replies with a dry-run plan, or sends the planned command when an enabled public manifest declares `dispatch: "send_message"`.
+- `/ask`: sends a question through the agent runtime. `context:none` avoids memory fetches; `context:channel` can fetch permitted retained messages from the current channel and answer from bounded context/tool results.
+- `/agent trace last`: shows your last agent planner/tool/answer path in the current channel using safe metadata only.
+- `/agent stats guild`: shows aggregate server-level agent run, latency, step, tool-call, LLM-call, status, termination, and top-tool summaries for `24h`, `7d`, `30d`, or `all` when the requester has `agent.analytics`; it does not show raw prompts, snippets, provider payloads, tool arguments, user IDs, or per-user details.
+- `/agent stats guild reply-latency:on|off`: enables or disables the optional reply latency footer for future guild replies when the requester has `agent.reply_latency.manage`. The footer shows only response elapsed wall time. It does not show token counts, provider usage, raw prompts, snippets, or per-user details. Use `/llm usage guild` for aggregate token/provider usage.
+- `/agent cancel`, `/agent pending`, `/agent confirm`, `/agent reject`: manage durable runs and pending confirmation records for the run owner or a Discord administrator.
+- Guild mention external app matching: replies with a dry-run plan, or sends the planned command when an enabled public manifest declares `dispatch: "send_message"` and has stored public-dispatch consent.
 - Guild mention semantic routing: after deterministic matching fails, a configured routing model can propose validated native memory or manifest-grounded plans when `/llm routing` is `dry-run` or `enabled`.
+- Guild mention context: Gigi attempts current-channel context when available, but missing memory permission should not block normal non-memory chat.
 - Guild mention chat fallback: after plugin routing fails, a configured chat model can answer the mention.
 - DM `ping`: replies `pong`.
 - Other DM text: replies that rich chat needs a server LLM profile first; rich DM chat is not live.
 - Guild mention `@Gigi ping`: replies `pong`.
+
+## Agent Smoke Test
+
+Use this flow after configuring a guild provider, `chat` model, `routing` model, memory permission, and `/llm routing set mode:enabled`:
+
+```text
+@Gigi summarize the chat for me so far
+@Gigi who said it?
+/agent trace last
+/agent stats guild
+```
+
+The trace should show whether Gigi planned tools such as `memory.recent`, executed them, and used the answerer. Guild stats should show aggregate run health only if you have `agent.analytics`. Use `/agent stats guild reply-latency:on` to opt in to the elapsed-time footer, and `/agent stats guild reply-latency:off` to disable it. Switch `/llm routing set mode:dry-run` to check planning without executing tools.
 
 ## Planned Discord Behavior
 

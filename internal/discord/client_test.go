@@ -174,8 +174,8 @@ func TestNewGatewayRegistersMessageRouter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newGatewayWithFactory returned error: %v", err)
 	}
-	if len(session.handlers) != 1 {
-		t.Fatalf("handlers = %d, want 1", len(session.handlers))
+	if len(session.handlers) != 3 {
+		t.Fatalf("handlers = %d, want message create/delete/bulk delete handlers", len(session.handlers))
 	}
 }
 

@@ -123,19 +123,21 @@ insert into plugin_versions (
   plugin_id,
   version,
   manifest,
-  manifest_sha256,
-  source_url,
-  approved,
-  approved_by_user_id
-)
-values ($1, $2, $3, $4, $5, $6, true, $7)
-on conflict (plugin_id, version) do update set
-  manifest = excluded.manifest,
-  manifest_sha256 = excluded.manifest_sha256,
-  source_url = excluded.source_url,
-  approved = true,
-  approved_by_user_id = excluded.approved_by_user_id
-`, versionID, strings.TrimSpace(manifest.ID), strings.TrimSpace(manifest.Version), string(manifestJSON), hex.EncodeToString(manifestHash[:]), strings.TrimSpace(manifest.ManifestURL), strings.TrimSpace(actorID)); err != nil {
+	  manifest_sha256,
+	  source_url,
+	  approved,
+	  public_dispatch_allowed,
+	  approved_by_user_id
+	)
+	values ($1, $2, $3, $4, $5, $6, true, $7, $8)
+	on conflict (plugin_id, version) do update set
+	  manifest = excluded.manifest,
+	  manifest_sha256 = excluded.manifest_sha256,
+	  source_url = excluded.source_url,
+	  approved = true,
+	  public_dispatch_allowed = excluded.public_dispatch_allowed,
+	  approved_by_user_id = excluded.approved_by_user_id
+	`, versionID, strings.TrimSpace(manifest.ID), strings.TrimSpace(manifest.Version), string(manifestJSON), hex.EncodeToString(manifestHash[:]), strings.TrimSpace(manifest.ManifestURL), manifestPublicDispatchAllowed(manifest), strings.TrimSpace(actorID)); err != nil {
 		return fmt.Errorf("upsert plugin version: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -150,9 +152,9 @@ func (s SQLCatalogStore) ApprovedManifests(ctx context.Context) ([]Manifest, err
 		return nil, fmt.Errorf("plugin catalog query database is required")
 	}
 	rows, err := s.query(ctx, `
-select pv.manifest
-from plugin_versions pv
-join plugins p on p.id = pv.plugin_id
+	select pv.manifest, coalesce(pv.public_dispatch_allowed, false)
+	from plugin_versions pv
+	join plugins p on p.id = pv.plugin_id
 where pv.approved = true
 order by p.name, pv.version
 `)
@@ -289,8 +291,8 @@ func (s SQLCatalogStore) EnabledForGuild(ctx context.Context, guildID string) ([
 		return nil, fmt.Errorf("plugin catalog query database is required")
 	}
 	rows, err := s.query(ctx, `
-select pv.manifest
-from guild_plugin_installs gpi
+	select pv.manifest, coalesce(pv.public_dispatch_allowed, false)
+	from guild_plugin_installs gpi
 join plugin_versions pv on pv.id = gpi.plugin_version_id
 join plugins p on p.id = pv.plugin_id
 where gpi.guild_id = $1
@@ -310,7 +312,8 @@ func scanManifests(rows catalogRows) ([]Manifest, error) {
 	var manifests []Manifest
 	for rows.Next() {
 		var raw []byte
-		if err := rows.Scan(&raw); err != nil {
+		var publicDispatchAllowed bool
+		if err := rows.Scan(&raw, &publicDispatchAllowed); err != nil {
 			return nil, fmt.Errorf("scan plugin manifest: %w", err)
 		}
 		var manifest Manifest
@@ -320,12 +323,17 @@ func scanManifests(rows catalogRows) ([]Manifest, error) {
 		if err := manifest.Validate(); err != nil {
 			return nil, fmt.Errorf("stored plugin manifest is invalid: %w", err)
 		}
+		manifest.PublicDispatchAllowed = publicDispatchAllowed
 		manifests = append(manifests, manifest)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return manifests, nil
+}
+
+func manifestPublicDispatchAllowed(manifest Manifest) bool {
+	return manifest.PublicDispatchAllowed && manifest.HasPublicSendMessageAction()
 }
 
 func requireRowsAffected(result sql.Result, emptyMessage string) error {

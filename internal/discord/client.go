@@ -87,6 +87,16 @@ func newGatewayWithFactory(opts Options, factory sessionFactory) (*Gateway, erro
 				opts.Logger.Error("discord message failed", "error", err)
 			}
 		})
+		session.AddHandler(func(session *discordgo.Session, event *discordgo.MessageDelete) {
+			if err := opts.MessageRouter.HandleMessageDelete(context.Background(), event); err != nil {
+				opts.Logger.Error("discord message delete failed", "error", err)
+			}
+		})
+		session.AddHandler(func(session *discordgo.Session, event *discordgo.MessageDeleteBulk) {
+			if err := opts.MessageRouter.HandleMessageDeleteBulk(context.Background(), event); err != nil {
+				opts.Logger.Error("discord message bulk delete failed", "error", err)
+			}
+		})
 	}
 
 	return &Gateway{

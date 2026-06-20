@@ -8,7 +8,7 @@ import (
 	"github.com/gOps132/GigiDC/internal/agent"
 )
 
-func AskCommand(runtime AgentRuntime) Command {
+func AskCommand(runtime AgentRuntime, configs ...ReplyLatencyConfig) Command {
 	return Command{
 		Name:        "ask",
 		Description: "Ask Gigi through the agent runtime.",
@@ -23,11 +23,12 @@ func AskCommand(runtime AgentRuntime) Command {
 				{Name: "private", Value: "private"},
 			}),
 		},
-		Handle: askHandler(runtime),
+		Handle: askHandler(runtime, configs...),
 	}
 }
 
-func askHandler(runtime AgentRuntime) CommandHandler {
+func askHandler(runtime AgentRuntime, configs ...ReplyLatencyConfig) CommandHandler {
+	replyLatency := resolveReplyLatencyConfig(configs...)
 	return func(ctx context.Context, interaction Interaction) (CommandResponse, error) {
 		if runtime == nil {
 			return CommandResponse{Content: "Ask is not configured yet.", Ephemeral: true}, nil
@@ -37,7 +38,8 @@ func askHandler(runtime AgentRuntime) CommandHandler {
 			return CommandResponse{Content: "Question is required.", Ephemeral: true}, nil
 		}
 		contextScope := normalizeAskContext(optionByName(interaction.Options, "context"))
-		visibility := normalizeAskVisibility(optionByName(interaction.Options, "visibility"))
+		visibility := normalizeAskVisibility(optionByName(interaction.Options, "visibility"), contextScope)
+		startedAt := replyLatency.now()
 		response, err := runtime.Run(ctx, agent.Request{
 			Surface:          agent.SurfaceGuildMention,
 			GuildID:          interaction.GuildID,
@@ -49,14 +51,24 @@ func askHandler(runtime AgentRuntime) CommandHandler {
 			Text:             question,
 			RawText:          question,
 		})
+		elapsed := replyLatency.now().Sub(startedAt)
 		if err != nil {
-			return CommandResponse{Content: "Ask failed.", Ephemeral: visibility == "private"}, nil
+			content := "Ask failed."
+			if replyLatency.enabled(ctx, interaction.GuildID) {
+				content = appendReplyLatencySuffix(content, elapsed)
+			}
+			return CommandResponse{Content: content, Ephemeral: visibility == "private"}, nil
 		}
 		content := strings.TrimSpace(response.Text)
 		if content == "" {
 			content = "I could not answer that."
 		}
-		return CommandResponse{Content: content, Ephemeral: visibility == "private"}, nil
+		content = appendAgentRunHint(content, response)
+		if replyLatency.enabled(ctx, interaction.GuildID) {
+			content = appendReplyLatencySuffix(content, elapsed)
+		}
+		ephemeral := visibility == "private" || response.Visibility == agent.VisibilityPrivate
+		return CommandResponse{Content: content, Ephemeral: ephemeral}, nil
 	}
 }
 
@@ -71,9 +83,14 @@ func normalizeAskContext(value string) string {
 	}
 }
 
-func normalizeAskVisibility(value string) string {
+func normalizeAskVisibility(value string, contextScope string) string {
 	switch strings.TrimSpace(value) {
-	case "", "public":
+	case "":
+		if contextScope == "channel" {
+			return "private"
+		}
+		return "public"
+	case "public":
 		return "public"
 	case "private":
 		return "private"

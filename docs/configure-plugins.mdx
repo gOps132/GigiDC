@@ -37,6 +37,15 @@ Or import an uploaded JSON file:
 
 Manifests must declare an exact Discord application ID or bot user ID. Gigi does not scrape external app docs or guess behavior from bot names.
 
+If any action declares `dispatch: "send_message"` with `safety: "public"` and empty `permissions`, importing the manifest requires explicit public-dispatch consent:
+
+```text
+/plugins import-manifest url:https://example.com/gigi-plugin.json allow-public-dispatch:true
+/plugins import-file attachment:<json-file> allow-public-dispatch:true
+```
+
+URL imports must stay on safe HTTPS manifest URLs and redirects. Gigi rejects localhost, private, link-local, unspecified literal IP hosts, DNS-resolved unsafe addresses, non-HTTPS redirects, and non-JSON manifest responses. Attachment imports also reject unsafe redirects.
+
 ## Enable and test
 
 Enable the approved manifest for the server:
@@ -59,7 +68,7 @@ Dry-run a trigger:
 
 ## Use a guild mention
 
-Mention Gigi with text that matches a declared trigger or alias:
+Mention Gigi with text that matches a declared action trigger or alias:
 
 ```text
 @Gigi play never gonna give you up
@@ -67,7 +76,7 @@ Mention Gigi with text that matches a declared trigger or alias:
 
 Gigi checks deterministic prefix triggers first. If no prefix trigger matches and a routing model is configured, semantic routing can propose a validated dry-run plan against enabled manifests.
 
-If a matched manifest declares `dispatch: "send_message"` and has empty `permissions`, Gigi can send the planned prefix command as Gigi. Restricted actions stay dry-run only.
+If the matched action declares `dispatch: "send_message"`, has `safety: "public"`, has empty `permissions`, and the approved version has stored import-time `allow-public-dispatch:true` approval, Gigi can send the planned prefix command as Gigi. Restricted actions stay dry-run only.
 
 ## Current limits
 

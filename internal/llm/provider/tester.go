@@ -30,7 +30,7 @@ type TestCredentialRequest struct {
 
 type ProviderTestRequest struct {
 	ProviderID ProviderID
-	APIKey     string
+	APIKey     SecretValue
 }
 
 type TestCredentialResult struct {
@@ -56,7 +56,7 @@ func NewHTTPTester(client *http.Client) HTTPTester {
 
 func (t HTTPTester) TestCredential(ctx context.Context, req ProviderTestRequest) (TestCredentialResult, error) {
 	providerID := ProviderID(strings.TrimSpace(string(req.ProviderID)))
-	apiKey := strings.TrimSpace(req.APIKey)
+	apiKey := strings.TrimSpace(req.APIKey.Raw())
 	result := TestCredentialResult{ProviderID: providerID, Status: TestStatusFailed}
 	if apiKey == "" {
 		result.ErrorCode = TestErrorAuthFailed

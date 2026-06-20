@@ -56,6 +56,44 @@ func TestManifestValidateAcceptsSendMessageDispatch(t *testing.T) {
 	}
 }
 
+func TestManifestValidateAcceptsActionContracts(t *testing.T) {
+	manifest := validManifest()
+	manifest.Triggers = nil
+	manifest.Permissions = nil
+	manifest.Actions = []Action{{
+		ID:          "play",
+		Name:        "Play",
+		Description: "Play a track.",
+		Trigger:     Trigger{Kind: "prefix", Value: "!play", Aliases: []string{"play"}},
+		Surfaces:    []string{"guild_text"},
+		Permissions: []string{"plugin.install"},
+		Safety:      SafetyClassRestricted,
+		Dispatch:    DispatchModeSendMessage,
+		Adapter:     DispatchAdapterPrefixCommand,
+		ArgSchema:   `{"type":"object","properties":{"query":{"type":"string"}}}`,
+	}}
+	manifest.ConfigSchema = `{"type":"object","properties":{"dj_role":{"type":"string"}}}`
+
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("Validate returned error: %v", err)
+	}
+}
+
+func TestManifestValidateRejectsInvalidActionArgSchema(t *testing.T) {
+	manifest := validManifest()
+	manifest.Actions = []Action{{
+		ID:        "play",
+		Trigger:   Trigger{Kind: "prefix", Value: "!play"},
+		Safety:    SafetyClassPublic,
+		ArgSchema: `["not","object"]`,
+	}}
+
+	err := manifest.Validate()
+	if err == nil || !strings.Contains(err.Error(), "arg schema") {
+		t.Fatalf("error = %v, want arg schema validation", err)
+	}
+}
+
 func TestManifestValidateRejectsUnsupportedDispatchMode(t *testing.T) {
 	manifest := validManifest()
 	manifest.Dispatch = "launch_missiles"
@@ -73,6 +111,16 @@ func TestManifestValidateRejectsEmptyTriggerAlias(t *testing.T) {
 	err := manifest.Validate()
 	if err == nil || !strings.Contains(err.Error(), "trigger alias") {
 		t.Fatalf("error = %v, want trigger alias validation", err)
+	}
+}
+
+func TestManifestValidateRejectsInvalidConfigSchema(t *testing.T) {
+	manifest := validManifest()
+	manifest.ConfigSchema = "[]"
+
+	err := manifest.Validate()
+	if err == nil || !strings.Contains(err.Error(), "config schema") {
+		t.Fatalf("error = %v, want config schema validation", err)
 	}
 }
 
