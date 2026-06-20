@@ -128,6 +128,10 @@ func (r Runner) Run(ctx context.Context, request Request) (Response, bool, error
 		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "confirmation_required", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return r.completeRun(ctx, runID, runStarted, RunStatusConfirmationRequired, TerminationConfirmationRequired, Response{Text: "I can plan that, but confirmation is required before running it."}, true, nil)
 	}
+	if len(plan.ToolCalls) == 0 && request.PriorRun == nil && request.ContextPack == nil {
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "no_tools", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent), "planner": "agent"}))
+		return r.completeRun(ctx, runID, runStarted, RunStatusSucceeded, TerminationIgnored, Response{}, false, nil)
+	}
 	if mode == llmprovider.ToolRoutingDryRun {
 		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "dry_run", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return r.completeRun(ctx, runID, runStarted, RunStatusDryRun, TerminationDryRun, Response{Text: formatDryRunPlan(plan)}, true, nil)

@@ -645,6 +645,8 @@ Syntax:
 
 `context:none` routes through agent chat without memory fetches. `context:channel` lets the agent load permitted retained messages from this channel into a bounded context pack and allows the planner to choose current-channel memory tools such as `memory.count`, `memory.search`, and `memory.recent` when `/llm routing` allows it and the requester has `memory.read.guild`.
 
+For guild mentions, if the planner determines no tool or fetched/prior agent context is needed, the agent path yields to the normal chat handler instead of composing an empty tool-result answer. Evidence labels such as `[S1]` are validation markers for agent answer composition and are removed before Discord delivery.
+
 If `visibility` is omitted, `context:none` defaults to public and `context:channel` defaults to private. A private agent response also forces an ephemeral slash response even if the request asked for public visibility.
 
 Examples:

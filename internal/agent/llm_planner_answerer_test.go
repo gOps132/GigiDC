@@ -133,11 +133,28 @@ func TestLLMAnswererSynthesizesToolResults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Answer returned error: %v", err)
 	}
-	if response.Text != "Alice mentioned postgres, then Bob replied. [S1]" || runtime.req.Purpose != llmprovider.PurposeChat {
+	if response.Text != "Alice mentioned postgres, then Bob replied." || runtime.req.Purpose != llmprovider.PurposeChat {
 		t.Fatalf("response=%+v request=%+v, want chat answer", response, runtime.req)
 	}
 	if !strings.Contains(runtime.req.Input, "alice: postgres") || !strings.Contains(runtime.req.Input, "citation_labels") {
 		t.Fatalf("input=%q, want cited tool result data", runtime.req.Input)
+	}
+}
+
+func TestLLMAnswererStripsValidatedCitationLabelsBeforeSending(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: "Alice mentioned postgres [S1], then Bob replied [S2]."}}
+	results := []ToolResult{{
+		Name:    ToolMemoryRecent,
+		Summary: "Recent messages:\n- [S1] alice: postgres\n- [S2] bob: yes",
+		Data:    map[string]string{"citation_labels": "S1,S2"},
+	}}
+
+	response, err := (LLMAnswerer{Runtime: runtime}).Answer(context.Background(), agentTestRequest(), Plan{Intent: "summary"}, results)
+	if err != nil {
+		t.Fatalf("Answer returned error: %v", err)
+	}
+	if response.Text != "Alice mentioned postgres, then Bob replied." {
+		t.Fatalf("response=%+v, want citation labels stripped after validation", response)
 	}
 }
 
