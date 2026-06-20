@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# scripts/grape-context
+#
+# Repo-local Grape context helper. Provides a deterministic way to fetch and
+# verify session context that does NOT depend on the grape MCP tool being
+# registered with the coding agent. It wraps `grape compile` / `grape sessions`
+# and writes a freshness marker the git pre-push hook checks.
+#
+# Usage:
+#   scripts/grape-context fetch "<current task>"   # fetch context for this session
+#   scripts/grape-context verify                    # exit 0 if fresh, exit 1 + help if stale
+#   scripts/grape-context session-id                # print the derived session id for this branch
+#
+# Session id is derived from the current git branch (or GRAPE_SESSION env override),
+# so it stays stable across turns in the same task.
+#
+# See AGENTS.md "Context Management (Grape)" and
+# .agents/context/repository-rules.md for when to call this.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MARKER_DIR="$REPO_ROOT/.grape/sessions-markers"
+mkdir -p "$MARKER_DIR"
+
+# --- session identity -------------------------------------------------------
+
+session_id() {
+  if [[ -n "${GRAPE_SESSION:-}" ]]; then
+    printf '%s' "$GRAPE_SESSION"
+    return
+  fi
+  local branch
+  branch="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "detached")"
+  # sanitize to a grape-friendly session id
+  printf '%s' "${branch//[^A-Za-z0-9._-]/-}"
+}
+
+# A marker records that we fetched context for (session, head commit).
+# We consider context fresh only when the marker's head matches HEAD.
+marker_path() { printf '%s/%s.marker' "$MARKER_DIR" "$(session_id)"; }
+
+current_head() { git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo ""; }
+
+# --- commands ---------------------------------------------------------------
+
+cmd_session_id() { session_id; echo; }
+
+cmd_fetch() {
+  local task="${1:-}"
+  if [[ -z "$task" ]]; then
+    echo "usage: scripts/grape-context fetch \"<current task>\"" >&2
+    return 2
+  fi
+
+  local sid head
+  sid="$(session_id)"
+  head="$(current_head)"
+
+  echo "grape-context: compiling context for session '$sid' @ ${head:0:12}" >&2
+  # --json gives us structured output we can record; stdout stays the pack.
+  if ! grape compile --task "$task" --session "$sid" --json >"$MARKER_DIR/$sid.compile.json" 2>"$MARKER_DIR/$sid.err"; then
+    echo "grape-context: grape compile failed:" >&2
+    cat "$MARKER_DIR/$sid.err" >&2
+    return 1
+  fi
+
+  # Record the head the artifact was built against so verify() can detect drift.
+  printf '%s\n' "$head" >"$(marker_path)"
+
+  echo "grape-context: context fetched. sessionId=$sid artifact recorded @ ${head:0:12}" >&2
+  echo "grape-context: marker: $(marker_path)" >&2
+}
+
+cmd_verify() {
+  local sid head marker_head
+  sid="$(session_id)"
+  head="$(current_head)"
+
+  local marker
+  marker="$(marker_path)"
+
+  if [[ ! -f "$marker" ]]; then
+    cat >&2 <<EOF
+grape-context: STALE — no context fetched for session '$sid' this session.
+  You are about to push without a fresh Grape context pack.
+  Fix:
+    scripts/grape-context fetch "<short description of this task>"
+  (or, if the grape MCP tool is available, call grape_get_context with
+   sessionId="$sid" before pushing.)
+EOF
+    return 1
+  fi
+
+  marker_head="$(cat "$marker")"
+  if [[ "$marker_head" != "$head" ]]; then
+    cat >&2 <<EOF
+grape-context: STALE — context was fetched for ${marker_head:0:12} but HEAD is now ${head:0:12}.
+  New commits exist since the last context fetch. Re-fetch:
+    scripts/grape-context fetch "<short description of this task>"
+EOF
+    return 1
+  fi
+
+  echo "grape-context: fresh — context recorded for session '$sid' @ ${head:0:12}" >&2
+}
+
+cmd_install() {
+  # core.hooksPath is local git config, so a fresh clone must opt in.
+  # This wires .githooks/ so the pre-push gate runs.
+  local cur
+  cur="$(git -C "$REPO_ROOT" config core.hooksPath 2>/dev/null || echo "")"
+  if [[ "$cur" == ".githooks" ]]; then
+    echo "grape-context: core.hooksPath already .githooks — nothing to do." >&2
+    return 0
+  fi
+  git -C "$REPO_ROOT" config core.hooksPath .githooks
+  echo "grape-context: set core.hooksPath=.githooks (was: '${cur:-unset}')" >&2
+  echo "grape-context: pre-push gate now active. Bypass: GRAPE_CONTEXT_SKIP=1 or --no-verify." >&2
+}
+
+# --- dispatch ---------------------------------------------------------------
+
+case "${1:-help}" in
+  fetch)        shift; cmd_fetch "${1:-}";;
+  verify)       cmd_verify;;
+  session-id)   cmd_session_id;;
+  install)      cmd_install;;
+  help|--help|-h|"")
+    sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
+    ;;
+  *)
+    echo "unknown command: $1" >&2
+    echo "try: scripts/grape-context help" >&2
+    exit 2
+    ;;
+esac
