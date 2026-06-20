@@ -10,7 +10,11 @@ import (
 	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
 )
 
-var answerCitationPattern = regexp.MustCompile(`\[S[0-9]+\]`)
+var (
+	answerCitationPattern      = regexp.MustCompile(`\[S[0-9]+\]`)
+	answerCitationSpacePattern = regexp.MustCompile(`\s+([.,!?;:])`)
+	answerExtraSpacePattern    = regexp.MustCompile(`[ \t]{2,}`)
+)
 
 type LLMAnswerer struct {
 	Runtime         TextRuntime
@@ -44,6 +48,10 @@ func (a LLMAnswerer) Answer(ctx context.Context, request Request, plan Plan, res
 		return Response{Text: formatToolResults(results)}, nil
 	}
 	if requiresEvidenceCitation(request, results) && !containsValidEvidenceCitation(text, request, results) {
+		return Response{Text: formatToolResults(results)}, nil
+	}
+	text = stripAnswerCitationLabels(text)
+	if text == "" {
 		return Response{Text: formatToolResults(results)}, nil
 	}
 	return Response{Text: text, Visibility: VisibilityPublic}, nil
@@ -187,6 +195,17 @@ func containsValidEvidenceCitation(text string, request Request, results []ToolR
 		}
 	}
 	return false
+}
+
+func stripAnswerCitationLabels(text string) string {
+	text = answerCitationPattern.ReplaceAllString(text, "")
+	text = answerCitationSpacePattern.ReplaceAllString(text, "$1")
+	text = answerExtraSpacePattern.ReplaceAllString(text, " ")
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimSpace(line)
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
 
 func validEvidenceCitations(request Request, results []ToolResult) map[string]bool {

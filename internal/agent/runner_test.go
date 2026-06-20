@@ -51,6 +51,47 @@ func TestRunnerRoutingOffSkipsPlanner(t *testing.T) {
 	}
 }
 
+func TestRunnerFallsThroughWhenPlannerNeedsNoTools(t *testing.T) {
+	planner := &fakePlanner{ok: true, plan: Plan{Intent: "chat"}}
+	answerer := &fakeAnswerer{}
+	runner := Runner{
+		Planner: planner,
+		Policy:  RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Answerer: answerer,
+		},
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if handled || response.Text != "" || !planner.called || answerer.called {
+		t.Fatalf("response=%+v handled=%v planner.called=%v answerer.called=%v, want chat fallback", response, handled, planner.called, answerer.called)
+	}
+}
+
+func TestRunnerKeepsNoToolPlanWhenPriorRunExists(t *testing.T) {
+	answerer := &fakeAnswerer{}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "answer_from_prior"}},
+		Policy:  RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Answerer: answerer,
+		},
+	}
+	request := agentTestRequest()
+	request.PriorRun = &RunSnapshot{Intent: "memory.recent", ResponseText: "prior answer"}
+
+	response, handled, err := runner.Run(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "answerer response" || !answerer.called {
+		t.Fatalf("response=%+v handled=%v answerer.called=%v, want prior answer", response, handled, answerer.called)
+	}
+}
+
 func TestRunnerFetchesChannelContextBeforePlanner(t *testing.T) {
 	fetcher := &fakeContextFetcher{pack: contextbroker.Pack{Snippets: []contextbroker.Snippet{{ID: "m1", Text: "postgres deploy"}}}}
 	planner := &fakePlanner{ok: true, plan: Plan{Intent: "answer_from_context"}}
@@ -168,14 +209,14 @@ func TestRunnerContinuesWhenOptionalChannelContextDenied(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
-	if !handled || response.Text != "No agent tool results." {
-		t.Fatalf("response=%+v handled=%v, want planner fallback", response, handled)
+	if handled || response.Text != "" {
+		t.Fatalf("response=%+v handled=%v, want chat fallback", response, handled)
 	}
 	if !planner.called || planner.sawContext {
 		t.Fatalf("planner.called=%v planner.sawContext=%v, want planner without context", planner.called, planner.sawContext)
 	}
-	if len(recorder.events) != 3 || recorder.events[0].Kind != "agent.context" || recorder.events[0].Status != audit.StatusDenied || recorder.events[1].Kind != "agent.plan" || recorder.events[2].Kind != "agent.answer" {
-		t.Fatalf("events=%+v, want denied optional context trace then plan and answer", recorder.events)
+	if len(recorder.events) != 2 || recorder.events[0].Kind != "agent.context" || recorder.events[0].Status != audit.StatusDenied || recorder.events[1].Kind != "agent.plan" || recorder.events[1].Reason != "no_tools" {
+		t.Fatalf("events=%+v, want denied optional context trace then no-tool plan", recorder.events)
 	}
 }
 

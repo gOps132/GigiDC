@@ -93,7 +93,7 @@ func TestPlanningHandlerUsesLLMPlannerAndAnswererForConversationalRecentChat(t *
 	if err != nil {
 		t.Fatalf("HandleAgentRequest returned error: %v", err)
 	}
-	if !handled || response.Text != "Recent chat centered on deploy follow-up. [S1]" {
+	if !handled || response.Text != "Recent chat centered on deploy follow-up." {
 		t.Fatalf("response=%+v handled=%v, want synthesized LLM answer", response, handled)
 	}
 	if !memoryTool.called {
