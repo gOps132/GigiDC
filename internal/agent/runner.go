@@ -128,7 +128,7 @@ func (r Runner) Run(ctx context.Context, request Request) (Response, bool, error
 		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "confirmation_required", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return r.completeRun(ctx, runID, runStarted, RunStatusConfirmationRequired, TerminationConfirmationRequired, Response{Text: "I can plan that, but confirmation is required before running it."}, true, nil)
 	}
-	if len(plan.ToolCalls) == 0 && request.PriorRun == nil && request.ContextPack == nil {
+	if len(plan.ToolCalls) == 0 && request.PriorRun == nil && shouldFallThroughNoToolPlan(request, plan) {
 		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "no_tools", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent), "planner": "agent"}))
 		return r.completeRun(ctx, runID, runStarted, RunStatusSucceeded, TerminationIgnored, Response{}, false, nil)
 	}
@@ -179,6 +179,13 @@ func executionTermination(response Response, err error) (RunStatus, TerminationR
 		return response.RunStatus, reason
 	}
 	return RunStatusSucceeded, TerminationCompleted
+}
+
+func shouldFallThroughNoToolPlan(request Request, plan Plan) bool {
+	if request.ContextPack == nil {
+		return true
+	}
+	return isOptionalContextScope(request.ContextScope) && strings.EqualFold(strings.TrimSpace(plan.Intent), "chat")
 }
 
 func (r Runner) maxSteps() int {
