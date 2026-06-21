@@ -54,11 +54,18 @@ func (p LLMPlanner) Plan(ctx context.Context, request Request, specs []ToolSpec)
 	if err != nil {
 		return Plan{}, false, err
 	}
-	return parseLLMPlan(generated.Text, specs, p.maxToolCalls())
+	plan, ok, err := parseLLMPlan(generated.Text, specs, p.maxToolCalls())
+	if err != nil || !ok {
+		return plan, ok, err
+	}
+	if plan.Intent == "answer_from_prior" && request.PriorRun == nil {
+		return Plan{}, false, nil
+	}
+	return plan, true, nil
 }
 
 func llmPlannerInstructions() string {
-	return "You are Gigi's tool planner. Return only JSON. You may only select listed tools. Do not answer the user. Use tools when they are needed for current-channel memory, plugin planning, permission checks, or usage summaries. Ask a clarifying_question only when needed. For follow-up questions, use prior run context if present or choose a tool to refresh context. If prior run context is enough to answer, return an intent with empty tool_calls so the answerer can respond from prior context. Never invent tool names or arguments."
+	return "You are Gigi's tool planner. Return only JSON. You may only select listed tools. Do not answer the user. Use web.search for explicit web search, latest, current, recent, or online information requests. Use web.fetch when the user asks to read, summarize, or inspect a specific URL or page. Use jobs.list, jobs.schedule, or jobs.cancel only for explicit background job requests; write tools require confirmation. Use memory and analytics tools when needed for current-channel memory, plugin planning, permission checks, or usage summaries. Ask a clarifying_question only when needed. For follow-up questions, use prior run context if present or choose a tool to refresh context. If prior run context is enough to answer, return {\"intent\":\"answer_from_prior\",\"tool_calls\":[]}. For messages answerable without tools, return {} so normal chat can answer. Never invent tool names or arguments."
 }
 
 func llmPlannerPrompt(request Request, specs []ToolSpec) string {
@@ -118,6 +125,9 @@ func parseLLMPlan(value string, specs []ToolSpec, maxToolCalls int) (Plan, bool,
 		RequiresConfirmation: proposal.RequiresConfirmation,
 	}
 	if plan.Intent == "" && plan.ClarifyingQuestion == "" && len(proposal.ToolCalls) == 0 {
+		return Plan{}, false, nil
+	}
+	if len(proposal.ToolCalls) == 0 && plan.ClarifyingQuestion == "" && plan.Intent != "answer_from_prior" {
 		return Plan{}, false, nil
 	}
 	for _, call := range proposal.ToolCalls {

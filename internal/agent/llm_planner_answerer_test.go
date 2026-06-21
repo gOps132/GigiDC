@@ -39,6 +39,39 @@ func TestLLMPlannerRejectsUnknownTool(t *testing.T) {
 	}
 }
 
+func TestLLMPlannerRejectsEmptyNonPriorToolPlan(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: `{"intent":"agent_response","tool_calls":[]}`}}
+
+	plan, ok, err := (LLMPlanner{Runtime: runtime}).Plan(context.Background(), agentTestRequest(), []ToolSpec{{Name: ToolWebSearch}})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if ok || plan.Intent != "" {
+		t.Fatalf("plan=%+v ok=%v, want no plan so normal chat can answer", plan, ok)
+	}
+}
+
+func TestLLMPlannerPromptMentionsWebAndJobRouting(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: `{"intent":"web_search","tool_calls":[{"name":"web.search","args":{"query":"latest Go release notes"}}]}`}}
+
+	plan, ok, err := (LLMPlanner{Runtime: runtime}).Plan(context.Background(), agentTestRequest(), []ToolSpec{
+		{Name: ToolWebSearch, Description: "Search the web"},
+		{Name: ToolWebFetch, Description: "Fetch a URL"},
+		{Name: ToolJobsList, Description: "List jobs"},
+	})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if !ok || len(plan.ToolCalls) != 1 || plan.ToolCalls[0].Name != ToolWebSearch || plan.ToolCalls[0].Args["query"] != "latest Go release notes" {
+		t.Fatalf("plan=%+v ok=%v, want web.search plan", plan, ok)
+	}
+	for _, want := range []string{"Use web.search", "latest", "Use web.fetch", "Use jobs.list"} {
+		if !strings.Contains(runtime.req.Instructions, want) {
+			t.Fatalf("instructions=%q, want %q", runtime.req.Instructions, want)
+		}
+	}
+}
+
 func TestLLMPlannerSetsConfirmationForWriteTool(t *testing.T) {
 	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: `{"intent":"write","tool_calls":[{"name":"plugin.dispatch","args":{}}]}`}}
 

@@ -213,6 +213,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 
 func guildMentionPlanner(llmRuntime llm.Runtime) agent.Planner {
 	return agent.MultiPlanner{
+		agent.WebIntentPlanner{},
 		agent.LLMPlanner{Runtime: llmRuntime},
 		agent.SemanticMemoryPlannerAdapter{Planner: assistant.SemanticMemoryPlanner{Runtime: llmRuntime}},
 	}
