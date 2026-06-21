@@ -226,12 +226,12 @@ func TestSQLStoreSearchMessagesUsesCurrentChannelAndLimit(t *testing.T) {
 	if len(got) != 1 || got[0].MessageID != "message-id" || got[0].GuildID != "guild-id" || got[0].Text != "hello postgres" || !got[0].RetentionUntil.Equal(retentionUntil) || !got[0].RetrievedAt.Equal(retrievedAt) {
 		t.Fatalf("results = %+v, want search result", got)
 	}
-	for _, want := range []string{"channel_id = $2", "deleted_at is null", "retention_until > now()", "position($4 in normalized_text) > 0", "retention_until", "now() as retrieved_at", "limit $5"} {
+	for _, want := range []string{"channel_id = $2", "deleted_at is null", "retention_until > now()", "position($4 in normalized_text) > 0", "retention_until", "now() as retrieved_at", "limit $7"} {
 		if !strings.Contains(db.query, want) {
 			t.Fatalf("query = %q, want %q", db.query, want)
 		}
 	}
-	if db.args[4] != 10 {
+	if db.args[6] != 10 {
 		t.Fatalf("args = %+v, want limit 10", db.args)
 	}
 }
@@ -254,7 +254,7 @@ func TestSQLStoreRecentMessagesReturnsProvenanceAndRetentionProof(t *testing.T) 
 	if len(got) != 1 || got[0].GuildID != "guild-id" || got[0].MessageID != "message-id" || !got[0].RetentionUntil.Equal(retentionUntil) || !got[0].RetrievedAt.Equal(retrievedAt) {
 		t.Fatalf("results = %+v, want recent result with provenance", got)
 	}
-	for _, want := range []string{"guild_id = $1", "channel_id = $2", "deleted_at is null", "retention_until > now()", "retention_until", "now() as retrieved_at", "limit $4"} {
+	for _, want := range []string{"guild_id = $1", "channel_id = $2", "deleted_at is null", "retention_until > now()", "retention_until", "now() as retrieved_at", "limit $6"} {
 		if !strings.Contains(db.query, want) {
 			t.Fatalf("query = %q, want %q", db.query, want)
 		}

@@ -21,6 +21,7 @@ knowledge/
 .env.*.local
 coverage/
 bin/
+/gigi
 .DS_Store
 *.log
 npm-debug.log*

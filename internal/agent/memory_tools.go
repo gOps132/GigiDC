@@ -32,7 +32,7 @@ type MemoryCountTool struct {
 func (t MemoryCountTool) Spec() ToolSpec {
 	return ToolSpec{
 		Name:        ToolMemoryCount,
-		Description: "Count exact text mentions in retained current-channel guild memory.",
+		Description: "Count exact text mentions in retained current-channel guild memory. Optional arguments: target_user_id, start_date (YYYY-MM-DD), end_date (YYYY-MM-DD).",
 		Kind:        ToolKindRead,
 		Capability:  "memory.read.guild",
 	}
@@ -50,11 +50,21 @@ func (t MemoryCountTool) Execute(ctx context.Context, request Request, call Tool
 		return ToolResult{}, fmt.Errorf("memory count text is required")
 	}
 	targetUserID := strings.TrimSpace(call.Args["target_user_id"])
+	startDate, err := extractStartDate(call.Args)
+	if err != nil {
+		return ToolResult{}, err
+	}
+	endDate, err := extractEndDate(call.Args)
+	if err != nil {
+		return ToolResult{}, err
+	}
 	result, err := t.Store.CountMentions(ctx, memory.CountRequest{
 		GuildID:      request.GuildID,
 		ChannelID:    request.ChannelID,
 		AuthorUserID: targetUserID,
 		Text:         text,
+		StartDate:    startDate,
+		EndDate:      endDate,
 	})
 	if err != nil {
 		return ToolResult{}, err
@@ -77,7 +87,7 @@ type MemorySearchTool struct {
 func (t MemorySearchTool) Spec() ToolSpec {
 	return ToolSpec{
 		Name:        ToolMemorySearch,
-		Description: "Search retained current-channel guild memory for exact normalized text.",
+		Description: "Search retained current-channel guild memory for exact normalized text. Optional arguments: target_user_id, start_date (YYYY-MM-DD), end_date (YYYY-MM-DD), limit.",
 		Kind:        ToolKindRead,
 		Capability:  "memory.read.guild",
 	}
@@ -94,12 +104,24 @@ func (t MemorySearchTool) Execute(ctx context.Context, request Request, call Too
 	if query == "" {
 		return ToolResult{}, fmt.Errorf("memory search query is required")
 	}
+	targetUserID := strings.TrimSpace(call.Args["target_user_id"])
 	limit := parseLimit(call.Args["limit"], 5, 25)
+	startDate, err := extractStartDate(call.Args)
+	if err != nil {
+		return ToolResult{}, err
+	}
+	endDate, err := extractEndDate(call.Args)
+	if err != nil {
+		return ToolResult{}, err
+	}
 	results, err := t.Store.SearchMessages(ctx, memory.SearchRequest{
-		GuildID:   request.GuildID,
-		ChannelID: request.ChannelID,
-		Query:     query,
-		Limit:     limit,
+		GuildID:      request.GuildID,
+		ChannelID:    request.ChannelID,
+		AuthorUserID: targetUserID,
+		Query:        query,
+		Limit:        limit,
+		StartDate:    startDate,
+		EndDate:      endDate,
 	})
 	if err != nil {
 		return ToolResult{}, err
@@ -122,7 +144,7 @@ type MemoryRecentTool struct {
 func (t MemoryRecentTool) Spec() ToolSpec {
 	return ToolSpec{
 		Name:        ToolMemoryRecent,
-		Description: "Fetch recent retained current-channel guild memory messages.",
+		Description: "Fetch recent retained current-channel guild memory messages. Optional arguments: target_user_id, start_date (YYYY-MM-DD), end_date (YYYY-MM-DD), limit.",
 		Kind:        ToolKindRead,
 		Capability:  "memory.read.guild",
 	}
@@ -136,11 +158,22 @@ func (t MemoryRecentTool) Execute(ctx context.Context, request Request, call Too
 		return ToolResult{}, fmt.Errorf("memory store is required")
 	}
 	limit := parseLimit(call.Args["limit"], 5, 25)
+	targetUserID := strings.TrimSpace(call.Args["target_user_id"])
+	startDate, err := extractStartDate(call.Args)
+	if err != nil {
+		return ToolResult{}, err
+	}
+	endDate, err := extractEndDate(call.Args)
+	if err != nil {
+		return ToolResult{}, err
+	}
 	results, err := t.Store.RecentMessages(ctx, memory.RecentRequest{
 		GuildID:      request.GuildID,
 		ChannelID:    request.ChannelID,
-		AuthorUserID: strings.TrimSpace(call.Args["target_user_id"]),
+		AuthorUserID: targetUserID,
 		Limit:        limit,
+		StartDate:    startDate,
+		EndDate:      endDate,
 	})
 	if err != nil {
 		return ToolResult{}, err
@@ -153,6 +186,72 @@ func (t MemoryRecentTool) Execute(ctx context.Context, request Request, call Too
 			"scope":    "this-channel",
 		}, memoryResultsData(results)),
 	}, nil
+}
+
+// parseStartDate parses a memory filter start timestamp.
+//
+// Accepted formats:
+//   - RFC3339 (e.g. "2026-06-22T10:00:00Z") — used verbatim.
+//   - YYYY-MM-DD (e.g. "2026-06-22") — midnight UTC, inclusive lower bound.
+//
+// An empty value yields the zero time, which downstream SQL treats as
+// "no lower bound".
+func parseStartDate(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, nil
+	}
+	if t, err := time.Parse(time.RFC3339, value); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02", value); err == nil {
+		return t, nil
+	}
+	return time.Time{}, fmt.Errorf("invalid start date format: %s", value)
+}
+
+// parseEndDate parses a memory filter end timestamp.
+//
+// Accepted formats:
+//   - RFC3339 — used verbatim as an exact upper bound.
+//   - YYYY-MM-DD — extended by 24h-1s so the whole day is inclusive.
+//
+// Empty value yields the zero time, which downstream SQL treats as
+// "no upper bound".
+func parseEndDate(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, nil
+	}
+	if t, err := time.Parse(time.RFC3339, value); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02", value); err == nil {
+		return t.Add(24*time.Hour - time.Second), nil
+	}
+	return time.Time{}, fmt.Errorf("invalid end date format: %s", value)
+}
+
+// extractStartDate reads the lower-bound date from the first matching arg key.
+// Aliases (start_date, after_date, since) let the LLM use natural phrasing.
+func extractStartDate(args map[string]string) (time.Time, error) {
+	for _, key := range []string{"start_date", "after_date", "since"} {
+		if val, ok := args[key]; ok && strings.TrimSpace(val) != "" {
+			return parseStartDate(val)
+		}
+	}
+	return time.Time{}, nil
+}
+
+// extractEndDate reads the upper-bound date from the first matching arg key.
+// Aliases (end_date, before_date, until) let the LLM use natural phrasing.
+func extractEndDate(args map[string]string) (time.Time, error) {
+	for _, key := range []string{"end_date", "before_date", "until"} {
+		if val, ok := args[key]; ok && strings.TrimSpace(val) != "" {
+			return parseEndDate(val)
+		}
+	}
+	return time.Time{}, nil
 }
 
 func checkMemoryToolAccess(ctx context.Context, checker CapabilityChecker, request Request) error {
