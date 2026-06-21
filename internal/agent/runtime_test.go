@@ -5,6 +5,9 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"github.com/gOps132/GigiDC/internal/assistant"
+	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
 )
 
 func TestRuntimeRunsHandlersInOrder(t *testing.T) {
@@ -69,6 +72,64 @@ func TestRuntimeUsesFallback(t *testing.T) {
 	}
 }
 
+func TestRuntimeFallsThroughContextNoneToChatHandler(t *testing.T) {
+	planner := &fakePlanner{ok: true}
+	runtime := Runtime{Handlers: []Handler{
+		PlanningHandler{
+			Planner: planner,
+			Policy:  fakePolicy{mode: llmprovider.ToolRoutingEnabled},
+		},
+		ChatHandler{Responder: fakeChatResponder{text: "chat answer"}},
+	}}
+
+	response, err := runtime.Run(context.Background(), Request{
+		Surface:      SurfaceGuildMention,
+		GuildID:      "guild-id",
+		ChannelID:    "channel-id",
+		ActorUserID:  "actor-id",
+		ContextScope: "none",
+		Text:         "explain recursion",
+	})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if response.Text != "chat answer" {
+		t.Fatalf("response=%+v, want chat fallback", response)
+	}
+	if planner.called {
+		t.Fatalf("planner called for context:none")
+	}
+}
+
+func TestRuntimeFallsThroughIgnoredGuildMentionPlanToChatHandler(t *testing.T) {
+	planner := &fakePlanner{}
+	runtime := Runtime{Handlers: []Handler{
+		PlanningHandler{
+			Planner: planner,
+			Policy:  fakePolicy{mode: llmprovider.ToolRoutingEnabled},
+		},
+		ChatHandler{Responder: fakeChatResponder{text: "chat answer"}},
+	}}
+
+	response, err := runtime.Run(context.Background(), Request{
+		Surface:      SurfaceGuildMention,
+		GuildID:      "guild-id",
+		ChannelID:    "channel-id",
+		ActorUserID:  "actor-id",
+		ContextScope: "channel-auto",
+		Text:         "can you summarize the recent chats?",
+	})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if response.Text != "chat answer" {
+		t.Fatalf("response=%+v, want chat fallback after ignored planner result", response)
+	}
+	if !planner.called {
+		t.Fatalf("planner was not called before chat fallback")
+	}
+}
+
 func TestNormalizeRequestCopiesRoles(t *testing.T) {
 	roles := []string{"role-1"}
 	request := NormalizeRequest(Request{Surface: " guild_mention ", RoleIDs: roles, Text: " hi "})
@@ -80,4 +141,12 @@ func TestNormalizeRequestCopiesRoles(t *testing.T) {
 	if got := request.RoleIDs[0]; got != "role-1" {
 		t.Fatalf("role = %q, want copy", got)
 	}
+}
+
+type fakeChatResponder struct {
+	text string
+}
+
+func (r fakeChatResponder) Reply(ctx context.Context, message assistant.Message) (assistant.Response, error) {
+	return assistant.Response{Text: r.text}, nil
 }

@@ -30,9 +30,15 @@ func TestPluginCommandsExposeAdminSurface(t *testing.T) {
 	if option := findOption(importManifest.Options, "url"); option == nil || option.Type != discordgo.ApplicationCommandOptionString {
 		t.Fatalf("import url option = %+v, want string", option)
 	}
+	if option := findOption(importManifest.Options, "allow-public-dispatch"); option == nil || option.Type != discordgo.ApplicationCommandOptionBoolean || option.Required {
+		t.Fatalf("import allow public dispatch option = %+v, want optional boolean", option)
+	}
 	importFile := findOption(command.Options, "import-file")
 	if option := findOption(importFile.Options, "attachment"); option == nil || option.Type != discordgo.ApplicationCommandOptionAttachment {
 		t.Fatalf("import file option = %+v, want attachment", option)
+	}
+	if option := findOption(importFile.Options, "allow-public-dispatch"); option == nil || option.Type != discordgo.ApplicationCommandOptionBoolean || option.Required {
+		t.Fatalf("import file allow public dispatch option = %+v, want optional boolean", option)
 	}
 	dryRun := findOption(command.Options, "dry-run")
 	if option := findOption(dryRun.Options, "text"); option == nil || option.Type != discordgo.ApplicationCommandOptionString {
@@ -125,6 +131,106 @@ func TestPluginCommandImportsAttachmentAndAudits(t *testing.T) {
 	}
 	if len(recorder.events) != 1 || recorder.events[0].Status != audit.StatusSucceeded || recorder.events[0].Metadata["action"] != "import-file" {
 		t.Fatalf("audit events = %+v, want successful import-file audit", recorder.events)
+	}
+}
+
+func TestPluginCommandRejectsPublicSendMessageImportWithoutConsent(t *testing.T) {
+	manifest := pluginManifest("public-dispatch", "1.0.0")
+	manifest.Permissions = nil
+	manifest.Dispatch = plugins.DispatchModeSendMessage
+	manager := &fakePluginManager{}
+	recorder := &fakeAuditRecorder{}
+	handler := PluginCommands(manager, &fakePluginFetcher{manifest: manifest}, recorder)[0].Handle
+
+	response, err := handler(context.Background(), pluginInteraction("import-manifest", []InteractionOption{
+		{Name: "url", Value: "https://example.test/gigi-plugin.json"},
+	}))
+	if err != nil {
+		t.Fatalf("import returned error: %v", err)
+	}
+	lowerContent := strings.ToLower(response.Content)
+	if !strings.Contains(lowerContent, "public dispatch") || !strings.Contains(lowerContent, "explicit consent") || !response.Ephemeral {
+		t.Fatalf("response = %+v, want explicit public dispatch consent error", response)
+	}
+	if manager.method != "" {
+		t.Fatalf("manager = %+v, want no approved manifest upsert", manager)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Status != audit.StatusFailed {
+		t.Fatalf("audit events = %+v, want failed import audit", recorder.events)
+	}
+}
+
+func TestPluginCommandRejectsActionPublicSendMessageImportWithoutConsent(t *testing.T) {
+	manifest := pluginManifest("action-public-dispatch", "1.0.0")
+	manifest.Dispatch = plugins.DispatchModeDryRun
+	manifest.Permissions = []string{"plugin.install"}
+	manifest.Triggers = nil
+	manifest.Actions = []plugins.Action{{
+		ID:       "play",
+		Trigger:  plugins.Trigger{Kind: "prefix", Value: "!play"},
+		Surfaces: []string{"guild_text"},
+		Safety:   plugins.SafetyClassPublic,
+		Dispatch: plugins.DispatchModeSendMessage,
+		Adapter:  plugins.DispatchAdapterPrefixCommand,
+	}}
+	manager := &fakePluginManager{}
+	recorder := &fakeAuditRecorder{}
+	handler := PluginCommands(manager, &fakePluginFetcher{manifest: manifest}, recorder)[0].Handle
+
+	response, err := handler(context.Background(), pluginInteraction("import-manifest", []InteractionOption{
+		{Name: "url", Value: "https://example.test/gigi-plugin.json"},
+	}))
+	if err != nil {
+		t.Fatalf("import returned error: %v", err)
+	}
+	lowerContent := strings.ToLower(response.Content)
+	if !strings.Contains(lowerContent, "public dispatch") || !strings.Contains(lowerContent, "explicit consent") || !response.Ephemeral {
+		t.Fatalf("response = %+v, want explicit action public dispatch consent error", response)
+	}
+	if manager.method != "" {
+		t.Fatalf("manager = %+v, want no approved manifest upsert", manager)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Status != audit.StatusFailed {
+		t.Fatalf("audit events = %+v, want failed import audit", recorder.events)
+	}
+}
+
+func TestPluginCommandImportsPublicSendMessageWithConsent(t *testing.T) {
+	manifest := pluginManifest("public-dispatch", "1.0.0")
+	manifest.Permissions = nil
+	manifest.Dispatch = plugins.DispatchModeSendMessage
+	manager := &fakePluginManager{}
+	handler := PluginCommands(manager, &fakePluginFetcher{manifest: manifest}, nil)[0].Handle
+
+	response, err := handler(context.Background(), Interaction{
+		GuildID: "guild-id",
+		UserID:  "actor-id",
+		Name:    "plugins",
+		Attachments: map[string]InteractionAttachment{
+			"attachment-id": {
+				ID:          "attachment-id",
+				URL:         "https://cdn.discordapp.com/attachments/gigi-plugin.json",
+				Filename:    "gigi-plugin.json",
+				ContentType: "application/json",
+				Size:        123,
+			},
+		},
+		Options: []InteractionOption{{
+			Name: "import-file",
+			Options: []InteractionOption{
+				{Name: "attachment", Type: discordgo.ApplicationCommandOptionAttachment, Value: "attachment-id"},
+				{Name: "allow-public-dispatch", Type: discordgo.ApplicationCommandOptionBoolean, Value: "true"},
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("import-file returned error: %v", err)
+	}
+	if manager.method != "UpsertApprovedManifest" || manager.manifest.ID != "public-dispatch" || !manager.manifest.PublicDispatchAllowed {
+		t.Fatalf("manager = %+v, want approved public dispatch manifest upsert with dispatch approval", manager)
+	}
+	if !strings.Contains(response.Content, "Imported plugin") || !response.Ephemeral {
+		t.Fatalf("response = %+v, want ephemeral import success", response)
 	}
 }
 

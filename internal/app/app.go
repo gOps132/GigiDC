@@ -13,6 +13,7 @@ import (
 	"github.com/gOps132/GigiDC/internal/buildinfo"
 	"github.com/gOps132/GigiDC/internal/capability"
 	"github.com/gOps132/GigiDC/internal/config"
+	"github.com/gOps132/GigiDC/internal/contextbroker"
 	"github.com/gOps132/GigiDC/internal/discord"
 	"github.com/gOps132/GigiDC/internal/llm"
 	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
@@ -91,6 +92,9 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		providerService := llmprovider.NewServiceWithTester(providerStore, secretSealer, llmprovider.DefaultRegistry(), llmprovider.NewHTTPTester(nil))
 		usageRecorder := llmprovider.NewSQLUsageRecorder(db, func() string { return storage.NewID("llmusage") })
 		memoryStore := memory.NewSQLStore(db)
+		agentRunStore := agent.NewSQLRunStore(db)
+		agentStatsReader := agent.NewSQLAnalyticsReader(db)
+		replyLatencyStore := discord.NewSQLGuildReplyLatencyStore(db)
 		memoryIngestor := memory.NewLiveIngestor(memoryStore, 512)
 		conversationStore := assistant.NewSQLConversationStore(db, func() string { return storage.NewID("asstturn") })
 		evaluator := capability.NewEvaluator(grantStore)
@@ -103,15 +107,16 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		assistantHandler := assistant.NewHandler(llmRuntime)
 		assistantHandler.Recorder = conversationStore
 		followUps := agent.NewMemoryFollowUpStore()
+		traceStore := agent.NewMemoryTraceStore(256)
 		agentRuntime := agent.Runtime{
 			Handlers: []agent.Handler{
 				agent.PlanningHandler{
-					Planner: agent.MultiPlanner{
-						agent.HeuristicToolPlanner{},
-						agent.LLMPlanner{Runtime: llmRuntime},
-						agent.SemanticMemoryPlannerAdapter{Planner: assistant.SemanticMemoryPlanner{Runtime: llmRuntime}},
-					},
+					Planner:  guildMentionPlanner(llmRuntime),
 					Answerer: agent.LLMAnswerer{Runtime: llmRuntime},
+					ContextFetcher: agent.ChannelContextFetcher{
+						Source:  contextbroker.ChannelRecentFetcher{Store: memoryStore},
+						Checker: evaluator,
+					},
 					Tools: agent.NewRegistry(
 						agent.MemoryCountTool{Store: memoryStore, Checker: evaluator},
 						agent.MemorySearchTool{Store: memoryStore, Checker: evaluator},
@@ -124,14 +129,22 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 					Policy:    policyStore,
 					Checker:   evaluator,
 					Recorder:  auditStore,
+					TraceSink: traceStore,
 					FollowUps: followUps,
+					RunStore:  agentRunStore,
 				},
 				agent.ChatHandler{Responder: assistantHandler},
 			},
 		}
 		semanticPlanner := assistant.SemanticPluginPlanner{Runtime: llmRuntime}
+		authorizer := discord.NewCapabilityAuthorizer(evaluator, auditStore)
 		commands := discord.CoreCommands()
-		commands = append(commands, discord.AskCommand(agentRuntime))
+		commands = append(commands, discord.AskCommand(agentRuntime, discord.ReplyLatencyConfig{Store: replyLatencyStore}))
+		commands = append(commands, discord.AgentCommands(traceStore, agentRunStore, auditStore, discord.AgentCommandConfig{
+			StatsReader:       agentStatsReader,
+			StatsAuthorizer:   authorizer,
+			ReplyLatencyStore: replyLatencyStore,
+		})...)
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
 		commands = append(commands, discord.LLMCommands(providerService, auditStore, discord.LLMCommandConfig{
@@ -146,7 +159,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			_ = db.Close()
 			return nil, err
 		}
-		router.SetAuthorizer(discord.NewCapabilityAuthorizer(evaluator, auditStore))
+		router.SetAuthorizer(authorizer)
 
 		externalAppHandler := discord.ExternalAppDryRunHandlerWithSemanticPolicy(
 			pluginStore,
@@ -162,6 +175,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			_ = db.Close()
 			return nil, err
 		}
+		messageRouter.SetReplyLatencyConfig(discord.ReplyLatencyConfig{Store: replyLatencyStore})
 		client, err := discord.NewGateway(discord.Options{
 			Token:         cfg.DiscordToken,
 			ClientID:      cfg.DiscordClientID,
@@ -179,6 +193,13 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 	}
 
 	return application, nil
+}
+
+func guildMentionPlanner(llmRuntime llm.Runtime) agent.Planner {
+	return agent.MultiPlanner{
+		agent.LLMPlanner{Runtime: llmRuntime},
+		agent.SemanticMemoryPlannerAdapter{Planner: assistant.SemanticMemoryPlanner{Runtime: llmRuntime}},
+	}
 }
 
 func (a *App) Run(ctx context.Context) error {

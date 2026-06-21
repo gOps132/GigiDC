@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -34,21 +35,51 @@ func TestStoreRecordsValidEvent(t *testing.T) {
 	}
 }
 
-func TestStoreRejectsInvalidEventBeforeInsert(t *testing.T) {
+func TestStoreSanitizesSensitiveMetadataBeforeInsert(t *testing.T) {
 	db := &fakeExecDB{}
 	store := NewStore(db, func() string { return "audit-id" })
 
 	err := store.Record(context.Background(), Event{
-		Kind:     "llm.provider.update",
-		ActorID:  "user-id",
-		Status:   StatusAllowed,
-		Metadata: map[string]string{"api_key": "raw"},
+		Kind:    "llm.provider.update",
+		ActorID: "user-id",
+		Status:  StatusAllowed,
+		Metadata: map[string]string{
+			"capability":    "provider.write",
+			"source":        "discord",
+			"run_id":        "run-123",
+			"api_key":       "raw",
+			"authorization": "Bearer raw-token",
+			"fingerprint":   "sk-live-secret",
+		},
 	})
-	if err == nil {
-		t.Fatal("expected validation error")
+	if err != nil {
+		t.Fatalf("Record returned error: %v", err)
 	}
-	if db.calls != 0 {
-		t.Fatalf("exec calls = %d, want 0", db.calls)
+	if db.calls != 1 {
+		t.Fatalf("exec calls = %d, want 1", db.calls)
+	}
+	var metadata map[string]string
+	if err := json.Unmarshal([]byte(db.args[6].(string)), &metadata); err != nil {
+		t.Fatalf("metadata JSON = %q: %v", db.args[6], err)
+	}
+	for key, want := range map[string]string{
+		"capability": "provider.write",
+		"source":     "discord",
+		"run_id":     "run-123",
+	} {
+		if metadata[key] != want {
+			t.Fatalf("metadata[%q] = %q, want %q", key, metadata[key], want)
+		}
+	}
+	for _, key := range []string{"api_key", "authorization"} {
+		if _, ok := metadata[key]; ok {
+			t.Fatalf("metadata contains sensitive key %q: %+v", key, metadata)
+		}
+	}
+	for key, value := range metadata {
+		if strings.Contains(strings.ToLower(value), "bearer") || strings.Contains(value, "sk-live-secret") {
+			t.Fatalf("metadata[%q] contains sensitive value %q", key, value)
+		}
 	}
 }
 

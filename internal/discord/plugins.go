@@ -41,6 +41,7 @@ func PluginCommands(manager PluginCatalogManager, fetcher PluginManifestFetcher,
 				Description: "Import and approve a plugin manifest from HTTPS.",
 				Options: []*discordgo.ApplicationCommandOption{
 					stringOption("url", "HTTPS URL for gigi-plugin.json.", nil),
+					publicDispatchConsentOption(),
 				},
 			},
 			{
@@ -54,6 +55,7 @@ func PluginCommands(manager PluginCatalogManager, fetcher PluginManifestFetcher,
 						Description: "gigi-plugin.json file.",
 						Required:    true,
 					},
+					publicDispatchConsentOption(),
 				},
 			},
 			{
@@ -117,13 +119,14 @@ func pluginHandler(manager PluginCatalogManager, fetcher PluginManifestFetcher, 
 }
 
 type pluginRequest struct {
-	Action       string
-	URL          string
-	AttachmentID string
-	Attachment   InteractionAttachment
-	Plugin       string
-	Version      string
-	Text         string
+	Action              string
+	URL                 string
+	AttachmentID        string
+	Attachment          InteractionAttachment
+	AllowPublicDispatch bool
+	Plugin              string
+	Version             string
+	Text                string
 }
 
 func parsePluginRequest(interaction Interaction) (pluginRequest, error) {
@@ -149,6 +152,7 @@ func parsePluginRequest(interaction Interaction) (pluginRequest, error) {
 		if request.URL == "" {
 			return request, fmt.Errorf("Manifest URL is required.")
 		}
+		request.AllowPublicDispatch = boolByName(action.Options, "allow-public-dispatch")
 		return request, nil
 	case "import-file":
 		request.AttachmentID = strings.TrimSpace(optionByName(action.Options, "attachment"))
@@ -160,6 +164,7 @@ func parsePluginRequest(interaction Interaction) (pluginRequest, error) {
 			return request, fmt.Errorf("Manifest attachment could not be resolved.")
 		}
 		request.Attachment = attachment
+		request.AllowPublicDispatch = boolByName(action.Options, "allow-public-dispatch")
 		return request, nil
 	case "enable":
 		request.Plugin = strings.TrimSpace(optionByName(action.Options, "plugin"))
@@ -213,6 +218,10 @@ func executePluginRequest(ctx context.Context, manager PluginCatalogManager, fet
 		if err != nil {
 			return "", err
 		}
+		if err := requirePublicDispatchConsent(manifest, request.AllowPublicDispatch); err != nil {
+			return "", err
+		}
+		manifest.PublicDispatchAllowed = publicDispatchAllowed(manifest, request.AllowPublicDispatch)
 		if err := manager.UpsertApprovedManifest(ctx, manifest, interaction.UserID); err != nil {
 			return "", err
 		}
@@ -233,6 +242,10 @@ func executePluginRequest(ctx context.Context, manager PluginCatalogManager, fet
 		if err != nil {
 			return "", err
 		}
+		if err := requirePublicDispatchConsent(manifest, request.AllowPublicDispatch); err != nil {
+			return "", err
+		}
+		manifest.PublicDispatchAllowed = publicDispatchAllowed(manifest, request.AllowPublicDispatch)
 		if err := manager.UpsertApprovedManifest(ctx, manifest, interaction.UserID); err != nil {
 			return "", err
 		}
@@ -272,12 +285,33 @@ func formatPluginList(title string, manifests []plugins.Manifest) string {
 	return strings.Join(lines, "\n")
 }
 
+func publicDispatchConsentOption() *discordgo.ApplicationCommandOption {
+	return &discordgo.ApplicationCommandOption{
+		Type:        discordgo.ApplicationCommandOptionBoolean,
+		Name:        "allow-public-dispatch",
+		Description: "Explicitly allow public send_message imports with no permissions.",
+	}
+}
+
+func requirePublicDispatchConsent(manifest plugins.Manifest, allowed bool) error {
+	if manifest.PublicDispatchConsentRequired() && !allowed {
+		return fmt.Errorf("public dispatch needs explicit consent")
+	}
+	return nil
+}
+
+func publicDispatchAllowed(manifest plugins.Manifest, allowed bool) bool {
+	return allowed && manifest.HasPublicSendMessageAction()
+}
+
 func cleanPluginError(err error) string {
 	if err == nil {
 		return "Plugin command failed."
 	}
 	message := err.Error()
 	switch {
+	case strings.Contains(message, "public dispatch"):
+		return "Public dispatch needs explicit consent: re-run with allow-public-dispatch=true."
 	case strings.Contains(message, "HTTPS"):
 		return "Manifest URL must be HTTPS."
 	case strings.Contains(message, "user info") || strings.Contains(message, "query") || strings.Contains(message, "fragment"):

@@ -53,6 +53,7 @@ create table if not exists plugin_versions (
   version text not null,
   manifest jsonb not null,
   approved boolean not null default false,
+  public_dispatch_allowed boolean not null default false,
   created_at timestamptz not null default now(),
   unique (plugin_id, version)
 );

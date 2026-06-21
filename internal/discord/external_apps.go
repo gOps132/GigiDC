@@ -177,6 +177,9 @@ func (h externalAppDryRunHandler) recordKind(ctx context.Context, kind string, m
 	if plan.Manifest.ID != "" {
 		metadata["plugin_id"] = plan.Manifest.ID
 		metadata["version"] = plan.Manifest.Version
+		if strings.TrimSpace(plan.Action.ID) != "" {
+			metadata["action_id"] = plan.Action.ID
+		}
 		metadata["trigger_kind"] = plan.Trigger.Kind
 		metadata["trigger"] = plan.Trigger.Value
 	}
@@ -194,7 +197,7 @@ func (h externalAppDryRunHandler) recordKind(ctx context.Context, kind string, m
 }
 
 func shouldDispatch(plan plugins.CommandPlan) bool {
-	return plan.Manifest.Dispatch == plugins.DispatchModeSendMessage && len(plan.RequiredCapabilities) == 0
+	return plan.DispatchMode() == plugins.DispatchModeSendMessage && plan.Manifest.PublicDispatchAllowed && plan.PublicAction()
 }
 
 func formatDryRunPlan(plan plugins.CommandPlan) string {

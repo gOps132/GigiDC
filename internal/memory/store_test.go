@@ -125,6 +125,66 @@ func TestSQLStoreRecordsMessageWithoutRawTextWhenMetadataOnly(t *testing.T) {
 	}
 }
 
+func TestSQLStoreRecordMessageDoesNotReviveTombstonedRows(t *testing.T) {
+	db := &fakeMemoryDB{}
+	store := NewSQLStore(db)
+
+	err := store.RecordMessage(context.Background(), MessageRecord{
+		MessageID:      "message-id",
+		GuildID:        "guild-id",
+		ChannelID:      "channel-id",
+		AuthorUserID:   "user-id",
+		NormalizedText: "hello postgres",
+		ContentHash:    HashText("hello postgres"),
+		CreatedAt:      time.Date(2026, 6, 18, 1, 2, 3, 0, time.UTC),
+		RetentionUntil: time.Date(2026, 6, 25, 1, 2, 3, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("RecordMessage returned error: %v", err)
+	}
+	if !strings.Contains(db.exec, "where guild_memory_messages.deleted_at is null") {
+		t.Fatalf("exec = %q, want tombstoned rows protected from revive", db.exec)
+	}
+}
+
+func TestSQLStoreDeleteMessageTombstonesAndClearsText(t *testing.T) {
+	db := &fakeMemoryDB{}
+	store := NewSQLStore(db)
+	deletedAt := time.Date(2026, 6, 18, 2, 0, 0, 0, time.UTC)
+
+	if err := store.DeleteMessage(context.Background(), " guild-id ", " message-id ", deletedAt); err != nil {
+		t.Fatalf("DeleteMessage returned error: %v", err)
+	}
+	for _, want := range []string{"delete from guild_memory_segments", "update guild_memory_messages", "deleted_at = $3", "normalized_text = null", "content_ciphertext = null", "content_hash = ''"} {
+		if !strings.Contains(db.exec, want) {
+			t.Fatalf("exec = %q, want %q", db.exec, want)
+		}
+	}
+	if len(db.args) != 3 || db.args[0] != "guild-id" || db.args[1] != "message-id" || db.args[2] != deletedAt {
+		t.Fatalf("args = %+v, want normalized delete args", db.args)
+	}
+}
+
+func TestSQLStorePurgeExpiredMessagesDeletesRetentionRows(t *testing.T) {
+	db := &fakeMemoryDB{}
+	store := NewSQLStore(db)
+	now := time.Date(2026, 6, 18, 2, 0, 0, 0, time.UTC)
+
+	deleted, err := store.PurgeExpiredMessages(context.Background(), now)
+	if err != nil {
+		t.Fatalf("PurgeExpiredMessages returned error: %v", err)
+	}
+	if deleted != 1 {
+		t.Fatalf("deleted = %d, want 1", deleted)
+	}
+	if !strings.Contains(db.exec, "delete from guild_memory_messages") || !strings.Contains(db.exec, "retention_until <= $1") {
+		t.Fatalf("exec = %q, want retention delete", db.exec)
+	}
+	if len(db.args) != 1 || db.args[0] != now {
+		t.Fatalf("args = %+v, want purge time", db.args)
+	}
+}
+
 func TestSQLStoreCountMentionsUsesNormalizedText(t *testing.T) {
 	db := &fakeMemoryDB{rows: &fakeMemoryRows{values: [][]any{{3}}}}
 	store := NewSQLStore(db)
@@ -148,7 +208,9 @@ func TestSQLStoreCountMentionsUsesNormalizedText(t *testing.T) {
 
 func TestSQLStoreSearchMessagesUsesCurrentChannelAndLimit(t *testing.T) {
 	createdAt := time.Date(2026, 6, 18, 1, 2, 3, 0, time.UTC)
-	db := &fakeMemoryDB{rows: &fakeMemoryRows{values: [][]any{{"message-id", "channel-id", "user-id", "hello postgres", createdAt}}}}
+	retentionUntil := time.Date(2026, 7, 18, 1, 2, 3, 0, time.UTC)
+	retrievedAt := time.Date(2026, 6, 19, 1, 2, 3, 0, time.UTC)
+	db := &fakeMemoryDB{rows: &fakeMemoryRows{values: [][]any{{"message-id", "guild-id", "channel-id", "user-id", "hello postgres", createdAt, retentionUntil, retrievedAt}}}}
 	store := NewSQLStore(db)
 
 	got, err := store.SearchMessages(context.Background(), SearchRequest{
@@ -161,16 +223,41 @@ func TestSQLStoreSearchMessagesUsesCurrentChannelAndLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchMessages returned error: %v", err)
 	}
-	if len(got) != 1 || got[0].MessageID != "message-id" || got[0].Text != "hello postgres" {
+	if len(got) != 1 || got[0].MessageID != "message-id" || got[0].GuildID != "guild-id" || got[0].Text != "hello postgres" || !got[0].RetentionUntil.Equal(retentionUntil) || !got[0].RetrievedAt.Equal(retrievedAt) {
 		t.Fatalf("results = %+v, want search result", got)
 	}
-	for _, want := range []string{"channel_id = $2", "position($4 in normalized_text) > 0", "limit $7"} {
+	for _, want := range []string{"channel_id = $2", "deleted_at is null", "retention_until > now()", "position($4 in normalized_text) > 0", "retention_until", "now() as retrieved_at", "limit $7"} {
 		if !strings.Contains(db.query, want) {
 			t.Fatalf("query = %q, want %q", db.query, want)
 		}
 	}
 	if db.args[6] != 10 {
 		t.Fatalf("args = %+v, want limit 10", db.args)
+	}
+}
+
+func TestSQLStoreRecentMessagesReturnsProvenanceAndRetentionProof(t *testing.T) {
+	createdAt := time.Date(2026, 6, 18, 1, 2, 3, 0, time.UTC)
+	retentionUntil := time.Date(2026, 7, 18, 1, 2, 3, 0, time.UTC)
+	retrievedAt := time.Date(2026, 6, 19, 1, 2, 3, 0, time.UTC)
+	db := &fakeMemoryDB{rows: &fakeMemoryRows{values: [][]any{{"message-id", "guild-id", "channel-id", "user-id", "hello postgres", createdAt, retentionUntil, retrievedAt}}}}
+	store := NewSQLStore(db)
+
+	got, err := store.RecentMessages(context.Background(), RecentRequest{
+		GuildID:   "guild-id",
+		ChannelID: "channel-id",
+		Limit:     3,
+	})
+	if err != nil {
+		t.Fatalf("RecentMessages returned error: %v", err)
+	}
+	if len(got) != 1 || got[0].GuildID != "guild-id" || got[0].MessageID != "message-id" || !got[0].RetentionUntil.Equal(retentionUntil) || !got[0].RetrievedAt.Equal(retrievedAt) {
+		t.Fatalf("results = %+v, want recent result with provenance", got)
+	}
+	for _, want := range []string{"guild_id = $1", "channel_id = $2", "deleted_at is null", "retention_until > now()", "retention_until", "now() as retrieved_at", "limit $6"} {
+		if !strings.Contains(db.query, want) {
+			t.Fatalf("query = %q, want %q", db.query, want)
+		}
 	}
 }
 
@@ -217,6 +304,27 @@ func TestLiveIngestorSkipsOffChannels(t *testing.T) {
 	}
 	if store.recorded {
 		t.Fatalf("recorded = true, want off channel skipped")
+	}
+}
+
+func TestLiveIngestorTombstonesDeleteEvents(t *testing.T) {
+	deletedAt := time.Date(2026, 6, 18, 2, 0, 0, 0, time.UTC)
+	store := &fakeIngestStore{}
+	ingestor := &LiveIngestor{store: store, now: func() time.Time { return deletedAt }}
+
+	err := ingestor.ingest(context.Background(), MessageEvent{
+		MessageID: "message-id",
+		GuildID:   "guild-id",
+		Deleted:   true,
+	})
+	if err != nil {
+		t.Fatalf("ingest returned error: %v", err)
+	}
+	if !store.deleted || store.deletedGuildID != "guild-id" || store.deletedMessageID != "message-id" || !store.deletedAt.Equal(deletedAt) {
+		t.Fatalf("delete = %v %s %s %s, want tombstone event", store.deleted, store.deletedGuildID, store.deletedMessageID, store.deletedAt)
+	}
+	if store.recorded {
+		t.Fatalf("recorded = true, want delete path only")
 	}
 }
 
@@ -301,12 +409,16 @@ func (r fakeMemoryResult) LastInsertId() (int64, error) { return 0, nil }
 func (r fakeMemoryResult) RowsAffected() (int64, error) { return int64(r), nil }
 
 type fakeIngestStore struct {
-	policy   Policy
-	channel  ChannelPolicy
-	ok       bool
-	record   MessageRecord
-	recorded bool
-	err      error
+	policy           Policy
+	channel          ChannelPolicy
+	ok               bool
+	record           MessageRecord
+	recorded         bool
+	deleted          bool
+	deletedGuildID   string
+	deletedMessageID string
+	deletedAt        time.Time
+	err              error
 }
 
 func (s *fakeIngestStore) GuildPolicy(ctx context.Context, guildID string) (Policy, error) {
@@ -320,5 +432,13 @@ func (s *fakeIngestStore) ChannelPolicy(ctx context.Context, guildID string, cha
 func (s *fakeIngestStore) RecordMessage(ctx context.Context, record MessageRecord) error {
 	s.record = record
 	s.recorded = true
+	return s.err
+}
+
+func (s *fakeIngestStore) DeleteMessage(ctx context.Context, guildID string, messageID string, deletedAt time.Time) error {
+	s.deleted = true
+	s.deletedGuildID = guildID
+	s.deletedMessageID = messageID
+	s.deletedAt = deletedAt
 	return s.err
 }

@@ -5,7 +5,7 @@ description: High-level view of the Go foundation runtime.
 
 # System Overview
 
-This overview reflects the current Go foundation. Health/readiness, Discord liveness routing, permission grants, guild-scoped LLM provider controls, plugin catalog controls, external app dry-run matching, semantic dry-run routing, guild mention chat fallback, aggregate LLM usage reporting, and opt-in public dispatch run today when configured. Retrieval, memory, rich DM chat, and restricted external app dispatch remain later behavior.
+This overview reflects the current Go foundation. Health/readiness, Discord liveness routing, permission grants, guild-scoped LLM provider controls, plugin catalog controls, external app dry-run matching, semantic dry-run routing, guild mention chat fallback, aggregate LLM usage reporting, and consented opt-in public dispatch run today when configured. Retrieval, memory, rich DM chat, and restricted external app dispatch remain later behavior.
 
 ```mermaid
 flowchart LR
@@ -40,7 +40,7 @@ flowchart LR
 - `/healthz` reports process/build health.
 - `/readyz` fails closed unless required config exists and PostgreSQL is reachable.
 - Discord liveness behavior is active when Discord is enabled.
-- Capability, identity, and audit gate `/permissions`, `/llm`, external app dry-run planning, semantic routing, and public dispatch; job, retrieval, and memory packages are foundations for later privileged behavior.
+- Capability, identity, and audit gate `/permissions`, `/llm`, external app dry-run planning, semantic routing, and consented public dispatch; job, retrieval, and memory packages are foundations for later privileged behavior.
 - Docker Compose is the local and production deployment shape.
 
 ## Keep This Updated When

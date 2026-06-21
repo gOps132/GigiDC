@@ -67,6 +67,45 @@ func TestPlanCommandTreatsEmptyPermissionsAsPublic(t *testing.T) {
 	if len(plan.RequiredCapabilities) != 0 {
 		t.Fatalf("required capabilities = %+v, want public action with no required capabilities", plan.RequiredCapabilities)
 	}
+	if plan.Action.Safety != SafetyClassPublic {
+		t.Fatalf("action safety = %q, want public", plan.Action.Safety)
+	}
+}
+
+func TestPlanCommandUsesActionLevelContract(t *testing.T) {
+	manifest := musicManifest()
+	manifest.Triggers = nil
+	manifest.Permissions = []string{"plugin.install"}
+	manifest.Dispatch = DispatchModeDryRun
+	manifest.Actions = []Action{
+		{
+			ID:          "play",
+			Trigger:     Trigger{Kind: "prefix", Value: "!play", Aliases: []string{"play"}},
+			Surfaces:    []string{"guild_text"},
+			Permissions: nil,
+			Safety:      SafetyClassPublic,
+			Dispatch:    DispatchModeSendMessage,
+			Adapter:     DispatchAdapterPrefixCommand,
+		},
+		{
+			ID:          "admin-skip",
+			Trigger:     Trigger{Kind: "prefix", Value: "!skip"},
+			Surfaces:    []string{"guild_text"},
+			Permissions: []string{"plugin.install"},
+			Safety:      SafetyClassRestricted,
+		},
+	}
+
+	plan, ok := PlanCommand([]Manifest{manifest}, "guild_text", "play never gonna give you up")
+	if !ok {
+		t.Fatal("expected action trigger match")
+	}
+	if plan.Action.ID != "play" || plan.Trigger.Value != "!play" || plan.Command != "!play never gonna give you up" {
+		t.Fatalf("plan = %+v, want play action plan", plan)
+	}
+	if len(plan.RequiredCapabilities) != 0 || !plan.PublicAction() || plan.DispatchMode() != DispatchModeSendMessage {
+		t.Fatalf("plan = %+v, want public send-message action", plan)
+	}
 }
 
 func TestPlanCommandFromTriggerBuildsManifestGroundedPlan(t *testing.T) {
@@ -76,6 +115,29 @@ func TestPlanCommandFromTriggerBuildsManifestGroundedPlan(t *testing.T) {
 	}
 	if plan.Command != "!play never gonna give you up" || plan.Arguments != "never gonna give you up" || plan.Trigger.Value != "!play" {
 		t.Fatalf("plan = %+v, want grounded command", plan)
+	}
+	if len(plan.RequiredCapabilities) != 1 || plan.RequiredCapabilities[0] != capability.Capability("plugin.install") {
+		t.Fatalf("required capabilities = %+v, want plugin.install", plan.RequiredCapabilities)
+	}
+}
+
+func TestPlanCommandFromTriggerUsesActionLevelContract(t *testing.T) {
+	manifest := musicManifest()
+	manifest.Triggers = nil
+	manifest.Actions = []Action{{
+		ID:          "skip",
+		Trigger:     Trigger{Kind: "prefix", Value: "!skip"},
+		Surfaces:    []string{"guild_text"},
+		Permissions: []string{"plugin.install"},
+		Safety:      SafetyClassRestricted,
+	}}
+
+	plan, ok := PlanCommandFromTrigger([]Manifest{manifest}, "guild_text", "jockie-music", "!skip", "two tracks")
+	if !ok {
+		t.Fatal("expected action trigger plan")
+	}
+	if plan.Action.ID != "skip" || plan.Command != "!skip two tracks" || plan.Arguments != "two tracks" {
+		t.Fatalf("plan = %+v, want action-grounded command", plan)
 	}
 	if len(plan.RequiredCapabilities) != 1 || plan.RequiredCapabilities[0] != capability.Capability("plugin.install") {
 		t.Fatalf("required capabilities = %+v, want plugin.install", plan.RequiredCapabilities)

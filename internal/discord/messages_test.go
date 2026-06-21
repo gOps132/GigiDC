@@ -56,6 +56,34 @@ func TestMessageRouterRoutesGuildMentions(t *testing.T) {
 	}
 }
 
+func TestMessageRouterAppendsGuildReplyLatencyWhenEnabled(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryGuildReplyLatencyStore()
+	if err := store.SetGuildReplyLatencyEnabled(ctx, "latency-guild", true); err != nil {
+		t.Fatalf("SetGuildReplyLatencyEnabled returned error: %v", err)
+	}
+	clock := &fakeReplyLatencyClock{times: []time.Time{
+		time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 6, 19, 12, 0, 0, 900*int(time.Millisecond), time.UTC),
+	}}
+	router, err := NewMessageRouter("bot-id", MessageHandlerFunc(func(ctx context.Context, message Message) (MessageResponse, error) {
+		return MessageResponse{Content: "mention-ok"}, nil
+	}), nil)
+	if err != nil {
+		t.Fatalf("NewMessageRouter returned error: %v", err)
+	}
+	router.SetReplyLatencyConfig(ReplyLatencyConfig{Store: store, Clock: clock.Now})
+	sender := &fakeMessageSender{}
+
+	err = router.HandleMessage(ctx, sender, messageCreate("latency-guild", "channel-id", "user-id", false, "<@bot-id> hello there"))
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if sender.content != "mention-ok `900ms`" {
+		t.Fatalf("sent content = %q, want latency suffix", sender.content)
+	}
+}
+
 func TestMessageRouterRoutesNicknameMentions(t *testing.T) {
 	var got Message
 	router, err := NewMessageRouter("bot-id", MessageHandlerFunc(func(ctx context.Context, message Message) (MessageResponse, error) {
@@ -147,6 +175,40 @@ func TestMessageRouterEnqueuesGuildMemoryIngestForUnroutedGuildMessages(t *testi
 	}
 	if len(ingestor.events) != 1 || ingestor.events[0].GuildID != "guild-id" || ingestor.events[0].Content != "plain channel message" {
 		t.Fatalf("ingest events = %+v, want guild memory event", ingestor.events)
+	}
+}
+
+func TestMessageRouterEnqueuesGuildMemoryDeleteEvents(t *testing.T) {
+	ingestor := &fakeGuildMemoryIngestor{}
+	router, err := NewMessageRouter("bot-id", CoreMessageHandler(), nil, ingestor)
+	if err != nil {
+		t.Fatalf("NewMessageRouter returned error: %v", err)
+	}
+
+	if err := router.HandleMessageDelete(context.Background(), &discordgo.MessageDelete{Message: &discordgo.Message{ID: "message-id", GuildID: "guild-id", ChannelID: "channel-id"}}); err != nil {
+		t.Fatalf("HandleMessageDelete returned error: %v", err)
+	}
+	if len(ingestor.events) != 1 || !ingestor.events[0].Deleted || ingestor.events[0].GuildID != "guild-id" || ingestor.events[0].MessageID != "message-id" {
+		t.Fatalf("ingest events = %+v, want guild memory delete event", ingestor.events)
+	}
+}
+
+func TestMessageRouterEnqueuesGuildMemoryBulkDeleteEvents(t *testing.T) {
+	ingestor := &fakeGuildMemoryIngestor{}
+	router, err := NewMessageRouter("bot-id", CoreMessageHandler(), nil, ingestor)
+	if err != nil {
+		t.Fatalf("NewMessageRouter returned error: %v", err)
+	}
+
+	if err := router.HandleMessageDeleteBulk(context.Background(), &discordgo.MessageDeleteBulk{
+		Messages:  []string{"m1", "m2"},
+		GuildID:   "guild-id",
+		ChannelID: "channel-id",
+	}); err != nil {
+		t.Fatalf("HandleMessageDeleteBulk returned error: %v", err)
+	}
+	if len(ingestor.events) != 2 || !ingestor.events[0].Deleted || ingestor.events[1].MessageID != "m2" {
+		t.Fatalf("ingest events = %+v, want bulk delete tombstones", ingestor.events)
 	}
 }
 
@@ -273,4 +335,21 @@ type fakeGuildMemoryIngestor struct {
 func (i *fakeGuildMemoryIngestor) TryEnqueueMessage(event memory.MessageEvent) bool {
 	i.events = append(i.events, event)
 	return i.returnValue
+}
+
+type fakeReplyLatencyClock struct {
+	times []time.Time
+	index int
+}
+
+func (c *fakeReplyLatencyClock) Now() time.Time {
+	if len(c.times) == 0 {
+		return time.Time{}
+	}
+	if c.index >= len(c.times) {
+		return c.times[len(c.times)-1]
+	}
+	now := c.times[c.index]
+	c.index++
+	return now
 }

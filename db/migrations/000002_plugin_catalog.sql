@@ -16,7 +16,8 @@ create unique index if not exists plugins_discord_bot_user_id_idx
 alter table plugin_versions
   add column if not exists manifest_sha256 text,
   add column if not exists source_url text,
-  add column if not exists approved_by_user_id text;
+  add column if not exists approved_by_user_id text,
+  add column if not exists public_dispatch_allowed boolean not null default false;
 
 create index if not exists plugin_versions_approved_lookup_idx
   on plugin_versions (plugin_id, approved, version);

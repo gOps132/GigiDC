@@ -57,6 +57,8 @@ type MessageEvent struct {
 	AuthorUserID string
 	Content      string
 	CreatedAt    time.Time
+	Deleted      bool
+	DeletedAt    time.Time
 }
 
 type MessageRecord struct {
@@ -103,11 +105,14 @@ type RecentRequest struct {
 }
 
 type SearchResult struct {
-	MessageID    string
-	ChannelID    string
-	AuthorUserID string
-	Text         string
-	CreatedAt    time.Time
+	MessageID      string
+	GuildID        string
+	ChannelID      string
+	AuthorUserID   string
+	Text           string
+	CreatedAt      time.Time
+	RetentionUntil time.Time
+	RetrievedAt    time.Time
 }
 
 type memoryRows interface {
@@ -345,6 +350,63 @@ where guild_memory_messages.deleted_at is null
 	return nil
 }
 
+func (s SQLStore) DeleteMessage(ctx context.Context, guildID string, messageID string, deletedAt time.Time) error {
+	guildID = strings.TrimSpace(guildID)
+	messageID = strings.TrimSpace(messageID)
+	if guildID == "" {
+		return fmt.Errorf("guild ID is required")
+	}
+	if messageID == "" {
+		return fmt.Errorf("message ID is required")
+	}
+	if deletedAt.IsZero() {
+		deletedAt = time.Now().UTC()
+	}
+	if s.exec == nil {
+		return fmt.Errorf("memory exec database is required")
+	}
+	_, err := s.exec(ctx, `
+with deleted_segments as (
+  delete from guild_memory_segments
+  where guild_id = $1
+    and message_id = $2
+)
+update guild_memory_messages
+set deleted_at = $3,
+    normalized_text = null,
+    content_ciphertext = null,
+    content_hash = '',
+    indexed_at = now()
+where guild_id = $1
+  and message_id = $2
+`, guildID, messageID, deletedAt)
+	if err != nil {
+		return fmt.Errorf("delete memory message: %w", err)
+	}
+	return nil
+}
+
+func (s SQLStore) PurgeExpiredMessages(ctx context.Context, now time.Time) (int64, error) {
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	if s.exec == nil {
+		return 0, fmt.Errorf("memory exec database is required")
+	}
+	result, err := s.exec(ctx, `
+delete from guild_memory_messages
+where retention_until <= $1
+`, now)
+	if err != nil {
+		return 0, fmt.Errorf("purge expired memory messages: %w", err)
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("purge expired memory messages rows affected: %w", err)
+	}
+	return deleted, nil
+}
+
 func (s SQLStore) CountMentions(ctx context.Context, req CountRequest) (CountResult, error) {
 	req = normalizeCountRequest(req)
 	if req.GuildID == "" {
@@ -421,7 +483,7 @@ func (s SQLStore) SearchMessages(ctx context.Context, req SearchRequest) ([]Sear
 		endDateVal = sql.NullTime{Time: req.EndDate, Valid: true}
 	}
 	rows, err := s.query(ctx, `
-select message_id, channel_id, author_user_id, normalized_text, created_at
+select message_id, guild_id, channel_id, author_user_id, normalized_text, created_at, retention_until, now() as retrieved_at
 from guild_memory_messages
 where guild_id = $1
   and channel_id = $2
@@ -443,7 +505,7 @@ limit $7
 	var results []SearchResult
 	for rows.Next() {
 		var result SearchResult
-		if err := rows.Scan(&result.MessageID, &result.ChannelID, &result.AuthorUserID, &result.Text, &result.CreatedAt); err != nil {
+		if err := rows.Scan(&result.MessageID, &result.GuildID, &result.ChannelID, &result.AuthorUserID, &result.Text, &result.CreatedAt, &result.RetentionUntil, &result.RetrievedAt); err != nil {
 			return nil, err
 		}
 		results = append(results, result)
@@ -474,7 +536,7 @@ func (s SQLStore) RecentMessages(ctx context.Context, req RecentRequest) ([]Sear
 		endDateVal = sql.NullTime{Time: req.EndDate, Valid: true}
 	}
 	rows, err := s.query(ctx, `
-select message_id, channel_id, author_user_id, normalized_text, created_at
+select message_id, guild_id, channel_id, author_user_id, normalized_text, created_at, retention_until, now() as retrieved_at
 from guild_memory_messages
 where guild_id = $1
   and channel_id = $2
@@ -495,7 +557,7 @@ limit $6
 	var results []SearchResult
 	for rows.Next() {
 		var result SearchResult
-		if err := rows.Scan(&result.MessageID, &result.ChannelID, &result.AuthorUserID, &result.Text, &result.CreatedAt); err != nil {
+		if err := rows.Scan(&result.MessageID, &result.GuildID, &result.ChannelID, &result.AuthorUserID, &result.Text, &result.CreatedAt, &result.RetentionUntil, &result.RetrievedAt); err != nil {
 			return nil, err
 		}
 		results = append(results, result)

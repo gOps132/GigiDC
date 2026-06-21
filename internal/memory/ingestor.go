@@ -9,6 +9,7 @@ type IngestStore interface {
 	GuildPolicy(ctx context.Context, guildID string) (Policy, error)
 	ChannelPolicy(ctx context.Context, guildID string, channelID string) (ChannelPolicy, bool, error)
 	RecordMessage(ctx context.Context, record MessageRecord) error
+	DeleteMessage(ctx context.Context, guildID string, messageID string, deletedAt time.Time) error
 }
 
 type LiveIngestor struct {
@@ -51,6 +52,16 @@ func (i *LiveIngestor) run() {
 }
 
 func (i *LiveIngestor) ingest(ctx context.Context, event MessageEvent) error {
+	if event.Deleted {
+		if event.GuildID == "" || event.MessageID == "" {
+			return nil
+		}
+		deletedAt := event.DeletedAt
+		if deletedAt.IsZero() {
+			deletedAt = i.currentTime()
+		}
+		return i.store.DeleteMessage(ctx, event.GuildID, event.MessageID, deletedAt)
+	}
 	event.Content = NormalizeText(event.Content)
 	if event.GuildID == "" || event.ChannelID == "" || event.MessageID == "" || event.AuthorUserID == "" || event.Content == "" {
 		return nil

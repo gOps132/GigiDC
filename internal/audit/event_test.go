@@ -29,6 +29,43 @@ func TestEventAcceptsPermissionDecision(t *testing.T) {
 	}
 }
 
+func TestSanitizeMetadataKeepsSafeFieldsAndRemovesSecrets(t *testing.T) {
+	input := map[string]string{
+		"capability":    "job.admin",
+		"source":        "discord",
+		"run_id":        "run-123",
+		"api_key":       "raw-api-key",
+		"authorization": "Bearer raw-token",
+		"fingerprint":   "Bearer raw-token",
+		"model":         "sk-live-secret",
+	}
+
+	got := SanitizeMetadata(input)
+
+	for key, want := range map[string]string{
+		"capability": "job.admin",
+		"source":     "discord",
+		"run_id":     "run-123",
+	} {
+		if got[key] != want {
+			t.Fatalf("metadata[%q] = %q, want %q", key, got[key], want)
+		}
+	}
+	for _, key := range []string{"api_key", "authorization"} {
+		if _, ok := got[key]; ok {
+			t.Fatalf("metadata contains sensitive key %q: %+v", key, got)
+		}
+	}
+	for key, value := range got {
+		if strings.Contains(strings.ToLower(value), "bearer") || strings.Contains(value, "sk-live-secret") {
+			t.Fatalf("metadata[%q] contains sensitive value %q", key, value)
+		}
+	}
+	if _, ok := input["api_key"]; !ok {
+		t.Fatal("SanitizeMetadata mutated input")
+	}
+}
+
 func TestEventRejectsSecretLikeMetadataKeys(t *testing.T) {
 	for _, key := range []string{"api_key", "secret", "token", "authorization", "provider_secret", "client_secret", "private_key", "refresh_token"} {
 		event := Event{

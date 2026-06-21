@@ -3,7 +3,11 @@ package agent
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+
+	"github.com/gOps132/GigiDC/internal/llm"
+	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
 )
 
 func TestMultiPlannerUsesFirstHandledPlan(t *testing.T) {
@@ -23,67 +27,82 @@ func TestMultiPlannerUsesFirstHandledPlan(t *testing.T) {
 	}
 }
 
-func TestHeuristicToolPlannerPlansUsage(t *testing.T) {
+func TestMultiPlannerLetsLLMHandleConversationalGuildMention(t *testing.T) {
 	request := agentTestRequest()
-	request.Text = "how many LLM tokens used here?"
+	request.Text = "can you summarize the recent chats?"
+	planningRuntime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: `{"intent":"summarize_recent_chat","tool_calls":[{"name":"memory.recent","args":{"limit":"25"}}]}`}}
+	planner := MultiPlanner{
+		LLMPlanner{Runtime: planningRuntime},
+	}
 
-	plan, ok, err := HeuristicToolPlanner{}.Plan(context.Background(), request, []ToolSpec{{Name: ToolLLMUsageGuild}})
+	plan, ok, err := planner.Plan(context.Background(), request, []ToolSpec{{Name: ToolMemoryRecent, Description: "Recent messages"}})
 	if err != nil {
 		t.Fatalf("Plan returned error: %v", err)
 	}
-	if !ok || plan.Intent != ToolLLMUsageGuild || plan.ToolCalls[0].Name != ToolLLMUsageGuild {
-		t.Fatalf("plan=%+v ok=%v, want usage plan", plan, ok)
+	if !ok || plan.Intent != IntentSummarizeRecentChat || plan.ToolCalls[0].Name != ToolMemoryRecent || plan.ToolCalls[0].Args["limit"] != "25" {
+		t.Fatalf("plan=%+v ok=%v, want LLM recent-chat summary plan", plan, ok)
+	}
+	if planningRuntime.req.Purpose != llmprovider.PurposeRouting || !strings.Contains(planningRuntime.req.Input, "can you summarize the recent chats?") {
+		t.Fatalf("request=%+v, want conversational text routed through LLM planner", planningRuntime.req)
 	}
 }
 
-func TestHeuristicToolPlannerPlansPermissionCheck(t *testing.T) {
+func TestMultiPlannerLetsLLMHandleSlashLikeGuildMentionText(t *testing.T) {
 	request := agentTestRequest()
-	request.Text = "do I have `memory.read.guild`?"
+	request.Text = "/plugins dry-run play never gonna give you up"
+	planningRuntime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: `{"intent":"plugin_plan","tool_calls":[{"name":"plugins.plan","args":{"text":"play never gonna give you up"}}]}`}}
+	planner := MultiPlanner{
+		LLMPlanner{Runtime: planningRuntime},
+	}
 
-	plan, ok, err := HeuristicToolPlanner{}.Plan(context.Background(), request, []ToolSpec{{Name: ToolPermissionsCheck}})
+	plan, ok, err := planner.Plan(context.Background(), request, []ToolSpec{{Name: ToolPluginsPlan, Description: "Plan an external app command"}})
 	if err != nil {
 		t.Fatalf("Plan returned error: %v", err)
 	}
-	if !ok || plan.ToolCalls[0].Args["capability"] != "memory.read.guild" {
-		t.Fatalf("plan=%+v ok=%v, want permission plan", plan, ok)
+	if !ok || plan.Intent != "plugin_plan" || plan.ToolCalls[0].Name != ToolPluginsPlan {
+		t.Fatalf("plan=%+v ok=%v, want LLM plugin plan", plan, ok)
+	}
+	if planningRuntime.req.Purpose != llmprovider.PurposeRouting || !strings.Contains(planningRuntime.req.Input, "/plugins dry-run") {
+		t.Fatalf("request=%+v, want slash-like mention text routed through LLM planner", planningRuntime.req)
 	}
 }
 
-func TestHeuristicToolPlannerPlansPluginText(t *testing.T) {
+func TestPlanningHandlerUsesLLMPlannerAndAnswererForConversationalRecentChat(t *testing.T) {
 	request := agentTestRequest()
-	request.Text = "plugin plan play never gonna give you up"
+	request.Text = "can you summarize the recent chats?"
+	planningRuntime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: `{"intent":"summarize_recent_chat","tool_calls":[{"name":"memory.recent","args":{"limit":"25"}}]}`}}
+	answerRuntime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: "Recent chat centered on deploy follow-up. [S1]"}}
+	memoryTool := &fakeTool{
+		name: ToolMemoryRecent,
+		result: ToolResult{
+			Name:    ToolMemoryRecent,
+			Summary: "Recent retained full-mode messages in this channel (2):\n- [S1] alice: deploy follow-up\n- [S2] bob: ack",
+			Data:    map[string]string{"citation_labels": "S1,S2"},
+		},
+	}
+	handler := PlanningHandler{
+		Planner: MultiPlanner{
+			LLMPlanner{Runtime: planningRuntime},
+		},
+		Answerer: LLMAnswerer{Runtime: answerRuntime},
+		Policy:   fakePolicy{mode: llmprovider.ToolRoutingEnabled},
+		Tools:    NewRegistry(memoryTool),
+	}
 
-	plan, ok, err := HeuristicToolPlanner{}.Plan(context.Background(), request, []ToolSpec{{Name: ToolPluginsPlan}})
+	response, handled, err := handler.HandleAgentRequest(context.Background(), request)
 	if err != nil {
-		t.Fatalf("Plan returned error: %v", err)
+		t.Fatalf("HandleAgentRequest returned error: %v", err)
 	}
-	if !ok || plan.ToolCalls[0].Name != ToolPluginsPlan || plan.ToolCalls[0].Args["text"] != "play never gonna give you up" {
-		t.Fatalf("plan=%+v ok=%v, want stripped plugin plan text", plan, ok)
+	if !handled || response.Text != "Recent chat centered on deploy follow-up." {
+		t.Fatalf("response=%+v handled=%v, want synthesized LLM answer", response, handled)
 	}
-}
-
-func TestHeuristicToolPlannerPlansRecentMemory(t *testing.T) {
-	request := agentTestRequest()
-	request.Text = "summarize chat"
-
-	plan, ok, err := HeuristicToolPlanner{}.Plan(context.Background(), request, []ToolSpec{{Name: ToolMemoryRecent}})
-	if err != nil {
-		t.Fatalf("Plan returned error: %v", err)
+	if !memoryTool.called {
+		t.Fatalf("memory.recent tool was not called")
 	}
-	if !ok || plan.ToolCalls[0].Name != ToolMemoryRecent || plan.ToolCalls[0].Args["limit"] != "10" {
-		t.Fatalf("plan=%+v ok=%v, want recent memory plan", plan, ok)
+	if planningRuntime.req.Purpose != llmprovider.PurposeRouting || answerRuntime.req.Purpose != llmprovider.PurposeChat {
+		t.Fatalf("planning=%+v answer=%+v, want routing planner then chat answerer", planningRuntime.req, answerRuntime.req)
 	}
-}
-
-func TestHeuristicToolPlannerSkipsUnavailableTool(t *testing.T) {
-	request := agentTestRequest()
-	request.Text = "show enabled plugins"
-
-	plan, ok, err := HeuristicToolPlanner{}.Plan(context.Background(), request, nil)
-	if err != nil {
-		t.Fatalf("Plan returned error: %v", err)
-	}
-	if ok || plan.Intent != "" {
-		t.Fatalf("plan=%+v ok=%v, want skip", plan, ok)
+	if strings.Contains(response.Text, "Recent retained full-mode messages") || !strings.Contains(answerRuntime.req.Input, "Do not return the raw tool-result bullet list") {
+		t.Fatalf("response=%q input=%q, want answerer synthesis rather than raw memory list", response.Text, answerRuntime.req.Input)
 	}
 }
