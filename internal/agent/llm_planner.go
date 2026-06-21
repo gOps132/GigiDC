@@ -54,7 +54,14 @@ func (p LLMPlanner) Plan(ctx context.Context, request Request, specs []ToolSpec)
 	if err != nil {
 		return Plan{}, false, err
 	}
-	return parseLLMPlan(generated.Text, specs, p.maxToolCalls())
+	plan, ok, err := parseLLMPlan(generated.Text, specs, p.maxToolCalls())
+	if err != nil || !ok {
+		return plan, ok, err
+	}
+	if plan.Intent == "answer_from_prior" && request.PriorRun == nil {
+		return Plan{}, false, nil
+	}
+	return plan, true, nil
 }
 
 func llmPlannerInstructions() string {
