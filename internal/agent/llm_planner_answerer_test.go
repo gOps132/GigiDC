@@ -51,6 +51,24 @@ func TestLLMPlannerRejectsEmptyNonPriorToolPlan(t *testing.T) {
 	}
 }
 
+func TestLLMPlannerRepairsEmptyPlanWithToolAwareRetry(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{responses: []llm.TextResponse{
+		{Text: `{}`},
+		{Text: `{"intent":"web_search","tool_calls":[{"name":"web.search","args":{"query":"latest Go release notes"}}]}`},
+	}}
+
+	plan, ok, err := (LLMPlanner{Runtime: runtime}).Plan(context.Background(), agentTestRequest(), []ToolSpec{{Name: ToolWebSearch, Description: "Search the web"}})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if !ok || len(plan.ToolCalls) != 1 || plan.ToolCalls[0].Name != ToolWebSearch || plan.ToolCalls[0].Args["query"] != "latest Go release notes" {
+		t.Fatalf("plan=%+v ok=%v, want repaired web.search plan", plan, ok)
+	}
+	if len(runtime.reqs) != 2 || !strings.Contains(runtime.reqs[1].Input, "previous planner output") || !strings.Contains(runtime.reqs[1].Input, "Return {} only if none of the listed tools could help") {
+		t.Fatalf("requests=%+v, want tool-aware retry prompt", runtime.reqs)
+	}
+}
+
 func TestLLMPlannerPromptMentionsWebAndJobRouting(t *testing.T) {
 	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: `{"intent":"web_search","tool_calls":[{"name":"web.search","args":{"query":"latest Go release notes"}}]}`}}
 
@@ -65,9 +83,14 @@ func TestLLMPlannerPromptMentionsWebAndJobRouting(t *testing.T) {
 	if !ok || len(plan.ToolCalls) != 1 || plan.ToolCalls[0].Name != ToolWebSearch || plan.ToolCalls[0].Args["query"] != "latest Go release notes" {
 		t.Fatalf("plan=%+v ok=%v, want web.search plan", plan, ok)
 	}
-	for _, want := range []string{"Use web.search", "external current information", "Use web.fetch", "Use jobs.list"} {
+	for _, want := range []string{"web.search", "current", "latest", "web.fetch", "jobs.list", "what tools Gigi can use"} {
 		if !strings.Contains(runtime.req.Instructions, want) {
 			t.Fatalf("instructions=%q, want %q", runtime.req.Instructions, want)
+		}
+	}
+	for _, want := range []string{"Tool selection guide", "web.search: use for web/online/current/latest/real-time information requests", "web.fetch: use for reading or summarizing"} {
+		if !strings.Contains(runtime.req.Input, want) {
+			t.Fatalf("input=%q, want %q", runtime.req.Input, want)
 		}
 	}
 }
@@ -415,15 +438,23 @@ func TestPlanningHandlerLoadsPriorRun(t *testing.T) {
 }
 
 type fakeAgentTextRuntime struct {
-	req      llm.GenerateTextRequest
-	response llm.TextResponse
-	err      error
+	req       llm.GenerateTextRequest
+	reqs      []llm.GenerateTextRequest
+	response  llm.TextResponse
+	responses []llm.TextResponse
+	err       error
 }
 
 func (r *fakeAgentTextRuntime) GenerateText(ctx context.Context, req llm.GenerateTextRequest) (llm.TextResponse, error) {
 	r.req = req
+	r.reqs = append(r.reqs, req)
 	if r.err != nil {
 		return llm.TextResponse{}, r.err
+	}
+	if len(r.responses) > 0 {
+		response := r.responses[0]
+		r.responses = r.responses[1:]
+		return response, nil
 	}
 	return r.response, nil
 }
