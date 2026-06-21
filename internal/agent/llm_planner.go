@@ -41,6 +41,7 @@ func (p LLMPlanner) Plan(ctx context.Context, request Request, specs []ToolSpec)
 	if len(specs) == 0 {
 		return Plan{}, false, nil
 	}
+	input := llmPlannerPrompt(request, specs)
 	generated, err := p.Runtime.GenerateText(ctx, llm.GenerateTextRequest{
 		Owner:           llmprovider.Scope{OwnerType: llmprovider.OwnerGuild, GuildID: request.GuildID},
 		Purpose:         llmprovider.PurposeRouting,
@@ -48,24 +49,35 @@ func (p LLMPlanner) Plan(ctx context.Context, request Request, specs []ToolSpec)
 		GuildID:         request.GuildID,
 		ChannelID:       request.ChannelID,
 		Instructions:    llmPlannerInstructions(),
-		Input:           llmPlannerPrompt(request, specs),
+		Input:           input,
 		MaxOutputTokens: p.maxOutputTokens(),
 	})
 	if err != nil {
 		return Plan{}, false, err
 	}
-	plan, ok, err := parseLLMPlan(generated.Text, specs, p.maxToolCalls())
-	if err != nil || !ok {
+	plan, ok, err := p.parseValidPlan(generated.Text, specs, request)
+	if err != nil || ok {
 		return plan, ok, err
 	}
-	if plan.Intent == "answer_from_prior" && request.PriorRun == nil {
-		return Plan{}, false, nil
+
+	repair, err := p.Runtime.GenerateText(ctx, llm.GenerateTextRequest{
+		Owner:           llmprovider.Scope{OwnerType: llmprovider.OwnerGuild, GuildID: request.GuildID},
+		Purpose:         llmprovider.PurposeRouting,
+		ActorUserID:     request.ActorUserID,
+		GuildID:         request.GuildID,
+		ChannelID:       request.ChannelID,
+		Instructions:    llmPlannerInstructions(),
+		Input:           llmPlannerRepairPrompt(input, generated.Text),
+		MaxOutputTokens: p.maxOutputTokens(),
+	})
+	if err != nil {
+		return Plan{}, false, err
 	}
-	return plan, true, nil
+	return p.parseValidPlan(repair.Text, specs, request)
 }
 
 func llmPlannerInstructions() string {
-	return "You are Gigi's tool planner. Return only JSON. You may only select listed tools. Do not answer the user. Use web.search when the user explicitly requests web, online, or external current information and web.search is listed. Use web.fetch when the user asks to read, summarize, or inspect a specific URL or page and web.fetch is listed. Use jobs.list, jobs.schedule, or jobs.cancel only for explicit background job requests; write tools require confirmation. Use memory and analytics tools when needed for current-channel memory, plugin planning, permission checks, or usage summaries. Ask a clarifying_question only when needed. For follow-up questions, use prior run context if present or choose a tool to refresh context. If prior run context is enough to answer, return {\"intent\":\"answer_from_prior\",\"tool_calls\":[]}. For messages answerable without tools, return {} so normal chat can answer. Never invent tool names or arguments."
+	return "You are Gigi's tool planner. Return only JSON. You may only select listed tools. Do not answer the user. Prefer read tools over saying capability is unavailable. If the user asks for web, online, external, current, latest, or real-time information and web.search is listed, choose web.search. If the user asks to read, summarize, or inspect a URL and web.fetch is listed, choose web.fetch. If the user asks what tools Gigi can use, return a clarifying_question listing the available tool names. Use jobs.list, jobs.schedule, or jobs.cancel only for explicit background job requests; write tools require confirmation. Use memory and analytics tools when needed for current-channel memory, plugin planning, permission checks, or usage summaries. Ask a clarifying_question only when needed. For follow-up questions, use prior run context if present or choose a tool to refresh context. If prior run context is enough to answer, return {\"intent\":\"answer_from_prior\",\"tool_calls\":[]}. For messages answerable without tools, return {} so normal chat can answer. Never invent tool names or arguments."
 }
 
 func llmPlannerPrompt(request Request, specs []ToolSpec) string {
@@ -86,6 +98,10 @@ func llmPlannerPrompt(request Request, specs []ToolSpec) string {
 		}
 		b.WriteString("\n")
 	}
+	if guide := toolSelectionGuide(specs); guide != "" {
+		b.WriteString("\nTool selection guide:\n")
+		b.WriteString(guide)
+	}
 	if request.PriorRun != nil {
 		b.WriteString("\nPrior run:\n")
 		b.WriteString(formatRunSnapshot(*request.PriorRun, 1800))
@@ -98,6 +114,53 @@ func llmPlannerPrompt(request Request, specs []ToolSpec) string {
 	}
 	b.WriteString("\nReturn JSON like {\"intent\":\"summarize_recent_chat\",\"tool_calls\":[{\"name\":\"memory.recent\",\"args\":{\"limit\":\"25\"}}]}. For follow-up answerable from prior context, return {\"intent\":\"answer_from_prior\",\"tool_calls\":[]}. Return {} if Gigi should ignore the message.")
 	return b.String()
+}
+
+func (p LLMPlanner) parseValidPlan(value string, specs []ToolSpec, request Request) (Plan, bool, error) {
+	plan, ok, err := parseLLMPlan(value, specs, p.maxToolCalls())
+	if err != nil || !ok {
+		return plan, ok, err
+	}
+	if plan.Intent == "answer_from_prior" && request.PriorRun == nil {
+		return Plan{}, false, nil
+	}
+	return plan, true, nil
+}
+
+func llmPlannerRepairPrompt(originalPrompt, priorOutput string) string {
+	var b strings.Builder
+	b.WriteString(originalPrompt)
+	b.WriteString("\n\nThe previous planner output did not produce a valid actionable plan:\n")
+	b.WriteString(strings.TrimSpace(priorOutput))
+	b.WriteString("\n\nRe-evaluate the same user message against the listed tools. Return {} only if none of the listed tools could help and no clarifying_question is useful. If a listed read tool can obtain needed information, choose it. Return only JSON.")
+	return b.String()
+}
+
+func toolSelectionGuide(specs []ToolSpec) string {
+	names := make(map[string]bool, len(specs))
+	for _, spec := range specs {
+		names[NormalizeToolSpec(spec).Name] = true
+	}
+	var lines []string
+	if names[ToolWebSearch] {
+		lines = append(lines, "- web.search: use for web/online/current/latest/real-time information requests. Args: query, optional limit.")
+	}
+	if names[ToolWebFetch] {
+		lines = append(lines, "- web.fetch: use for reading or summarizing a specific public URL. Args: url.")
+	}
+	if names[ToolMemoryRecent] {
+		lines = append(lines, "- memory.recent: use for recent channel chat summaries or questions about recent messages. Args: limit.")
+	}
+	if names[ToolMemorySearch] {
+		lines = append(lines, "- memory.search: use to find prior channel memory by query. Args: query, optional limit.")
+	}
+	if names[ToolJobsList] || names[ToolJobsSchedule] || names[ToolJobsCancel] {
+		lines = append(lines, "- jobs.*: use only for explicit background job list, schedule, or cancel requests.")
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return strings.Join(lines, "\n") + "\n"
 }
 
 func parseLLMPlan(value string, specs []ToolSpec, maxToolCalls int) (Plan, bool, error) {
