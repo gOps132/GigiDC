@@ -15,6 +15,7 @@ import (
 	"github.com/gOps132/GigiDC/internal/config"
 	"github.com/gOps132/GigiDC/internal/contextbroker"
 	"github.com/gOps132/GigiDC/internal/discord"
+	"github.com/gOps132/GigiDC/internal/jobs"
 	"github.com/gOps132/GigiDC/internal/llm"
 	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
 	"github.com/gOps132/GigiDC/internal/memory"
@@ -30,6 +31,7 @@ type App struct {
 	readyCheck    web.ReadyCheck
 	discordClient discord.Client
 	db            *sql.DB
+	jobsWorker    *jobs.WorkerPool
 }
 
 type Option func(*App)
@@ -98,6 +100,15 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		memoryIngestor := memory.NewLiveIngestor(memoryStore, 512)
 		conversationStore := assistant.NewSQLConversationStore(db, func() string { return storage.NewID("asstturn") })
 		evaluator := capability.NewEvaluator(grantStore)
+
+		jobsQueue := jobs.NewSQLQueue(db, func() string { return storage.NewID("job") })
+		workerPool := jobs.NewWorkerPool(jobsQueue, logger, jobs.WorkerOptions{
+			MaxWorkers:   3,
+			PollInterval: 5 * time.Second,
+			WorkerID:     storage.NewID("worker"),
+		})
+		application.jobsWorker = workerPool
+
 		llmRuntime := llm.Runtime{
 			Resolver:     providerService,
 			Client:       llm.NewHTTPProviderClient(nil),
@@ -125,6 +136,11 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 						agent.PluginPlanTool{Registry: pluginStore, Checker: evaluator},
 						agent.PermissionsCheckTool{Checker: evaluator},
 						agent.LLMUsageGuildTool{Reporter: usageRecorder},
+						agent.WebSearchTool{},
+						agent.WebFetchTool{},
+						agent.JobsScheduleTool{Queue: jobsQueue, NewJobID: func() string { return storage.NewID("job") }},
+						agent.JobsListTool{DB: db},
+						agent.JobsCancelTool{DB: db},
 					),
 					Policy:    policyStore,
 					Checker:   evaluator,
@@ -203,8 +219,15 @@ func guildMentionPlanner(llmRuntime llm.Runtime) agent.Planner {
 }
 
 func (a *App) Run(ctx context.Context) error {
+	if a.jobsWorker != nil {
+		a.jobsWorker.Start(ctx)
+	}
+
 	if a.discordClient != nil {
 		if err := a.discordClient.Start(ctx); err != nil {
+			if a.jobsWorker != nil {
+				a.jobsWorker.Stop()
+			}
 			return err
 		}
 	}
@@ -243,6 +266,9 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 func (a *App) Shutdown(ctx context.Context) error {
+	if a.jobsWorker != nil {
+		a.jobsWorker.Stop()
+	}
 	if err := a.closeDiscord(ctx); err != nil {
 		return err
 	}
@@ -256,6 +282,9 @@ func (a *App) Shutdown(ctx context.Context) error {
 }
 
 func (a *App) closeDiscord(ctx context.Context) error {
+	if a.jobsWorker != nil {
+		a.jobsWorker.Stop()
+	}
 	if a.discordClient == nil {
 		return nil
 	}

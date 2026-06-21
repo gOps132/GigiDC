@@ -1,0 +1,453 @@
+package agent
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"mime"
+	"net"
+	"net/http"
+	"net/url"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	"golang.org/x/net/html"
+)
+
+const (
+	ToolWebSearch = "web.search"
+	ToolWebFetch  = "web.fetch"
+
+	defaultWebSearchURL  = "https://html.duckduckgo.com/html/?q="
+	maxWebSearchResults  = 10
+	defaultWebFetchChars = 10000
+	maxWebResponseBytes  = 1 << 20
+)
+
+var errBlockedHost = errors.New("blocked host")
+
+type hostResolver func(context.Context, string) ([]net.IP, error)
+
+// WebSearchTool searches the web using DuckDuckGo HTML.
+type WebSearchTool struct {
+	Client      *http.Client
+	BaseURL     string
+	ResolveHost hostResolver
+}
+
+func (t WebSearchTool) Spec() ToolSpec {
+	return ToolSpec{
+		Name:        ToolWebSearch,
+		Description: "Search the web for a query. Arguments: query, limit (optional).",
+		Kind:        ToolKindRead,
+		Capability:  "web.search",
+	}
+}
+
+type SearchResult struct {
+	Title string
+	URL   string
+	Body  string
+}
+
+func (t WebSearchTool) Execute(ctx context.Context, request Request, call ToolCall) (ToolResult, error) {
+	query := strings.TrimSpace(call.Args["query"])
+	if query == "" {
+		return ToolResult{}, fmt.Errorf("search query is required")
+	}
+	limit := parseWebLimit(call.Args["limit"], 5, maxWebSearchResults)
+
+	results, err := t.search(ctx, query, limit)
+	if err != nil {
+		return ToolResult{}, fmt.Errorf("web search failed: %w", err)
+	}
+	if len(results) == 0 {
+		return ToolResult{Name: ToolWebSearch, Summary: fmt.Sprintf("No search results found for query: %q", query), Data: map[string]string{"count": "0"}}, nil
+	}
+
+	var summary strings.Builder
+	summary.WriteString(fmt.Sprintf("Search results for %q:\n", query))
+	data := map[string]string{"count": strconv.Itoa(len(results))}
+	for i, result := range results {
+		index := strconv.Itoa(i + 1)
+		summary.WriteString(fmt.Sprintf("%s. [%s](%s) - %s\n", index, result.Title, result.URL, result.Body))
+		data["title_"+index] = result.Title
+		data["url_"+index] = result.URL
+		data["snippet_"+index] = result.Body
+	}
+	return ToolResult{Name: ToolWebSearch, Summary: summary.String(), Data: data}, nil
+}
+
+func (t WebSearchTool) search(ctx context.Context, query string, limit int) ([]SearchResult, error) {
+	baseURL := strings.TrimSpace(t.BaseURL)
+	if baseURL == "" {
+		baseURL = defaultWebSearchURL
+	}
+	searchURL := baseURL + url.QueryEscape(query)
+	target, err := parseSafeWebURL(ctx, searchURL, t.ResolveHost)
+	if err != nil {
+		return nil, err
+	}
+
+	client := safeWebClient(t.Client, t.ResolveHost)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "GigiDC/1.0 (+https://github.com/gOps132/GigiDC)")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("search request returned status %d", resp.StatusCode)
+	}
+	return parseDuckDuckGoHTML(io.LimitReader(resp.Body, maxWebResponseBytes), limit)
+}
+
+func parseDuckDuckGoHTML(r io.Reader, limit int) ([]SearchResult, error) {
+	limit = parseWebLimit(strconv.Itoa(limit), 5, maxWebSearchResults)
+	doc, err := html.Parse(r)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []SearchResult
+	var current *SearchResult
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if len(results) >= limit {
+			return
+		}
+		if n.Type == html.ElementNode && n.Data == "div" && nodeClassContains(n, "result body") {
+			if current != nil {
+				results = append(results, *current)
+			}
+			current = &SearchResult{}
+		}
+		if current != nil && n.Type == html.ElementNode && n.Data == "a" {
+			classVal := attr(n, "class")
+			if strings.Contains(classVal, "result__a") {
+				current.Title = getTextContent(n)
+				current.URL = cleanDuckDuckGoURL(attr(n, "href"))
+			}
+			if strings.Contains(classVal, "result__snippet") {
+				current.Body = getTextContent(n)
+			}
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(doc)
+	if current != nil && len(results) < limit {
+		results = append(results, *current)
+	}
+
+	filtered := make([]SearchResult, 0, len(results))
+	for _, result := range results {
+		if result.Title != "" && result.URL != "" {
+			filtered = append(filtered, result)
+		}
+	}
+	return filtered, nil
+}
+
+func cleanDuckDuckGoURL(href string) string {
+	if strings.HasPrefix(href, "//duckduckgo.com/l/?") {
+		href = "https:" + href
+	}
+	u, err := url.Parse(href)
+	if err == nil && strings.Contains(u.Host, "duckduckgo.com") {
+		if target := u.Query().Get("uddg"); target != "" {
+			return target
+		}
+	}
+	return href
+}
+
+// WebFetchTool fetches a web URL and returns plain readable text.
+type WebFetchTool struct {
+	Client      *http.Client
+	ResolveHost hostResolver
+}
+
+func (t WebFetchTool) Spec() ToolSpec {
+	return ToolSpec{
+		Name:        ToolWebFetch,
+		Description: "Fetch public text/HTML content from a URL. Arguments: url.",
+		Kind:        ToolKindRead,
+		Capability:  "web.fetch",
+	}
+}
+
+func (t WebFetchTool) Execute(ctx context.Context, request Request, call ToolCall) (ToolResult, error) {
+	targetURL := strings.TrimSpace(call.Args["url"])
+	if targetURL == "" {
+		return ToolResult{}, fmt.Errorf("url is required")
+	}
+	if !strings.Contains(targetURL, "://") {
+		targetURL = "https://" + targetURL
+	}
+
+	target, err := parseSafeWebURL(ctx, targetURL, t.ResolveHost)
+	if err != nil {
+		return ToolResult{}, fmt.Errorf("web fetch failed: %w", err)
+	}
+	text, truncated, err := t.fetch(ctx, target)
+	if err != nil {
+		return ToolResult{}, fmt.Errorf("web fetch failed: %w", err)
+	}
+
+	return ToolResult{
+		Name:    ToolWebFetch,
+		Summary: fmt.Sprintf("Fetched public content from %s", target.String()),
+		Data: map[string]string{
+			"url":       target.String(),
+			"content":   text,
+			"truncated": strconv.FormatBool(truncated),
+		},
+	}, nil
+}
+
+func (t WebFetchTool) fetch(ctx context.Context, target *url.URL) (string, bool, error) {
+	client := safeWebClient(t.Client, t.ResolveHost)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		return "", false, err
+	}
+	req.Header.Set("User-Agent", "GigiDC/1.0 (+https://github.com/gOps132/GigiDC)")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", false, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", false, fmt.Errorf("fetch returned status %d", resp.StatusCode)
+	}
+	if !allowedWebContentType(resp.Header.Get("Content-Type")) {
+		return "", false, fmt.Errorf("unsupported content type")
+	}
+
+	limited := io.LimitReader(resp.Body, maxWebResponseBytes+1)
+	body, err := io.ReadAll(limited)
+	if err != nil {
+		return "", false, err
+	}
+	truncated := len(body) > maxWebResponseBytes
+	if truncated {
+		body = body[:maxWebResponseBytes]
+	}
+
+	text, err := htmlToText(body)
+	if err != nil {
+		return "", false, err
+	}
+	if len(text) > defaultWebFetchChars {
+		text = text[:defaultWebFetchChars] + "\n... [TRUNCATED] ..."
+		truncated = true
+	}
+	return text, truncated, nil
+}
+
+func htmlToText(body []byte) (string, error) {
+	doc, err := html.Parse(strings.NewReader(string(body)))
+	if err != nil {
+		return "", err
+	}
+	var sb strings.Builder
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode && (n.Data == "script" || n.Data == "style" || n.Data == "head" || n.Data == "noscript") {
+			return
+		}
+		if n.Type == html.TextNode {
+			text := strings.TrimSpace(n.Data)
+			if text != "" {
+				sb.WriteString(text)
+				sb.WriteString("\n")
+			}
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(doc)
+	re := regexp.MustCompile(`\n{2,}`)
+	return re.ReplaceAllString(sb.String(), "\n\n"), nil
+}
+
+func safeWebClient(base *http.Client, resolver hostResolver) *http.Client {
+	client := &http.Client{Timeout: 15 * time.Second}
+	if base != nil {
+		*client = *base
+		if client.Timeout == 0 {
+			client.Timeout = 15 * time.Second
+		}
+	}
+	if client.Transport == nil {
+		client.Transport = safeWebTransport(resolver)
+	}
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 5 {
+			return fmt.Errorf("too many redirects")
+		}
+		_, err := parseSafeWebURL(req.Context(), req.URL.String(), resolver)
+		return err
+	}
+	return client
+}
+
+func safeWebTransport(resolver hostResolver) http.RoundTripper {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = func(ctx context.Context, network string, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, err
+		}
+		if err := validatePublicHost(ctx, host, resolver); err != nil {
+			return nil, err
+		}
+		r := resolver
+		if r == nil {
+			r = lookupIP
+		}
+		ips, err := r(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+		for _, ip := range ips {
+			if isBlockedIP(ip) {
+				continue
+			}
+			dialer := net.Dialer{Timeout: 10 * time.Second}
+			return dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+		}
+		return nil, fmt.Errorf("%w %q", errBlockedHost, host)
+	}
+	return transport
+}
+
+func parseSafeWebURL(ctx context.Context, raw string, resolver hostResolver) (*url.URL, error) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return nil, err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, fmt.Errorf("unsupported scheme %q", u.Scheme)
+	}
+	if u.User != nil {
+		return nil, fmt.Errorf("userinfo is not allowed")
+	}
+	if u.Hostname() == "" {
+		return nil, fmt.Errorf("host is required")
+	}
+	if err := validatePublicHost(ctx, u.Hostname(), resolver); err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+func validatePublicHost(ctx context.Context, host string, resolver hostResolver) error {
+	normalized := strings.Trim(strings.ToLower(host), "[]")
+	if normalized == "localhost" || strings.HasSuffix(normalized, ".localhost") || strings.HasSuffix(normalized, ".local") {
+		return fmt.Errorf("%w %q", errBlockedHost, host)
+	}
+	if ip := net.ParseIP(normalized); ip != nil {
+		if isBlockedIP(ip) {
+			return fmt.Errorf("%w %q", errBlockedHost, host)
+		}
+		return nil
+	}
+	if resolver == nil {
+		resolver = lookupIP
+	}
+	ips, err := resolver(ctx, host)
+	if err != nil {
+		return fmt.Errorf("resolve host: %w", err)
+	}
+	if len(ips) == 0 {
+		return fmt.Errorf("resolve host: no addresses")
+	}
+	for _, ip := range ips {
+		if isBlockedIP(ip) {
+			return fmt.Errorf("%w %q", errBlockedHost, host)
+		}
+	}
+	return nil
+}
+
+func lookupIP(ctx context.Context, host string) ([]net.IP, error) {
+	return net.DefaultResolver.LookupIP(ctx, "ip", host)
+}
+
+func isBlockedIP(ip net.IP) bool {
+	if ip == nil {
+		return true
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified()
+}
+
+func allowedWebContentType(value string) bool {
+	if strings.TrimSpace(value) == "" {
+		return true
+	}
+	mediaType, _, err := mime.ParseMediaType(value)
+	if err != nil {
+		return false
+	}
+	switch strings.ToLower(mediaType) {
+	case "text/html", "text/plain", "application/xhtml+xml", "application/xml", "text/xml":
+		return true
+	default:
+		return false
+	}
+}
+
+func parseWebLimit(raw string, fallback int, max int) int {
+	limit := fallback
+	if value, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil && value > 0 {
+		limit = value
+	}
+	if limit > max {
+		return max
+	}
+	if limit <= 0 {
+		return fallback
+	}
+	return limit
+}
+
+func nodeClassContains(n *html.Node, value string) bool {
+	return strings.Contains(attr(n, "class"), value)
+}
+
+func attr(n *html.Node, key string) string {
+	for _, attr := range n.Attr {
+		if attr.Key == key {
+			return attr.Val
+		}
+	}
+	return ""
+}
+
+func getTextContent(n *html.Node) string {
+	var sb strings.Builder
+	var walk func(*html.Node)
+	walk = func(node *html.Node) {
+		if node.Type == html.TextNode {
+			sb.WriteString(node.Data)
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(n)
+	return strings.TrimSpace(sb.String())
+}
