@@ -8,6 +8,11 @@ func TestKnownCapabilitiesIncludeFixedPermissionChoices(t *testing.T) {
 		CapabilityManage,
 		"plugin.install",
 		"job.admin",
+		"job.read",
+		"job.schedule",
+		"job.write",
+		"web.search",
+		"web.fetch",
 		"agent.analytics",
 		"agent.reply_latency.manage",
 		"memory.read.guild",
@@ -32,8 +37,8 @@ func TestPresetCapabilities(t *testing.T) {
 	if !ok {
 		t.Fatal("gigi-admin preset missing")
 	}
-	if !contains(adminCaps, "memory.read.guild") || !contains(adminCaps, "memory.manage.guild") || !contains(adminCaps, "agent.analytics") || !contains(adminCaps, "agent.reply_latency.manage") {
-		t.Fatalf("gigi-admin caps = %+v, want memory read/manage and agent capabilities", adminCaps)
+	if !contains(adminCaps, "memory.read.guild") || !contains(adminCaps, "memory.manage.guild") || !contains(adminCaps, "agent.analytics") || !contains(adminCaps, "agent.reply_latency.manage") || !contains(adminCaps, "web.fetch") || !contains(adminCaps, "job.schedule") {
+		t.Fatalf("gigi-admin caps = %+v, want memory, agent, web, and job capabilities", adminCaps)
 	}
 
 	memoryCaps, ok := PresetCapabilities("memory-manager")
@@ -42,6 +47,22 @@ func TestPresetCapabilities(t *testing.T) {
 	}
 	if !contains(memoryCaps, "memory.read.guild") || !contains(memoryCaps, "memory.manage.guild") {
 		t.Fatalf("memory-manager caps = %+v, want memory read/manage", memoryCaps)
+	}
+
+	webCaps, ok := PresetCapabilities("web-reader")
+	if !ok {
+		t.Fatal("web-reader preset missing")
+	}
+	if !contains(webCaps, "web.search") || !contains(webCaps, "web.fetch") {
+		t.Fatalf("web-reader caps = %+v, want web search/fetch", webCaps)
+	}
+
+	jobCaps, ok := PresetCapabilities("job-operator")
+	if !ok {
+		t.Fatal("job-operator preset missing")
+	}
+	if !contains(jobCaps, "job.read") || !contains(jobCaps, "job.schedule") || !contains(jobCaps, "job.write") {
+		t.Fatalf("job-operator caps = %+v, want job read/schedule/write", jobCaps)
 	}
 
 	caps, ok := PresetCapabilities("relay-user")

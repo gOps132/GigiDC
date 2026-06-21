@@ -347,8 +347,10 @@ Revoked `job.admin` for user @person.
 
 | Preset | Capabilities |
 | --- | --- |
-| `gigi-admin` | `capability.manage`, `plugin.install`, `job.admin`, `agent.analytics`, `agent.reply_latency.manage`, `llm.provider.write`, `llm.provider.test`, `llm.provider.select`, `memory.read.guild`, `memory.manage.guild` |
+| `gigi-admin` | `capability.manage`, `plugin.install`, `job.admin`, `job.read`, `job.schedule`, `job.write`, `web.search`, `web.fetch`, `agent.analytics`, `agent.reply_latency.manage`, `llm.provider.write`, `llm.provider.test`, `llm.provider.select`, `memory.read.guild`, `memory.manage.guild` |
 | `plugin-manager` | `plugin.install` |
+| `job-operator` | `job.read`, `job.schedule`, `job.write` |
+| `web-reader` | `web.search`, `web.fetch` |
 | `llm-manager` | `llm.provider.write`, `llm.provider.test`, `llm.provider.select` |
 | `memory-reader` | `memory.read.guild` |
 | `memory-manager` | `memory.read.guild`, `memory.manage.guild` |
@@ -361,6 +363,11 @@ Revoked `job.admin` for user @person.
 | `capability.manage` | Grant or revoke role/user capabilities |
 | `plugin.install` | Install or configure guild external app integrations |
 | `job.admin` | Inspect, retry, or cancel durable jobs |
+| `job.read` | List durable jobs through approved agent tooling |
+| `job.schedule` | Schedule allowed durable jobs through confirmation-gated agent tooling |
+| `job.write` | Cancel queued or failed durable jobs through confirmation-gated agent tooling |
+| `web.search` | Run capped public web searches through approved agent tooling |
+| `web.fetch` | Fetch capped public text or HTML content through SSRF-filtered agent tooling |
 | `agent.analytics` | View aggregate guild agent-runtime stats |
 | `agent.reply_latency.manage` | Enable or disable the guild reply latency footer |
 | `memory.read.guild` | Read permitted guild memory scope |
