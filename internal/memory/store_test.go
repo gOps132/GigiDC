@@ -164,12 +164,12 @@ func TestSQLStoreSearchMessagesUsesCurrentChannelAndLimit(t *testing.T) {
 	if len(got) != 1 || got[0].MessageID != "message-id" || got[0].Text != "hello postgres" {
 		t.Fatalf("results = %+v, want search result", got)
 	}
-	for _, want := range []string{"channel_id = $2", "position($4 in normalized_text) > 0", "limit $5"} {
+	for _, want := range []string{"channel_id = $2", "position($4 in normalized_text) > 0", "limit $7"} {
 		if !strings.Contains(db.query, want) {
 			t.Fatalf("query = %q, want %q", db.query, want)
 		}
 	}
-	if db.args[4] != 10 {
+	if db.args[6] != 10 {
 		t.Fatalf("args = %+v, want limit 10", db.args)
 	}
 }

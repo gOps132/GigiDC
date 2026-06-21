@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gOps132/GigiDC/internal/capability"
 	llmprovider "github.com/gOps132/GigiDC/internal/llm/provider"
@@ -93,6 +94,36 @@ func TestLLMUsageGuildToolSummarizesUsage(t *testing.T) {
 	}
 	if result.Data["total_tokens"] != "15" || !strings.Contains(result.Summary, "1 failed") {
 		t.Fatalf("result=%+v, want usage summary", result)
+	}
+}
+
+func TestMemoryDateParsers(t *testing.T) {
+	start, err := parseStartDate("2026-06-22")
+	if err != nil {
+		t.Fatalf("parseStartDate returned error: %v", err)
+	}
+	if want := time.Date(2026, 6, 22, 0, 0, 0, 0, time.UTC); !start.Equal(want) {
+		t.Fatalf("start = %v, want %v", start, want)
+	}
+
+	end, err := parseEndDate("2026-06-22")
+	if err != nil {
+		t.Fatalf("parseEndDate returned error: %v", err)
+	}
+	if want := time.Date(2026, 6, 22, 23, 59, 59, 0, time.UTC); !end.Equal(want) {
+		t.Fatalf("end = %v, want %v", end, want)
+	}
+
+	exact, err := parseEndDate("2026-06-22T10:00:00Z")
+	if err != nil {
+		t.Fatalf("parseEndDate RFC3339 returned error: %v", err)
+	}
+	if want := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC); !exact.Equal(want) {
+		t.Fatalf("exact end = %v, want %v", exact, want)
+	}
+
+	if _, err := parseStartDate("06/22/2026"); err == nil {
+		t.Fatalf("parseStartDate invalid format returned nil error")
 	}
 }
 

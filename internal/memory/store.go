@@ -75,6 +75,8 @@ type CountRequest struct {
 	ChannelID    string
 	AuthorUserID string
 	Text         string
+	StartDate    time.Time
+	EndDate      time.Time
 }
 
 type CountResult struct {
@@ -87,6 +89,8 @@ type SearchRequest struct {
 	AuthorUserID string
 	Query        string
 	Limit        int
+	StartDate    time.Time
+	EndDate      time.Time
 }
 
 type RecentRequest struct {
@@ -94,6 +98,8 @@ type RecentRequest struct {
 	ChannelID    string
 	AuthorUserID string
 	Limit        int
+	StartDate    time.Time
+	EndDate      time.Time
 }
 
 type SearchResult struct {
@@ -350,6 +356,14 @@ func (s SQLStore) CountMentions(ctx context.Context, req CountRequest) (CountRes
 	if s.query == nil {
 		return CountResult{}, fmt.Errorf("memory query database is required")
 	}
+	var startDateVal sql.NullTime
+	if !req.StartDate.IsZero() {
+		startDateVal = sql.NullTime{Time: req.StartDate, Valid: true}
+	}
+	var endDateVal sql.NullTime
+	if !req.EndDate.IsZero() {
+		endDateVal = sql.NullTime{Time: req.EndDate, Valid: true}
+	}
 	whereChannel := "and ($2 = '' or channel_id = $2)"
 	rows, err := s.query(ctx, `
 select coalesce(sum((length(normalized_text) - length(replace(normalized_text, $4, ''))) / length($4)), 0)
@@ -361,7 +375,9 @@ where guild_id = $1
   and deleted_at is null
   and retention_until > now()
   and position($4 in normalized_text) > 0
-`, req.GuildID, req.ChannelID, req.AuthorUserID, req.Text)
+  and ($5::timestamptz is null or created_at >= $5::timestamptz)
+  and ($6::timestamptz is null or created_at <= $6::timestamptz)
+`, req.GuildID, req.ChannelID, req.AuthorUserID, req.Text, startDateVal, endDateVal)
 	if err != nil {
 		return CountResult{}, err
 	}
@@ -396,6 +412,14 @@ func (s SQLStore) SearchMessages(ctx context.Context, req SearchRequest) ([]Sear
 	if s.query == nil {
 		return nil, fmt.Errorf("memory query database is required")
 	}
+	var startDateVal sql.NullTime
+	if !req.StartDate.IsZero() {
+		startDateVal = sql.NullTime{Time: req.StartDate, Valid: true}
+	}
+	var endDateVal sql.NullTime
+	if !req.EndDate.IsZero() {
+		endDateVal = sql.NullTime{Time: req.EndDate, Valid: true}
+	}
 	rows, err := s.query(ctx, `
 select message_id, channel_id, author_user_id, normalized_text, created_at
 from guild_memory_messages
@@ -406,9 +430,11 @@ where guild_id = $1
   and deleted_at is null
   and retention_until > now()
   and position($4 in normalized_text) > 0
+  and ($5::timestamptz is null or created_at >= $5::timestamptz)
+  and ($6::timestamptz is null or created_at <= $6::timestamptz)
 order by created_at desc
-limit $5
-`, req.GuildID, req.ChannelID, req.AuthorUserID, req.Query, req.Limit)
+limit $7
+`, req.GuildID, req.ChannelID, req.AuthorUserID, req.Query, startDateVal, endDateVal, req.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -439,6 +465,14 @@ func (s SQLStore) RecentMessages(ctx context.Context, req RecentRequest) ([]Sear
 	if s.query == nil {
 		return nil, fmt.Errorf("memory query database is required")
 	}
+	var startDateVal sql.NullTime
+	if !req.StartDate.IsZero() {
+		startDateVal = sql.NullTime{Time: req.StartDate, Valid: true}
+	}
+	var endDateVal sql.NullTime
+	if !req.EndDate.IsZero() {
+		endDateVal = sql.NullTime{Time: req.EndDate, Valid: true}
+	}
 	rows, err := s.query(ctx, `
 select message_id, channel_id, author_user_id, normalized_text, created_at
 from guild_memory_messages
@@ -448,9 +482,11 @@ where guild_id = $1
   and normalized_text is not null
   and deleted_at is null
   and retention_until > now()
+  and ($4::timestamptz is null or created_at >= $4::timestamptz)
+  and ($5::timestamptz is null or created_at <= $5::timestamptz)
 order by created_at desc
-limit $4
-`, req.GuildID, req.ChannelID, req.AuthorUserID, req.Limit)
+limit $6
+`, req.GuildID, req.ChannelID, req.AuthorUserID, startDateVal, endDateVal, req.Limit)
 	if err != nil {
 		return nil, err
 	}
