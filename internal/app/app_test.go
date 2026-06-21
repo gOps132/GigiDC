@@ -103,22 +103,19 @@ func TestRunClosesDiscordClientWhenHTTPFails(t *testing.T) {
 	}
 }
 
-func TestGuildMentionPlannerStartsWithWebIntentPlanner(t *testing.T) {
+func TestGuildMentionPlannerStartsWithLLMPlanner(t *testing.T) {
 	planner, ok := guildMentionPlanner(llm.Runtime{}).(agent.MultiPlanner)
 	if !ok {
 		t.Fatalf("planner type = %T, want agent.MultiPlanner", guildMentionPlanner(llm.Runtime{}))
 	}
-	if len(planner) != 3 {
-		t.Fatalf("planner length = %d, want web intent, LLM, and semantic memory planners", len(planner))
+	if len(planner) != 2 {
+		t.Fatalf("planner length = %d, want LLM planner plus semantic memory compatibility planner", len(planner))
 	}
-	if _, ok := planner[0].(agent.WebIntentPlanner); !ok {
-		t.Fatalf("first planner = %T, want agent.WebIntentPlanner", planner[0])
+	if _, ok := planner[0].(agent.LLMPlanner); !ok {
+		t.Fatalf("first planner = %T, want agent.LLMPlanner", planner[0])
 	}
-	if _, ok := planner[1].(agent.LLMPlanner); !ok {
-		t.Fatalf("second planner = %T, want agent.LLMPlanner", planner[1])
-	}
-	if _, ok := planner[2].(agent.SemanticMemoryPlannerAdapter); !ok {
-		t.Fatalf("third planner = %T, want agent.SemanticMemoryPlannerAdapter", planner[2])
+	if _, ok := planner[1].(agent.SemanticMemoryPlannerAdapter); !ok {
+		t.Fatalf("second planner = %T, want agent.SemanticMemoryPlannerAdapter", planner[1])
 	}
 }
 

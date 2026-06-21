@@ -65,10 +65,22 @@ func TestLLMPlannerPromptMentionsWebAndJobRouting(t *testing.T) {
 	if !ok || len(plan.ToolCalls) != 1 || plan.ToolCalls[0].Name != ToolWebSearch || plan.ToolCalls[0].Args["query"] != "latest Go release notes" {
 		t.Fatalf("plan=%+v ok=%v, want web.search plan", plan, ok)
 	}
-	for _, want := range []string{"Use web.search", "latest", "Use web.fetch", "Use jobs.list"} {
+	for _, want := range []string{"Use web.search", "external current information", "Use web.fetch", "Use jobs.list"} {
 		if !strings.Contains(runtime.req.Instructions, want) {
 			t.Fatalf("instructions=%q, want %q", runtime.req.Instructions, want)
 		}
+	}
+}
+
+func TestLLMPlannerRejectsAnswerFromPriorWithoutPriorRun(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: `{"intent":"answer_from_prior","tool_calls":[]}`}}
+
+	plan, ok, err := (LLMPlanner{Runtime: runtime}).Plan(context.Background(), agentTestRequest(), []ToolSpec{{Name: ToolWebSearch}})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if ok || plan.Intent != "" {
+		t.Fatalf("plan=%+v ok=%v, want no plan without prior run", plan, ok)
 	}
 }
 
