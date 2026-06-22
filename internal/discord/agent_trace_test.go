@@ -121,6 +121,35 @@ func TestAgentTraceLastDebugUsesEmbedDetails(t *testing.T) {
 	}
 }
 
+func TestAgentTraceLastDebugShowsToolFailureDetails(t *testing.T) {
+	reader := &fakeAgentTraceReader{run: agent.TraceRun{
+		RunID:  "agentrun_1",
+		Status: "failed",
+		Events: []agent.TraceEvent{{
+			Phase:    "tool",
+			Status:   "failed",
+			Reason:   "tool_failed",
+			ToolName: "web.search",
+			Details: map[string]string{
+				"arg_query":      "who is LeBron James?",
+				"error_provider": "duckduckgo",
+				"error_kind":     "provider_challenge",
+				"error_message":  "duckduckgo search failed: search provider challenge",
+			},
+		}},
+	}, ok: true}
+	response, err := agentTraceHandler(reader, nil, nil)(context.Background(), agentTraceInteraction([]InteractionOption{{Name: "view", Value: "debug"}}))
+	if err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	rendered := traceEmbedText(response.Embeds[0])
+	for _, want := range []string{"web.search", "provider=`duckduckgo`", "error=`provider_challenge`", "error: duckduckgo search failed"} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("embed text = %q, want %q", rendered, want)
+		}
+	}
+}
+
 func TestAgentTraceModeTogglesLiveDebug(t *testing.T) {
 	store := NewMemoryAgentLiveDebugStore()
 	response, err := agentTraceHandler(nil, nil, store)(context.Background(), agentTraceModeInteraction("on"))

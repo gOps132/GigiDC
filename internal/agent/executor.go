@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 
@@ -74,7 +75,7 @@ func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Resp
 			"capability": safeAuditValue(spec.Capability),
 		}, toolCallMetadata(call))
 		if err != nil {
-			_ = trace.Record(ctx, request, "agent.tool", audit.StatusFailed, "tool_failed", metadata)
+			_ = trace.Record(ctx, request, "agent.tool", audit.StatusFailed, "tool_failed", mergeMetadata(metadata, toolFailureMetadata(spec.Name, err)))
 			return Response{Text: "Agent tool failed.", RunStatus: RunStatusFailed, TerminationReason: TerminationExecutorFailed}, nil
 		}
 		results = append(results, result)
@@ -128,6 +129,38 @@ func toolCallMetadata(call ToolCall) map[string]string {
 		metadata["arg_"+cleanKey] = cleanValue
 	}
 	return metadata
+}
+
+func toolFailureMetadata(toolName string, err error) map[string]string {
+	if toolName != ToolWebSearch || err == nil {
+		return nil
+	}
+	metadata := map[string]string{
+		"error_kind":    webSearchErrorKind(err),
+		"error_message": safeAuditValue(err.Error()),
+	}
+	var searchErr WebSearchError
+	if errors.As(err, &searchErr) {
+		if provider := strings.TrimSpace(searchErr.Provider); provider != "" {
+			metadata["error_provider"] = provider
+		}
+	}
+	return metadata
+}
+
+func webSearchErrorKind(err error) string {
+	switch {
+	case errors.Is(err, errSearchProviderChallenge):
+		return "provider_challenge"
+	case errors.Is(err, errBlockedHost):
+		return "blocked_host"
+	case strings.Contains(strings.ToLower(err.Error()), "status "):
+		return "provider_status"
+	case strings.Contains(strings.ToLower(err.Error()), "api key"):
+		return "missing_provider_key"
+	default:
+		return "provider_error"
+	}
 }
 
 func toolResultMetadata(result ToolResult) map[string]string {

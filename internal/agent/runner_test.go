@@ -312,6 +312,34 @@ func TestExecutorMasksToolErrorAndRecordsTrace(t *testing.T) {
 	if len(recorder.events) != 2 || recorder.events[1].Kind != "agent.tool" || recorder.events[1].Status != audit.StatusFailed {
 		t.Fatalf("events=%+v, want failed tool trace", recorder.events)
 	}
+	if _, ok := recorder.events[1].Metadata["error_message"]; ok {
+		t.Fatalf("events=%+v, want generic tool error masked", recorder.events)
+	}
+}
+
+func TestExecutorRecordsSafeWebSearchFailureTrace(t *testing.T) {
+	recorder := &fakeAgentAuditRecorder{}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "search", ToolCalls: []ToolCall{{Name: ToolWebSearch, Args: map[string]string{"query": "news today"}}}}},
+		Policy:  RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools: NewRegistry(&fakeTool{name: ToolWebSearch, err: WebSearchError{Provider: "duckduckgo", Err: errSearchProviderChallenge}}),
+			Trace: Trace{Recorder: recorder},
+		},
+		Trace: Trace{Recorder: recorder},
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled || response.Text != "Agent tool failed." {
+		t.Fatalf("response=%+v handled=%v, want masked tool failure", response, handled)
+	}
+	metadata := recorder.events[1].Metadata
+	if metadata["error_provider"] != "duckduckgo" || metadata["error_kind"] != "provider_challenge" || !strings.Contains(metadata["error_message"], "search provider challenge") {
+		t.Fatalf("metadata=%+v, want safe web search error metadata", metadata)
+	}
 }
 
 func TestExecutorDeniesToolCapabilityBeforeExecute(t *testing.T) {
