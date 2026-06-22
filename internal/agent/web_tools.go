@@ -40,6 +40,22 @@ type WebSearchProvider interface {
 	Search(context.Context, string, int) ([]SearchResult, string, error)
 }
 
+type WebSearchError struct {
+	Provider string
+	Err      error
+}
+
+func (e WebSearchError) Error() string {
+	if strings.TrimSpace(e.Provider) == "" {
+		return fmt.Sprintf("web search failed: %v", e.Err)
+	}
+	return fmt.Sprintf("%s search failed: %v", e.Provider, e.Err)
+}
+
+func (e WebSearchError) Unwrap() error {
+	return e.Err
+}
+
 // WebSearchTool searches the web using the configured provider.
 type WebSearchTool struct {
 	Provider    WebSearchProvider
@@ -72,7 +88,7 @@ func (t WebSearchTool) Execute(ctx context.Context, request Request, call ToolCa
 
 	results, providerName, err := t.searchProvider().Search(ctx, query, limit)
 	if err != nil {
-		return ToolResult{}, fmt.Errorf("web search failed: %w", err)
+		return ToolResult{}, WebSearchError{Provider: providerName, Err: err}
 	}
 	if len(results) == 0 {
 		return ToolResult{Name: ToolWebSearch, Summary: fmt.Sprintf("No search results found for query: %q", query), Data: map[string]string{"count": "0", "provider": providerName}}, nil

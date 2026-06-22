@@ -297,6 +297,12 @@ func formatAgentTracePhase(events []agent.TraceEvent, phase string, view string)
 			if count := event.Details["result_count"]; count != "" {
 				line += " results=`" + safeInline(count) + "`"
 			}
+			if provider := event.Details["error_provider"]; provider != "" {
+				line += " provider=`" + safeInline(provider) + "`"
+			}
+			if kind := event.Details["error_kind"]; kind != "" {
+				line += " error=`" + safeInline(kind) + "`"
+			}
 			lines = append(lines, line)
 		case "answer":
 			line := "mode=`" + safeInline(event.Details["answer_mode"]) + "`"
@@ -315,6 +321,9 @@ func formatAgentTracePhase(events []agent.TraceEvent, phase string, view string)
 			if summary := event.Details["result_summary"]; summary != "" {
 				lines = append(lines, "result: "+safeBlockLine(summary))
 			}
+			if message := event.Details["error_message"]; message != "" {
+				lines = append(lines, "error: "+safeBlockLine(message))
+			}
 			if preview := event.Details["answer_preview"]; preview != "" {
 				lines = append(lines, "answer: "+safeBlockLine(preview))
 			}
@@ -328,7 +337,7 @@ func formatAgentTraceDebugDetails(events []agent.TraceEvent) string {
 	for _, event := range events {
 		for key, value := range event.Details {
 			switch key {
-			case "llm_output_preview", "result_summary", "answer_preview":
+			case "llm_output_preview", "result_summary", "error_message", "answer_preview":
 				continue
 			}
 			lines = append(lines, fmt.Sprintf("`%s.%s`=`%s`", safeInline(event.Phase), safeInline(key), safeInline(value)))
