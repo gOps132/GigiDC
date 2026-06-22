@@ -5,6 +5,7 @@ import "context"
 type MultiPlanner []Planner
 
 func (p MultiPlanner) Plan(ctx context.Context, request Request, specs []ToolSpec) (Plan, bool, error) {
+	var lastTrace Plan
 	for _, planner := range p {
 		if planner == nil {
 			continue
@@ -13,6 +14,9 @@ func (p MultiPlanner) Plan(ctx context.Context, request Request, specs []ToolSpe
 		if err != nil || ok {
 			return plan, ok, err
 		}
+		if len(plan.Trace) > 0 {
+			lastTrace = plan
+		}
 	}
-	return Plan{}, false, nil
+	return lastTrace, false, nil
 }

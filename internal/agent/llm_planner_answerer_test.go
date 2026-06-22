@@ -111,15 +111,35 @@ func TestLLMPlannerPromptMentionsWebAndJobRouting(t *testing.T) {
 	if !ok || len(plan.ToolCalls) != 1 || plan.ToolCalls[0].Name != ToolWebSearch || plan.ToolCalls[0].Args["query"] != "latest Go release notes" {
 		t.Fatalf("plan=%+v ok=%v, want web.search plan", plan, ok)
 	}
-	for _, want := range []string{"web.search", "current", "latest", "news", "today", "web.fetch", "jobs.list", "what tools Gigi can use", "Never produce chat refusals"} {
+	for _, want := range []string{"web.search", "current", "latest", "news", "today", "look up", "who/what/where/when", "web.fetch", "jobs.list", "what tools Gigi can use", "Never produce chat refusals"} {
 		if !strings.Contains(runtime.req.Instructions, want) {
 			t.Fatalf("instructions=%q, want %q", runtime.req.Instructions, want)
 		}
 	}
-	for _, want := range []string{"Tool selection guide", "web.search: use for web/online/current/latest/real-time/news/headlines/today information requests and public fact lookups", "web.fetch: use for reading or summarizing", `{"intent":"tool_inventory","tool_calls":[],"clarifying_question":"Available tools: ..."}`, `{"intent":"chat","tool_calls":[]}`, "Return {} only if Gigi should ignore"} {
+	for _, want := range []string{"Tool selection guide", "web.search: use for web/online/current/latest/real-time/news/headlines/today information requests and public fact lookups", "web.fetch: use for reading or summarizing", `{"intent":"web_search","tool_calls":[{"name":"web.search","args":{"query":"who is LeBron James?"}}]}`, `{"intent":"tool_inventory","tool_calls":[],"clarifying_question":"Available tools: ..."}`, `{"intent":"chat","tool_calls":[]}`, "Return {} only if Gigi should ignore"} {
 		if !strings.Contains(runtime.req.Input, want) {
 			t.Fatalf("input=%q, want %q", runtime.req.Input, want)
 		}
+	}
+}
+
+func TestLLMPlannerRepairsEmptyLookupPlanWithWebSearch(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{responses: []llm.TextResponse{
+		{Text: `{}`},
+		{Text: `{"intent":"web_search","tool_calls":[{"name":"web.search","args":{"query":"who is LeBron James?"}}]}`},
+	}}
+	request := agentTestRequest()
+	request.Text = "can you lookup who Lebron James is?"
+
+	plan, ok, err := (LLMPlanner{Runtime: runtime}).Plan(context.Background(), request, []ToolSpec{{Name: ToolWebSearch, Description: "Search the web"}})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if !ok || len(plan.ToolCalls) != 1 || plan.ToolCalls[0].Name != ToolWebSearch || plan.ToolCalls[0].Args["query"] != "who is LeBron James?" {
+		t.Fatalf("plan=%+v ok=%v, want repaired public lookup web.search plan", plan, ok)
+	}
+	if len(runtime.reqs) != 2 || !strings.Contains(runtime.reqs[1].Input, "lookup") || !strings.Contains(runtime.reqs[1].Input, "who/what/where/when") {
+		t.Fatalf("repair input=%q, want lookup public fact contract", runtime.reqs[1].Input)
 	}
 }
 

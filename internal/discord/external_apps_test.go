@@ -299,6 +299,31 @@ func TestExternalAppDryRunHandlerFallsBackWhenNoManifestMatches(t *testing.T) {
 	}
 }
 
+func TestExternalAppSemanticRoutingRejectsLegacyPluginProposal(t *testing.T) {
+	handler := ExternalAppDryRunHandlerWithSemantic(
+		&fakeExternalAppRegistry{manifests: []plugins.Manifest{dryRunManifest()}},
+		&fakeCapabilityChecker{decision: capability.Decision{Allowed: true, Capability: "plugin.install", Reason: capability.ReasonRoleGrant}},
+		nil,
+		MessageHandlerFunc(func(context.Context, Message) (MessageResponse, error) {
+			return MessageResponse{Content: "agent-ok"}, nil
+		}),
+		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"plugin_id":"jockie-music","trigger":"!play","arguments":"there are tools you can call, what are they?"}`}}},
+	)
+
+	response, err := handler.HandleMessage(context.Background(), Message{
+		Surface: MessageSurfaceGuildMention,
+		GuildID: "guild-id",
+		UserID:  "user-id",
+		Text:    "there are tools you can call, what are they?",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if response.Content != "agent-ok" {
+		t.Fatalf("response = %q, want fallback instead of Jockie dry-run", response.Content)
+	}
+}
+
 func TestExternalAppDryRunHandlerUsesSemanticDryRunWhenNoPrefixMatches(t *testing.T) {
 	recorder := &fakeAuditRecorder{}
 	handler := ExternalAppDryRunHandlerWithSemantic(
@@ -306,7 +331,7 @@ func TestExternalAppDryRunHandlerUsesSemanticDryRunWhenNoPrefixMatches(t *testin
 		&fakeCapabilityChecker{decision: capability.Decision{Allowed: true, Capability: "plugin.install", Reason: capability.ReasonRoleGrant}},
 		recorder,
 		CoreMessageHandler(),
-		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"plugin_id":"jockie-music","trigger":"!play","arguments":"never gonna give you up"}`}}},
+		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"intent":"plugin_command","plugin_id":"jockie-music","trigger":"!play","arguments":"never gonna give you up"}`}}},
 	)
 
 	response, err := handler.HandleMessage(context.Background(), Message{
@@ -339,7 +364,7 @@ func TestExternalAppSemanticRoutingSkipsWhenPolicyOff(t *testing.T) {
 		MessageHandlerFunc(func(context.Context, Message) (MessageResponse, error) {
 			return MessageResponse{Content: "fallback-ok"}, nil
 		}),
-		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"plugin_id":"jockie-music","trigger":"!play","arguments":"song"}`}}},
+		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"intent":"plugin_command","plugin_id":"jockie-music","trigger":"!play","arguments":"song"}`}}},
 		&fakeLLMPolicyManager{policy: provider.GuildPolicy{GuildID: "guild-id", ToolRoutingMode: provider.ToolRoutingOff}},
 	)
 
@@ -368,7 +393,7 @@ func TestExternalAppSemanticRoutingEnabledDispatchesPublicManifest(t *testing.T)
 		nil,
 		recorder,
 		CoreMessageHandler(),
-		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"plugin_id":"jockie-music","trigger":"!play","arguments":"song"}`}}},
+		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"intent":"plugin_command","plugin_id":"jockie-music","trigger":"!play","arguments":"song"}`}}},
 		&fakeLLMPolicyManager{policy: provider.GuildPolicy{GuildID: "guild-id", ToolRoutingMode: provider.ToolRoutingEnabled}},
 	)
 
@@ -398,7 +423,7 @@ func TestExternalAppSemanticDryRunNeverDispatchesPublicManifest(t *testing.T) {
 		nil,
 		nil,
 		CoreMessageHandler(),
-		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"plugin_id":"jockie-music","trigger":"!play","arguments":"song"}`}}},
+		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"intent":"plugin_command","plugin_id":"jockie-music","trigger":"!play","arguments":"song"}`}}},
 	)
 
 	response, err := handler.HandleMessage(context.Background(), Message{
@@ -423,7 +448,7 @@ func TestExternalAppSemanticRoutingEnabledStillDryRunsRestrictedManifest(t *test
 		&fakeCapabilityChecker{decision: capability.Decision{Allowed: true, Capability: "plugin.install", Reason: capability.ReasonRoleGrant}},
 		nil,
 		CoreMessageHandler(),
-		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"plugin_id":"jockie-music","trigger":"!play","arguments":"song"}`}}},
+		assistant.SemanticPluginPlanner{Runtime: &fakeSemanticRuntime{response: llm.TextResponse{Text: `{"intent":"plugin_command","plugin_id":"jockie-music","trigger":"!play","arguments":"song"}`}}},
 		&fakeLLMPolicyManager{policy: provider.GuildPolicy{GuildID: "guild-id", ToolRoutingMode: provider.ToolRoutingEnabled}},
 	)
 

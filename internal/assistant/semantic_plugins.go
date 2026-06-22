@@ -25,6 +25,7 @@ type SemanticPluginPlanner struct {
 }
 
 type semanticPluginProposal struct {
+	Intent    string `json:"intent"`
 	PluginID  string `json:"plugin_id"`
 	Trigger   string `json:"trigger"`
 	Arguments string `json:"arguments"`
@@ -80,7 +81,7 @@ func (p SemanticPluginPlanner) maxOutputTokens() int {
 }
 
 func semanticPluginInstructions() string {
-	return "You map a Discord message to one enabled external app prefix trigger. Return only JSON with plugin_id, trigger, and arguments. If no plugin fits, return {}. Do not invent plugin IDs or triggers."
+	return "You map a Discord message to one enabled external app prefix trigger only when the user's primary intent is to operate that external app. Return only JSON with intent, plugin_id, trigger, and arguments. Use intent \"plugin_command\" for a valid external app command. Return {} for Gigi meta questions, tool/capability questions, general chat, memory questions, or web/public fact lookup requests. Do not invent plugin IDs or triggers."
 }
 
 func semanticPluginPrompt(input SemanticPluginInput) string {
@@ -107,6 +108,7 @@ func semanticPluginPrompt(input SemanticPluginInput) string {
 			b.WriteString("\n")
 		}
 	}
+	b.WriteString("\nReturn JSON like {\"intent\":\"plugin_command\",\"plugin_id\":\"example\",\"trigger\":\"!play\",\"arguments\":\"song\"}. Return {} when the message is not asking to operate one enabled external app.")
 	return b.String()
 }
 
@@ -162,7 +164,8 @@ func parseSemanticPluginProposal(value string) (semanticPluginProposal, bool) {
 	proposal.PluginID = strings.TrimSpace(proposal.PluginID)
 	proposal.Trigger = strings.TrimSpace(proposal.Trigger)
 	proposal.Arguments = strings.TrimSpace(proposal.Arguments)
-	if proposal.PluginID == "" || proposal.Trigger == "" {
+	proposal.Intent = strings.TrimSpace(proposal.Intent)
+	if proposal.Intent != "plugin_command" || proposal.PluginID == "" || proposal.Trigger == "" {
 		return semanticPluginProposal{}, false
 	}
 	return proposal, true

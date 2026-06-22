@@ -12,7 +12,7 @@ import (
 )
 
 func TestSemanticPluginPlannerBuildsManifestGroundedPlan(t *testing.T) {
-	runtime := &fakeRuntime{response: llm.TextResponse{Text: `{"plugin_id":"jockie-music","trigger":"!play","arguments":"never gonna give you up"}`}}
+	runtime := &fakeRuntime{response: llm.TextResponse{Text: `{"intent":"plugin_command","plugin_id":"jockie-music","trigger":"!play","arguments":"never gonna give you up"}`}}
 	planner := SemanticPluginPlanner{Runtime: runtime}
 
 	got, ok, err := planner.Plan(context.Background(), semanticPluginInputForLLM())
@@ -30,6 +30,11 @@ func TestSemanticPluginPlannerBuildsManifestGroundedPlan(t *testing.T) {
 	}
 	if !strings.Contains(runtime.req.Input, "User message:") || !strings.Contains(runtime.req.Input, "plugin_id: jockie-music") {
 		t.Fatalf("runtime input = %q, want semantic prompt", runtime.req.Input)
+	}
+	for _, want := range []string{`"intent":"plugin_command"`, "Return {} for Gigi meta questions", "tool/capability questions"} {
+		if !strings.Contains(runtime.req.Input, want) && !strings.Contains(runtime.req.Instructions, want) {
+			t.Fatalf("instructions=%q input=%q, want %q", runtime.req.Instructions, runtime.req.Input, want)
+		}
 	}
 }
 
@@ -55,7 +60,7 @@ func TestSemanticPluginPlannerNormalizesPolitePrefixBeforeLLM(t *testing.T) {
 }
 
 func TestSemanticPluginPlannerRejectsInventedTrigger(t *testing.T) {
-	runtime := &fakeRuntime{response: llm.TextResponse{Text: `{"plugin_id":"jockie-music","trigger":"!ban","arguments":"someone"}`}}
+	runtime := &fakeRuntime{response: llm.TextResponse{Text: `{"intent":"plugin_command","plugin_id":"jockie-music","trigger":"!ban","arguments":"someone"}`}}
 	planner := SemanticPluginPlanner{Runtime: runtime}
 
 	_, ok, err := planner.Plan(context.Background(), semanticPluginInputForLLM())
@@ -64,6 +69,21 @@ func TestSemanticPluginPlannerRejectsInventedTrigger(t *testing.T) {
 	}
 	if ok {
 		t.Fatal("Plan accepted invented trigger")
+	}
+}
+
+func TestSemanticPluginPlannerRejectsLegacyProposalWithoutIntent(t *testing.T) {
+	runtime := &fakeRuntime{response: llm.TextResponse{Text: `{"plugin_id":"jockie-music","trigger":"!play","arguments":"there are tools you can call, what are they?"}`}}
+	planner := SemanticPluginPlanner{Runtime: runtime}
+	input := semanticPluginInputForLLM()
+	input.Text = "there are tools you can call, what are they?"
+
+	_, ok, err := planner.Plan(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if ok {
+		t.Fatal("Plan accepted legacy plugin proposal without plugin_command intent")
 	}
 }
 
