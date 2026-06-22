@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/gOps132/GigiDC/internal/agent"
 	"github.com/gOps132/GigiDC/internal/memory"
 )
 
@@ -25,6 +27,7 @@ type Message struct {
 	HasAdministrator bool
 	Text             string
 	RawContent       string
+	TraceSink        agent.TraceSink
 }
 
 type MessageResponse struct {
@@ -72,12 +75,21 @@ type messageSender interface {
 	ChannelMessageSend(channelID string, content string, options ...discordgo.RequestOption) (*discordgo.Message, error)
 }
 
+type messageEmbedSender interface {
+	ChannelMessageSendEmbed(channelID string, embed *discordgo.MessageEmbed, options ...discordgo.RequestOption) (*discordgo.Message, error)
+}
+
+type messageEmbedEditor interface {
+	ChannelMessageEditEmbed(channelID string, messageID string, embed *discordgo.MessageEmbed, options ...discordgo.RequestOption) (*discordgo.Message, error)
+}
+
 type MessageRouter struct {
 	botUserID      string
 	handler        MessageHandler
 	audit          AuditSink
 	memoryIngestor GuildMemoryIngestor
 	replyLatency   replyLatencyConfig
+	liveDebug      AgentLiveDebugReader
 }
 
 type GuildMemoryIngestor interface {
@@ -111,6 +123,13 @@ func (r *MessageRouter) SetReplyLatencyConfig(config ReplyLatencyConfig) {
 	r.replyLatency = resolveReplyLatencyConfig(config)
 }
 
+func (r *MessageRouter) SetAgentLiveDebugStore(store AgentLiveDebugReader) {
+	if r == nil {
+		return
+	}
+	r.liveDebug = store
+}
+
 func CoreMessageHandler() MessageHandler {
 	return MessageHandlerFunc(func(ctx context.Context, message Message) (MessageResponse, error) {
 		text := strings.ToLower(strings.TrimSpace(message.Text))
@@ -132,6 +151,8 @@ func (r *MessageRouter) HandleMessage(ctx context.Context, sender messageSender,
 		return nil
 	}
 
+	liveSink := r.startLiveDebug(ctx, sender, message)
+	message.TraceSink = liveSink
 	startedAt := r.replyLatency.now()
 	response, err := r.handler.HandleMessage(ctx, message)
 	elapsed := r.replyLatency.now().Sub(startedAt)
@@ -155,6 +176,9 @@ func (r *MessageRouter) HandleMessage(ctx context.Context, sender messageSender,
 	if message.Surface == MessageSurfaceGuildMention && r.replyLatency.enabled(ctx, message.GuildID) {
 		content = appendReplyLatencySuffix(content, elapsed)
 	}
+	if liveSink != nil {
+		liveSink.finish(ctx, content)
+	}
 
 	auditErr := r.audit.RecordDiscordEvent(ctx, audit)
 	if _, sendErr := sender.ChannelMessageSend(message.ChannelID, content); sendErr != nil {
@@ -164,6 +188,84 @@ func (r *MessageRouter) HandleMessage(ctx context.Context, sender messageSender,
 		return fmt.Errorf("record discord audit event: %w", auditErr)
 	}
 	return nil
+}
+
+func (r *MessageRouter) startLiveDebug(ctx context.Context, sender messageSender, message Message) *channelAgentTraceSink {
+	if r == nil || r.liveDebug == nil || message.Surface != MessageSurfaceGuildMention || strings.TrimSpace(message.GuildID) == "" {
+		return nil
+	}
+	enabled, err := r.liveDebug.LiveDebugEnabled(ctx, message.GuildID, message.UserID)
+	if err != nil || !enabled {
+		return nil
+	}
+	embedSender, ok := sender.(messageEmbedSender)
+	if !ok {
+		return nil
+	}
+	embedEditor, ok := sender.(messageEmbedEditor)
+	if !ok {
+		return nil
+	}
+	sink := &channelAgentTraceSink{editor: embedEditor, channelID: message.ChannelID}
+	sent, err := embedSender.ChannelMessageSendEmbed(message.ChannelID, formatAgentTraceEmbed(agent.TraceRun{Status: "running"}, "debug"))
+	if err != nil || sent == nil {
+		return nil
+	}
+	sink.messageID = sent.ID
+	return sink
+}
+
+type channelAgentTraceSink struct {
+	mu        sync.Mutex
+	editor    messageEmbedEditor
+	channelID string
+	messageID string
+	run       agent.TraceRun
+}
+
+func (s *channelAgentTraceSink) RecordTraceEvent(ctx context.Context, request agent.Request, event agent.TraceEvent) error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	if s.run.RunID == "" {
+		s.run.RunID = event.RunID
+	}
+	s.run.GuildID = request.GuildID
+	s.run.ChannelID = request.ChannelID
+	s.run.ActorUserID = request.ActorUserID
+	s.run.Surface = string(request.Surface)
+	s.run.Status = event.Status
+	s.run.Events = append(s.run.Events, event)
+	s.mu.Unlock()
+	s.update(ctx, "")
+	return nil
+}
+
+func (s *channelAgentTraceSink) finish(ctx context.Context, answer string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	if s.run.Status == "" || s.run.Status == "running" {
+		s.run.Status = "succeeded"
+	}
+	s.mu.Unlock()
+	s.update(ctx, answer)
+}
+
+func (s *channelAgentTraceSink) update(ctx context.Context, answer string) {
+	if s == nil || s.editor == nil || strings.TrimSpace(s.channelID) == "" || strings.TrimSpace(s.messageID) == "" {
+		return
+	}
+	s.mu.Lock()
+	run := s.run
+	s.mu.Unlock()
+	embed := formatAgentTraceEmbed(run, "debug")
+	if strings.TrimSpace(answer) != "" {
+		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{Name: "Final answer", Value: boundEmbedValue(answer)})
+	}
+	_, _ = s.editor.ChannelMessageEditEmbed(s.channelID, s.messageID, embed)
 }
 
 func (r *MessageRouter) HandleMessageDelete(ctx context.Context, event *discordgo.MessageDelete) error {

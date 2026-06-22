@@ -29,6 +29,7 @@ func AgentMessageHandler(runtime AgentRuntime, fallback MessageHandler) MessageH
 			ContextScope:     defaultAgentMessageContext(message),
 			Text:             message.Text,
 			RawText:          message.RawContent,
+			TraceSink:        message.TraceSink,
 		})
 		if err != nil {
 			return MessageResponse{}, err

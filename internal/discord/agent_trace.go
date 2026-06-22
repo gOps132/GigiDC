@@ -49,6 +49,16 @@ func AgentCommands(reader AgentTraceReader, manager AgentRunManager, recorder Au
 				Options: []*discordgo.ApplicationCommandOption{
 					stringOption("prompt", "Guild-style message to debug.", nil),
 				},
+			}, {
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "mode",
+				Description: "Toggle live debug for your guild mentions.",
+				Options: []*discordgo.ApplicationCommandOption{
+					stringOption("state", "Live debug mode.", []*discordgo.ApplicationCommandOptionChoice{
+						{Name: "on", Value: "on"},
+						{Name: "off", Value: "off"},
+					}),
+				},
 			}},
 		}, agentStatsOptions()}, agentRunOptions()...),
 		Handle: agentHandler(reader, manager, recorder, cfg),
@@ -56,7 +66,7 @@ func AgentCommands(reader AgentTraceReader, manager AgentRunManager, recorder Au
 }
 
 func agentHandler(reader AgentTraceReader, manager AgentRunManager, recorder AuditRecorder, cfg AgentCommandConfig) CommandHandler {
-	traceHandler := agentTraceHandler(reader, cfg.Runtime)
+	traceHandler := agentTraceHandler(reader, cfg.Runtime, cfg.LiveDebugStore)
 	statsHandler := agentStatsHandler(cfg.StatsReader, cfg.StatsAuthorizer, recorder, cfg.Clock, cfg.ReplyLatencyStore)
 	runHandler := agentCommandHandler(manager, recorder)
 	return func(ctx context.Context, interaction Interaction) (CommandResponse, error) {
@@ -70,12 +80,15 @@ func agentHandler(reader AgentTraceReader, manager AgentRunManager, recorder Aud
 	}
 }
 
-func agentTraceHandler(reader AgentTraceReader, runtime AgentRuntime) CommandHandler {
+func agentTraceHandler(reader AgentTraceReader, runtime AgentRuntime, liveDebugStore AgentLiveDebugStore) CommandHandler {
 	return func(ctx context.Context, interaction Interaction) (CommandResponse, error) {
 		visibility := normalizeAgentTraceVisibility(agentTraceVisibility(interaction.Options))
 		group, action, ok := agentTracePath(interaction)
 		if ok && group == "trace" && action == "live" {
 			return agentTraceLiveResponse(runtime, interaction), nil
+		}
+		if ok && group == "trace" && action == "mode" {
+			return agentTraceModeResponse(ctx, liveDebugStore, interaction), nil
 		}
 		if reader == nil {
 			return CommandResponse{Content: "Agent trace is not configured yet.", Ephemeral: visibility != "public"}, nil
@@ -100,6 +113,34 @@ func agentTraceHandler(reader AgentTraceReader, runtime AgentRuntime) CommandHan
 		}
 		return CommandResponse{Embeds: []*discordgo.MessageEmbed{formatAgentTraceEmbed(run, view)}, Ephemeral: visibility != "public"}, nil
 	}
+}
+
+func agentTraceModeResponse(ctx context.Context, store AgentLiveDebugStore, interaction Interaction) CommandResponse {
+	if store == nil {
+		return CommandResponse{Content: "Agent live debug mode is not configured yet.", Ephemeral: true}
+	}
+	state := strings.TrimSpace(agentTraceModeState(interaction.Options))
+	switch state {
+	case "on":
+		if err := store.SetLiveDebugEnabled(ctx, interaction.GuildID, interaction.UserID, true); err != nil {
+			return CommandResponse{Content: "Agent live debug mode update failed.", Ephemeral: true}
+		}
+		return CommandResponse{Content: "Live debug is on for your @Gigi guild mentions. Debug cards are posted in-channel because Discord message events cannot create ephemeral messages.", Ephemeral: true}
+	case "off":
+		if err := store.SetLiveDebugEnabled(ctx, interaction.GuildID, interaction.UserID, false); err != nil {
+			return CommandResponse{Content: "Agent live debug mode update failed.", Ephemeral: true}
+		}
+		return CommandResponse{Content: "Live debug is off for your @Gigi guild mentions.", Ephemeral: true}
+	default:
+		return CommandResponse{Content: "Choose live debug mode `on` or `off`.", Ephemeral: true}
+	}
+}
+
+func agentTraceModeState(options []InteractionOption) string {
+	if len(options) != 1 || len(options[0].Options) != 1 {
+		return ""
+	}
+	return optionByName(options[0].Options[0].Options, "state")
 }
 
 func agentTracePath(interaction Interaction) (string, string, bool) {

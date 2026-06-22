@@ -97,6 +97,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 		agentRunStore := agent.NewSQLRunStore(db)
 		agentStatsReader := agent.NewSQLAnalyticsReader(db)
 		replyLatencyStore := discord.NewSQLGuildReplyLatencyStore(db)
+		agentLiveDebugStore := discord.NewMemoryAgentLiveDebugStore()
 		memoryIngestor := memory.NewLiveIngestor(memoryStore, 512)
 		conversationStore := assistant.NewSQLConversationStore(db, func() string { return storage.NewID("asstturn") })
 		evaluator := capability.NewEvaluator(grantStore)
@@ -161,6 +162,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			StatsAuthorizer:   authorizer,
 			ReplyLatencyStore: replyLatencyStore,
 			Runtime:           agentRuntime,
+			LiveDebugStore:    agentLiveDebugStore,
 		})...)
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)
@@ -193,6 +195,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			return nil, err
 		}
 		messageRouter.SetReplyLatencyConfig(discord.ReplyLatencyConfig{Store: replyLatencyStore})
+		messageRouter.SetAgentLiveDebugStore(agentLiveDebugStore)
 		client, err := discord.NewGateway(discord.Options{
 			Token:         cfg.DiscordToken,
 			ClientID:      cfg.DiscordClientID,
