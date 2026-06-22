@@ -217,15 +217,23 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 
 func webSearchProvider(cfg config.Config) agent.WebSearchProvider {
 	duckDuckGo := agent.DuckDuckGoSearchProvider{}
-	if cfg.WebSearchProvider != "brave" {
+	primary := webSearchProviderByName(cfg.WebSearchProvider, cfg, duckDuckGo)
+	fallback := webSearchProviderByName(cfg.WebSearchFallbackProvider, cfg, duckDuckGo)
+	if cfg.WebSearchFallbackProvider != "" && cfg.WebSearchFallbackProvider != cfg.WebSearchProvider {
+		return agent.FallbackSearchProvider{Primary: primary, Fallback: fallback}
+	}
+	return primary
+}
+
+func webSearchProviderByName(name string, cfg config.Config, duckDuckGo agent.DuckDuckGoSearchProvider) agent.WebSearchProvider {
+	switch name {
+	case "brave":
+		return agent.BraveSearchProvider{APIKey: cfg.BraveSearchAPIKey}
+	case "searxng":
+		return agent.SearXNGSearchProvider{BaseURL: cfg.SearXNGBaseURL}
+	default:
 		return duckDuckGo
 	}
-
-	brave := agent.BraveSearchProvider{APIKey: cfg.BraveSearchAPIKey}
-	if cfg.WebSearchFallbackProvider == "duckduckgo" {
-		return agent.FallbackSearchProvider{Primary: brave, Fallback: duckDuckGo}
-	}
-	return brave
 }
 
 func guildMentionPlanner(llmRuntime llm.Runtime) agent.Planner {

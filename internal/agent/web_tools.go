@@ -209,6 +209,134 @@ func (p BraveSearchProvider) Search(ctx context.Context, query string, limit int
 	return results, "brave", nil
 }
 
+type SearXNGSearchProvider struct {
+	Client      *http.Client
+	BaseURL     string
+	ResolveHost hostResolver
+}
+
+func (p SearXNGSearchProvider) Search(ctx context.Context, query string, limit int) ([]SearchResult, string, error) {
+	baseURL := strings.TrimSpace(p.BaseURL)
+	if baseURL == "" {
+		return nil, "searxng", fmt.Errorf("searxng base url is required")
+	}
+	target, err := searxngSearchURL(baseURL)
+	if err != nil {
+		return nil, "searxng", err
+	}
+	values := target.Query()
+	values.Set("q", query)
+	values.Set("format", "json")
+	target.RawQuery = values.Encode()
+
+	client := trustedSearchClient(p.Client, target.Hostname())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		return nil, "searxng", err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "GigiDC/1.0 (+https://github.com/gOps132/GigiDC)")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, "searxng", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, "searxng", fmt.Errorf("searxng search returned status %d", resp.StatusCode)
+	}
+
+	var payload struct {
+		Results []struct {
+			Title   string `json:"title"`
+			URL     string `json:"url"`
+			Content string `json:"content"`
+		} `json:"results"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxWebResponseBytes)).Decode(&payload); err != nil {
+		return nil, "searxng", err
+	}
+
+	resultLimit := parseWebLimit(strconv.Itoa(limit), 5, maxWebSearchResults)
+	results := make([]SearchResult, 0, len(payload.Results))
+	for _, result := range payload.Results {
+		title := strings.TrimSpace(result.Title)
+		resultURL := strings.TrimSpace(result.URL)
+		if title == "" || !isHTTPResultURL(resultURL) {
+			continue
+		}
+		results = append(results, SearchResult{
+			Title: title,
+			URL:   resultURL,
+			Body:  strings.TrimSpace(result.Content),
+		})
+		if len(results) >= resultLimit {
+			break
+		}
+	}
+	return results, "searxng", nil
+}
+
+func searxngSearchURL(baseURL string) (*url.URL, error) {
+	if !strings.Contains(baseURL, "://") {
+		baseURL = "https://" + baseURL
+	}
+	target, err := parseTrustedSearchURL(baseURL)
+	if err != nil {
+		return nil, err
+	}
+	cleanPath := strings.TrimRight(target.Path, "/")
+	switch {
+	case cleanPath == "":
+		target.Path = "/search"
+	case !strings.HasSuffix(cleanPath, "/search"):
+		target.Path = cleanPath + "/search"
+	default:
+		target.Path = cleanPath
+	}
+	return target, nil
+}
+
+func trustedSearchClient(base *http.Client, allowedHost string) *http.Client {
+	client := &http.Client{Timeout: 15 * time.Second}
+	if base != nil {
+		*client = *base
+		if client.Timeout == 0 {
+			client.Timeout = 15 * time.Second
+		}
+	}
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 5 {
+			return fmt.Errorf("too many redirects")
+		}
+		if _, err := parseTrustedSearchURL(req.URL.String()); err != nil {
+			return err
+		}
+		if !strings.EqualFold(req.URL.Hostname(), allowedHost) {
+			return fmt.Errorf("redirect host %q is not allowed", req.URL.Hostname())
+		}
+		return nil
+	}
+	return client
+}
+
+func parseTrustedSearchURL(raw string) (*url.URL, error) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return nil, err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, fmt.Errorf("unsupported scheme %q", u.Scheme)
+	}
+	if u.User != nil {
+		return nil, fmt.Errorf("userinfo is not allowed")
+	}
+	if u.Hostname() == "" {
+		return nil, fmt.Errorf("host is required")
+	}
+	return u, nil
+}
+
 func isHTTPResultURL(rawURL string) bool {
 	u, err := url.Parse(rawURL)
 	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""

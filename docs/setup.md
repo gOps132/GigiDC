@@ -32,7 +32,7 @@ openssl rand -base64 32
 
 Provider API keys are entered through `/llm provider add` or `/llm provider rotate` private modals and sealed as guild credentials. Do not set provider keys in `OPENAI_API_KEY`; that environment variable is reserved and unused for provider calls.
 
-Agent `web.search` uses DuckDuckGo HTML by default. Set `BRAVE_SEARCH_API_KEY` to use Brave Search API for `web.search`; Gigi automatically selects Brave when this key is present unless `GIGI_WEB_SEARCH_PROVIDER=duckduckgo` is set. To keep DuckDuckGo as a backup when Brave fails, set `GIGI_WEB_SEARCH_FALLBACK=duckduckgo`.
+Agent `web.search` uses DuckDuckGo HTML by default. Set `BRAVE_SEARCH_API_KEY` to use Brave Search API for `web.search`; Gigi automatically selects Brave when this key is present unless `GIGI_WEB_SEARCH_PROVIDER=duckduckgo` is set. Set `SEARXNG_BASE_URL` to use a SearXNG instance; Gigi automatically selects SearXNG when this value is present and no Brave key is set. SearXNG instances must have JSON output enabled for `format=json`; many public instances disable it and return `403`. Use `GIGI_WEB_SEARCH_FALLBACK=duckduckgo` to back up Brave or SearXNG with DuckDuckGo, or `GIGI_WEB_SEARCH_FALLBACK=searxng` to back up DuckDuckGo or Brave with SearXNG. SearXNG fallback requires `SEARXNG_BASE_URL`; Brave cannot be configured as a fallback.
 
 After adding a guild credential, select model profiles for live guild mention behavior:
 

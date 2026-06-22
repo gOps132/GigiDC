@@ -24,14 +24,18 @@ type Config struct {
 	WebSearchProvider         string
 	WebSearchFallbackProvider string
 	BraveSearchAPIKey         string
+	SearXNGBaseURL            string
 }
 
 func Load() (Config, error) {
 	braveSearchAPIKey := strings.TrimSpace(os.Getenv("BRAVE_SEARCH_API_KEY"))
+	searxngBaseURL := strings.TrimSpace(os.Getenv("SEARXNG_BASE_URL"))
 	webSearchProvider := strings.ToLower(strings.TrimSpace(os.Getenv("GIGI_WEB_SEARCH_PROVIDER")))
 	if webSearchProvider == "" {
 		if braveSearchAPIKey != "" {
 			webSearchProvider = "brave"
+		} else if searxngBaseURL != "" {
+			webSearchProvider = "searxng"
 		} else {
 			webSearchProvider = "duckduckgo"
 		}
@@ -53,19 +57,26 @@ func Load() (Config, error) {
 		WebSearchProvider:         webSearchProvider,
 		WebSearchFallbackProvider: strings.ToLower(strings.TrimSpace(os.Getenv("GIGI_WEB_SEARCH_FALLBACK"))),
 		BraveSearchAPIKey:         braveSearchAPIKey,
+		SearXNGBaseURL:            searxngBaseURL,
 	}
 
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("GIGI_DATABASE_URL is required")
 	}
-	if cfg.WebSearchProvider != "duckduckgo" && cfg.WebSearchProvider != "brave" {
-		return Config{}, fmt.Errorf("GIGI_WEB_SEARCH_PROVIDER must be duckduckgo or brave, got %q", cfg.WebSearchProvider)
+	if cfg.WebSearchProvider != "duckduckgo" && cfg.WebSearchProvider != "brave" && cfg.WebSearchProvider != "searxng" {
+		return Config{}, fmt.Errorf("GIGI_WEB_SEARCH_PROVIDER must be duckduckgo, brave, or searxng, got %q", cfg.WebSearchProvider)
 	}
-	if cfg.WebSearchFallbackProvider != "" && cfg.WebSearchFallbackProvider != "duckduckgo" {
-		return Config{}, fmt.Errorf("GIGI_WEB_SEARCH_FALLBACK must be blank or duckduckgo, got %q", cfg.WebSearchFallbackProvider)
+	if cfg.WebSearchFallbackProvider != "" && cfg.WebSearchFallbackProvider != "duckduckgo" && cfg.WebSearchFallbackProvider != "searxng" {
+		return Config{}, fmt.Errorf("GIGI_WEB_SEARCH_FALLBACK must be blank, duckduckgo, or searxng, got %q", cfg.WebSearchFallbackProvider)
 	}
-	if cfg.WebSearchProvider == "brave" && cfg.BraveSearchAPIKey == "" && cfg.WebSearchFallbackProvider != "duckduckgo" {
-		return Config{}, errors.New("BRAVE_SEARCH_API_KEY is required when GIGI_WEB_SEARCH_PROVIDER is brave without duckduckgo fallback")
+	if cfg.WebSearchProvider == "brave" && cfg.BraveSearchAPIKey == "" && cfg.WebSearchFallbackProvider != "duckduckgo" && cfg.WebSearchFallbackProvider != "searxng" {
+		return Config{}, errors.New("BRAVE_SEARCH_API_KEY is required when GIGI_WEB_SEARCH_PROVIDER is brave without search fallback")
+	}
+	if cfg.WebSearchProvider == "searxng" && cfg.SearXNGBaseURL == "" && cfg.WebSearchFallbackProvider != "duckduckgo" {
+		return Config{}, errors.New("SEARXNG_BASE_URL is required when GIGI_WEB_SEARCH_PROVIDER is searxng without duckduckgo fallback")
+	}
+	if cfg.WebSearchFallbackProvider == "searxng" && cfg.SearXNGBaseURL == "" {
+		return Config{}, errors.New("SEARXNG_BASE_URL is required when GIGI_WEB_SEARCH_FALLBACK is searxng")
 	}
 
 	if !strings.HasPrefix(cfg.HTTPAddr, ":") && !strings.Contains(cfg.HTTPAddr, ":") {
