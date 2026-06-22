@@ -90,7 +90,7 @@ func TestLLMPlannerRepairsRealtimeRefusalWithWebSearch(t *testing.T) {
 	if !ok || len(plan.ToolCalls) != 1 || plan.ToolCalls[0].Name != ToolWebSearch || plan.ToolCalls[0].Args["query"] != "news today" {
 		t.Fatalf("plan=%+v ok=%v, want repaired news web.search plan", plan, ok)
 	}
-	for _, want := range []string{"A chat refusal is not a valid planner result", "news, headlines, or today information", "choose web.search"} {
+	for _, want := range []string{"A chat refusal is not a valid planner result", "news, headlines, today information", "choose web.search"} {
 		if !strings.Contains(runtime.reqs[1].Input, want) {
 			t.Fatalf("repair input=%q, want %q", runtime.reqs[1].Input, want)
 		}
@@ -116,7 +116,7 @@ func TestLLMPlannerPromptMentionsWebAndJobRouting(t *testing.T) {
 			t.Fatalf("instructions=%q, want %q", runtime.req.Instructions, want)
 		}
 	}
-	for _, want := range []string{"Tool selection guide", "web.search: use for web/online/current/latest/real-time/news/headlines/today information requests", "web.fetch: use for reading or summarizing", `{"intent":"chat","tool_calls":[]}`, "Return {} only if Gigi should ignore"} {
+	for _, want := range []string{"Tool selection guide", "web.search: use for web/online/current/latest/real-time/news/headlines/today information requests and public fact lookups", "web.fetch: use for reading or summarizing", `{"intent":"chat","tool_calls":[]}`, "Return {} only if Gigi should ignore"} {
 		if !strings.Contains(runtime.req.Input, want) {
 			t.Fatalf("input=%q, want %q", runtime.req.Input, want)
 		}
@@ -138,6 +138,45 @@ func TestLLMPlannerRechecksExplicitChatPlanBeforeFallback(t *testing.T) {
 	}
 	if len(runtime.reqs) != 2 || !strings.Contains(runtime.reqs[1].Input, "A chat refusal is not a valid planner result") {
 		t.Fatalf("requests=%+v, want chat plan rechecked once", runtime.reqs)
+	}
+}
+
+func TestLLMPlannerRepairsEmptyChatPlanWithPriorRun(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{responses: []llm.TextResponse{
+		{Text: `{"intent":"chat","tool_calls":[]}`, ProviderID: "openai", ModelID: "gpt-test"},
+		{Text: `{"intent":"web_search","tool_calls":[{"name":"web.search","args":{"query":"who is lebron james?"}}]}`, ProviderID: "openai", ModelID: "gpt-test"},
+	}}
+	request := agentTestRequest()
+	request.Text = "who is lebron james?"
+	request.PriorRun = &RunSnapshot{ResponseText: "No agent tool results."}
+
+	plan, ok, err := (LLMPlanner{Runtime: runtime}).Plan(context.Background(), request, []ToolSpec{{Name: ToolWebSearch, Description: "Search the web"}})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if !ok || len(plan.ToolCalls) != 1 || plan.ToolCalls[0].Name != ToolWebSearch || plan.ToolCalls[0].Args["query"] != "who is lebron james?" {
+		t.Fatalf("plan=%+v ok=%v, want repaired web.search plan", plan, ok)
+	}
+	if len(runtime.reqs) != 2 || plan.Intent != "web_search" || plan.Trace["repair_reason"] != "empty_tool_plan" || plan.Trace["llm_attempt"] != "repair" {
+		t.Fatalf("plan=%+v trace=%+v requests=%d, want repaired web_search trace", plan, plan.Trace, len(runtime.reqs))
+	}
+}
+
+func TestLLMPlannerAcceptsRepairedChatPlanWithPriorRun(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{responses: []llm.TextResponse{
+		{Text: `{"intent":"chat","tool_calls":[]}`},
+		{Text: `{"intent":"chat","tool_calls":[]}`},
+	}}
+	request := agentTestRequest()
+	request.Text = "who are you?"
+	request.PriorRun = &RunSnapshot{ResponseText: "hello"}
+
+	plan, ok, err := (LLMPlanner{Runtime: runtime}).Plan(context.Background(), request, []ToolSpec{{Name: ToolWebSearch, Description: "Search the web"}})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if !ok || plan.Intent != "chat" || len(plan.ToolCalls) != 0 {
+		t.Fatalf("plan=%+v ok=%v, want normal chat plan", plan, ok)
 	}
 }
 
