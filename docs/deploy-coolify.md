@@ -36,9 +36,16 @@ DISCORD_CLIENT_ID=
 
 GIGI_LLM_SECRET_KEY_BASE64=
 GIGI_LLM_SECRET_KEY_ID=local-v1
+
+GIGI_WEB_SEARCH_PROVIDER=searxng
+GIGI_WEB_SEARCH_FALLBACK=duckduckgo
+SEARXNG_BASE_URL=http://searxng:8080
+SEARXNG_SECRET=<secure-random-secret>
 ```
 
 `docker-compose.yml` marks `POSTGRES_PASSWORD` as required with `${POSTGRES_PASSWORD:?}` so Coolify can surface it in environment setup.
+
+The Compose stack also includes SearXNG. Use `SEARXNG_BASE_URL=http://searxng:8080` for Gigi-to-SearXNG traffic inside the Compose network. Set `SEARXNG_PUBLIC_URL` only when exposing SearXNG publicly; leave it blank for private internal use.
 
 Do not paste `docker compose config` output into issues, PRs, or chat after real secrets are set; Compose expands environment values.
 
