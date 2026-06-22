@@ -27,6 +27,21 @@ func TestMultiPlannerUsesFirstHandledPlan(t *testing.T) {
 	}
 }
 
+func TestMultiPlannerPreservesLastNoPlanTrace(t *testing.T) {
+	planner := MultiPlanner{
+		&fakePlanner{ok: false, plan: Plan{Trace: map[string]string{"llm_attempt": "repair", "llm_output_preview": "{}"}}},
+		&fakePlanner{ok: false},
+	}
+
+	plan, ok, err := planner.Plan(context.Background(), agentTestRequest(), nil)
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if ok || plan.Trace["llm_attempt"] != "repair" || plan.Trace["llm_output_preview"] != "{}" {
+		t.Fatalf("plan=%+v ok=%v, want no-plan trace preserved", plan, ok)
+	}
+}
+
 func TestMultiPlannerLetsLLMHandleConversationalGuildMention(t *testing.T) {
 	request := agentTestRequest()
 	request.Text = "can you summarize the recent chats?"
