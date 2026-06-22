@@ -160,7 +160,7 @@ func llmModelGroup() *discordgo.ApplicationCommandOption {
 				Options: []*discordgo.ApplicationCommandOption{
 					purposeOption(),
 					stringOption("label", "Credential label.", nil),
-					stringOption("model", "Provider model id.", nil),
+					optionalStringOption("model", "Provider model id. Use auto for the provider default.", nil),
 				},
 			},
 		},
@@ -291,6 +291,7 @@ type llmRequest struct {
 	Label       string
 	Purpose     provider.Purpose
 	ModelID     string
+	AutoModel   bool
 	Confirm     bool
 	RoutingMode provider.ToolRoutingMode
 }
@@ -380,7 +381,12 @@ func parseLLMModelRequest(request llmRequest, options []InteractionOption) (llmR
 		if err != nil {
 			return request, err
 		}
-		modelID, err := provider.ValidateModelID(optionByName(options, "model"))
+		modelValue := strings.TrimSpace(optionByName(options, "model"))
+		if modelValue == "" || strings.EqualFold(modelValue, "auto") {
+			request.AutoModel = true
+			return request, nil
+		}
+		modelID, err := provider.ValidateModelID(modelValue)
 		if err != nil {
 			return request, err
 		}
@@ -484,18 +490,30 @@ func executeLLMRequest(ctx context.Context, manager LLMProviderManager, interact
 		if err != nil {
 			return CommandResponse{}, err
 		}
+		modelID := request.ModelID
+		if request.AutoModel {
+			defaultModel, ok := provider.DefaultModel(credential.ProviderID, request.Purpose)
+			if !ok {
+				return CommandResponse{Content: fmt.Sprintf("No default model for %s/%s. Pass model:<id> explicitly.", safeInline(string(credential.ProviderID)), request.Purpose)}, nil
+			}
+			modelID = defaultModel
+			request.ModelID = modelID
+		}
 		if err := manager.SelectModelProfile(ctx, provider.SelectModelRequest{
 			Owner:        owner,
 			Purpose:      request.Purpose,
 			CredentialID: credential.ID,
 			ProviderID:   credential.ProviderID,
-			ModelID:      request.ModelID,
+			ModelID:      modelID,
 			ParamsJSON:   "{}",
 			ActorID:      interaction.UserID,
 		}); err != nil {
 			return CommandResponse{}, err
 		}
-		return CommandResponse{Content: fmt.Sprintf("Selected `%s` for `%s` using credential `%s`.", safeInline(request.ModelID), request.Purpose, safeInline(request.Label))}, nil
+		if request.AutoModel {
+			return CommandResponse{Content: fmt.Sprintf("Selected `%s` for `%s` using credential `%s` (auto default for %s).", safeInline(modelID), request.Purpose, safeInline(request.Label), safeInline(providerDisplayName(credential.ProviderID)))}, nil
+		}
+		return CommandResponse{Content: fmt.Sprintf("Selected `%s` for `%s` using credential `%s`.", safeInline(modelID), request.Purpose, safeInline(request.Label))}, nil
 	case request.Group == "usage" && request.Action == "guild":
 		if cfg.UsageReporter == nil {
 			return CommandResponse{Content: "LLM usage reporting is not configured."}, nil
@@ -580,8 +598,27 @@ func llmModalHandler(manager LLMProviderManager, recorder AuditRecorder, modals 
 		if err := recordLLMCredentialModal(ctx, recorder, interaction, pending, audit.StatusSucceeded, nil); err != nil {
 			return CommandResponse{}, err
 		}
-		return CommandResponse{Content: fmt.Sprintf("Saved `%s` credential `%s`.", safeInline(string(record.ProviderID)), safeInline(record.Label)), Ephemeral: true}, nil
+		return CommandResponse{Content: formatLLMCredentialSaved(record), Ephemeral: true}, nil
 	}
+}
+
+func providerDisplayName(providerID provider.ProviderID) string {
+	spec, ok := provider.DefaultRegistry().Spec(providerID)
+	if !ok {
+		return string(providerID)
+	}
+	return spec.DisplayName
+}
+
+func formatLLMCredentialSaved(record provider.CredentialRecord) string {
+	label := safeInline(record.Label)
+	return fmt.Sprintf("Saved `%s` credential `%s`.\nNext:\n`/llm provider test label:%s`\n`/llm model set purpose:chat label:%s model:auto`\n`/llm model set purpose:routing label:%s model:auto`",
+		safeInline(string(record.ProviderID)),
+		label,
+		label,
+		label,
+		label,
+	)
 }
 
 func credentialByLabel(ctx context.Context, manager LLMProviderManager, owner provider.Scope, label string) (provider.CredentialRecord, error) {

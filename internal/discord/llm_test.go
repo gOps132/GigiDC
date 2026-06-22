@@ -31,7 +31,7 @@ func TestLLMCommandsExposeGuildProviderSurface(t *testing.T) {
 		}
 	}
 	add := findOption(providerGroup.Options, "add")
-	if option := findOption(add.Options, "provider"); option == nil || !hasChoice(option, string(provider.ProviderOpenAI)) || !hasChoice(option, string(provider.ProviderAnthropic)) || !hasChoice(option, string(provider.ProviderGemini)) {
+	if option := findOption(add.Options, "provider"); option == nil || !hasChoice(option, string(provider.ProviderOpenAI)) || !hasChoice(option, string(provider.ProviderAnthropic)) || !hasChoice(option, string(provider.ProviderGemini)) || !hasChoice(option, string(provider.ProviderCustom)) {
 		t.Fatalf("provider option = %+v, want provider choices", option)
 	}
 
@@ -45,8 +45,12 @@ func TestLLMCommandsExposeGuildProviderSurface(t *testing.T) {
 		}
 	}
 	show := findOption(modelGroup.Options, "show")
-	if option := findOption(show.Options, "purpose"); option == nil || !hasChoice(option, string(provider.PurposeChat)) || !hasChoice(option, string(provider.PurposeEmbedding)) {
+	if option := findOption(show.Options, "purpose"); option == nil || !hasChoice(option, string(provider.PurposeChat)) || !hasChoice(option, string(provider.PurposeReasoning)) || !hasChoice(option, string(provider.PurposeEmbedding)) || !hasChoice(option, string(provider.PurposeRouting)) {
 		t.Fatalf("purpose option = %+v, want purpose choices", option)
+	}
+	setModel := findOption(modelGroup.Options, "set")
+	if option := findOption(setModel.Options, "model"); option == nil || option.Required {
+		t.Fatalf("model option = %+v, want optional provider model id", option)
 	}
 
 	usageGroup := findOption(command.Options, "usage")
@@ -533,6 +537,117 @@ func TestLLMCommandShowsAndSetsModelProfile(t *testing.T) {
 	}
 	if len(recorder.events) != 1 || recorder.events[0].Metadata["action"] != "set" || recorder.events[0].Metadata["model_id"] != "gpt-4o-mini" {
 		t.Fatalf("audit events = %+v, want model set audit", recorder.events)
+	}
+}
+
+func TestLLMCommandModelSetUsesAutoDefault(t *testing.T) {
+	manager := &fakeLLMProviderManager{
+		records: []provider.CredentialRecord{{
+			ID:         "credential-id",
+			ProviderID: provider.ProviderGemini,
+			Label:      "main",
+			Status:     provider.CredentialStatusActive,
+		}},
+	}
+	recorder := &fakeAuditRecorder{}
+	handler := LLMCommands(manager, recorder)[0].Handle
+
+	response, err := handler(context.Background(), llmInteraction("model", "set", []InteractionOption{
+		{Name: "purpose", Value: "chat"},
+		{Name: "label", Value: "main"},
+		{Name: "model", Value: "auto"},
+	}))
+	if err != nil {
+		t.Fatalf("set returned error: %v", err)
+	}
+	if manager.method != "SelectModelProfile" || manager.selectReq.CredentialID != "credential-id" || manager.selectReq.ProviderID != provider.ProviderGemini || manager.selectReq.ModelID != "gemini-3.5-flash" {
+		t.Fatalf("manager = %+v, want Gemini auto default selected", manager)
+	}
+	if response.Content != "Selected `gemini-3.5-flash` for `chat` using credential `main` (auto default for Gemini)." || !response.Ephemeral {
+		t.Fatalf("response = %+v, want explicit auto default response", response)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Metadata["model_id"] != "gemini-3.5-flash" {
+		t.Fatalf("audit events = %+v, want final auto model audit", recorder.events)
+	}
+}
+
+func TestLLMCommandModelSetUsesAutoDefaultWhenModelOmitted(t *testing.T) {
+	manager := &fakeLLMProviderManager{
+		records: []provider.CredentialRecord{{
+			ID:         "credential-id",
+			ProviderID: provider.ProviderOpenAI,
+			Label:      "main",
+			Status:     provider.CredentialStatusActive,
+		}},
+	}
+	handler := LLMCommands(manager, nil)[0].Handle
+
+	response, err := handler(context.Background(), llmInteraction("model", "set", []InteractionOption{
+		{Name: "purpose", Value: "routing"},
+		{Name: "label", Value: "main"},
+	}))
+	if err != nil {
+		t.Fatalf("set returned error: %v", err)
+	}
+	if manager.method != "SelectModelProfile" || manager.selectReq.ModelID != "gpt-5.4-mini" || manager.selectReq.Purpose != provider.PurposeRouting {
+		t.Fatalf("manager = %+v, want OpenAI routing auto default selected", manager)
+	}
+	if response.Content != "Selected `gpt-5.4-mini` for `routing` using credential `main` (auto default for OpenAI)." || !response.Ephemeral {
+		t.Fatalf("response = %+v, want omitted model auto response", response)
+	}
+}
+
+func TestLLMCommandModelSetExplicitModelWins(t *testing.T) {
+	manager := &fakeLLMProviderManager{
+		records: []provider.CredentialRecord{{
+			ID:         "credential-id",
+			ProviderID: provider.ProviderGemini,
+			Label:      "main",
+			Status:     provider.CredentialStatusActive,
+		}},
+	}
+	handler := LLMCommands(manager, nil)[0].Handle
+
+	response, err := handler(context.Background(), llmInteraction("model", "set", []InteractionOption{
+		{Name: "purpose", Value: "chat"},
+		{Name: "label", Value: "main"},
+		{Name: "model", Value: "gemini-2.5-flash"},
+	}))
+	if err != nil {
+		t.Fatalf("set returned error: %v", err)
+	}
+	if manager.selectReq.ModelID != "gemini-2.5-flash" {
+		t.Fatalf("select req = %+v, want explicit model preserved", manager.selectReq)
+	}
+	if response.Content != "Selected `gemini-2.5-flash` for `chat` using credential `main`." || !response.Ephemeral {
+		t.Fatalf("response = %+v, want explicit model response", response)
+	}
+}
+
+func TestLLMCommandModelSetAutoRejectsUnsupportedDefault(t *testing.T) {
+	manager := &fakeLLMProviderManager{
+		records: []provider.CredentialRecord{{
+			ID:         "credential-id",
+			ProviderID: provider.ProviderCustom,
+			Label:      "main",
+			Status:     provider.CredentialStatusActive,
+		}},
+	}
+	handler := LLMCommands(manager, nil)[0].Handle
+
+	response, err := handler(context.Background(), llmInteraction("model", "set", []InteractionOption{
+		{Name: "purpose", Value: "chat"},
+		{Name: "label", Value: "main"},
+		{Name: "model", Value: "auto"},
+	}))
+	if err != nil {
+		t.Fatalf("set returned error: %v", err)
+	}
+	if manager.method == "SelectModelProfile" {
+		t.Fatalf("manager = %+v, want no model selection", manager)
+	}
+	if response.Content != "No default model for custom/chat. Pass model:<id> explicitly." || !response.Ephemeral {
+		t.Fatalf("response = %+v, want unsupported auto default response", response)
 	}
 }
 

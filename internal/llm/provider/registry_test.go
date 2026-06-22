@@ -101,6 +101,60 @@ func TestSupportsPurposeUsesDefaultRegistry(t *testing.T) {
 	}
 }
 
+func TestDefaultModelSelectsProviderPurposeDefaults(t *testing.T) {
+	tests := []struct {
+		name       string
+		providerID ProviderID
+		purpose    Purpose
+		want       string
+	}{
+		{name: "openai chat", providerID: ProviderOpenAI, purpose: PurposeChat, want: "gpt-5.4-mini"},
+		{name: "openai reasoning", providerID: ProviderOpenAI, purpose: PurposeReasoning, want: "gpt-5.5"},
+		{name: "openai embedding", providerID: ProviderOpenAI, purpose: PurposeEmbedding, want: "text-embedding-3-small"},
+		{name: "openai routing", providerID: ProviderOpenAI, purpose: PurposeRouting, want: "gpt-5.4-mini"},
+		{name: "anthropic chat", providerID: ProviderAnthropic, purpose: PurposeChat, want: "claude-sonnet-4-6"},
+		{name: "anthropic reasoning", providerID: ProviderAnthropic, purpose: PurposeReasoning, want: "claude-sonnet-4-6"},
+		{name: "anthropic routing", providerID: ProviderAnthropic, purpose: PurposeRouting, want: "claude-haiku-4-5-20251001"},
+		{name: "gemini chat", providerID: ProviderGemini, purpose: PurposeChat, want: "gemini-3.5-flash"},
+		{name: "gemini reasoning", providerID: ProviderGemini, purpose: PurposeReasoning, want: "gemini-3.1-pro-preview"},
+		{name: "gemini embedding", providerID: ProviderGemini, purpose: PurposeEmbedding, want: "gemini-embedding-2"},
+		{name: "gemini routing", providerID: ProviderGemini, purpose: PurposeRouting, want: "gemini-3.5-flash"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := DefaultModel(tt.providerID, tt.purpose)
+			if !ok {
+				t.Fatalf("DefaultModel(%q, %q) ok = false, want true", tt.providerID, tt.purpose)
+			}
+			if got != tt.want {
+				t.Fatalf("DefaultModel(%q, %q) = %q, want %q", tt.providerID, tt.purpose, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDefaultModelRejectsUnsupportedProviderPurposePairs(t *testing.T) {
+	tests := []struct {
+		name       string
+		providerID ProviderID
+		purpose    Purpose
+	}{
+		{name: "anthropic embedding", providerID: ProviderAnthropic, purpose: PurposeEmbedding},
+		{name: "custom chat", providerID: ProviderCustom, purpose: PurposeChat},
+		{name: "unknown provider", providerID: ProviderID("unknown"), purpose: PurposeChat},
+		{name: "unknown purpose", providerID: ProviderOpenAI, purpose: Purpose("summarizing")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got, ok := DefaultModel(tt.providerID, tt.purpose); ok {
+				t.Fatalf("DefaultModel(%q, %q) = %q, true; want false", tt.providerID, tt.purpose, got)
+			}
+		})
+	}
+}
+
 func TestValidateModelIDTrimsAndAllowsFlexibleModelNames(t *testing.T) {
 	modelID, err := ValidateModelID("  provider/custom-model:v1.2  ")
 	if err != nil {

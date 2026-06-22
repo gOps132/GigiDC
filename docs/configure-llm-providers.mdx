@@ -43,7 +43,7 @@ Create and assign an LLM manager role:
 Start credential entry:
 
 ```text
-/llm provider add provider:openai label:main
+/llm provider add provider:gemini label:main
 ```
 
 Paste the provider key into the private modal.
@@ -59,13 +59,19 @@ Then test it:
 Set the chat model for guild mention replies:
 
 ```text
-/llm model set purpose:chat label:main model:gpt-4o-mini
+/llm model set purpose:chat label:main model:auto
 ```
 
 Set the routing model for semantic external app dry-run routing:
 
 ```text
-/llm model set purpose:routing label:main model:gpt-4o-mini
+/llm model set purpose:routing label:main model:auto
+```
+
+`model:auto` picks Gigi's static default for the credential provider and purpose. Pass a provider model ID instead when you want a specific model:
+
+```text
+/llm model set purpose:chat label:main model:gemini-2.5-flash
 ```
 
 Confirm:
@@ -114,5 +120,4 @@ Usage events store actor, guild, provider, model, purpose, billing owner, status
 
 - Personal BYOK commands are not live.
 - Rich DM chat is not live.
-- Retrieval and memory are not live.
 - Provider fallback between guild, user, and tenant owners is not automatic.

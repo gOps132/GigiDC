@@ -548,19 +548,22 @@ Required Gigi capability: `llm.provider.select`.
 Syntax:
 
 ```text
-/llm model set purpose:<chat|reasoning|embedding|routing> label:<label> model:<model-id>
+/llm model set purpose:<chat|reasoning|embedding|routing> label:<label> model:<auto|model-id>
 ```
 
 Expected response:
 
 ```text
-Selected `gpt-4o-mini` for `chat` using credential `main`.
+Selected `gemini-3.5-flash` for `chat` using credential `main` (auto default for Gemini).
 ```
+
+`model` is optional. If omitted or set to `auto`, Gigi selects a static default based on the credential provider and purpose. Pass a provider model ID to override the default.
 
 Failure cases:
 
 - requester lacks `llm.provider.select`
 - purpose, label, or model is invalid
+- no default exists for that provider and purpose
 - selected provider does not support that purpose
 
 Privacy and audit: audits provider, purpose, and model metadata only.
