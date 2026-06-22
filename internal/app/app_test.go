@@ -18,7 +18,7 @@ func TestRunStartsAndShutdownClosesDiscordClient(t *testing.T) {
 		config.Config{
 			Env:             "test",
 			HTTPAddr:        "127.0.0.1:0",
-			DatabaseURL:     "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable",
+			DatabaseURL:     "postgres://localhost:5432/gigi?sslmode=disable",
 			DiscordEnabled:  true,
 			DiscordToken:    "token",
 			DiscordClientID: "client-id",
@@ -72,7 +72,7 @@ func TestRunClosesDiscordClientWhenHTTPFails(t *testing.T) {
 		config.Config{
 			Env:             "test",
 			HTTPAddr:        "bad address",
-			DatabaseURL:     "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable",
+			DatabaseURL:     "postgres://localhost:5432/gigi?sslmode=disable",
 			DiscordEnabled:  true,
 			DiscordToken:    "token",
 			DiscordClientID: "client-id",
@@ -141,6 +141,75 @@ func TestWebSearchProviderUsesBraveWithDuckDuckGoFallback(t *testing.T) {
 	}
 	if _, ok := fallback.Fallback.(agent.DuckDuckGoSearchProvider); !ok {
 		t.Fatalf("fallback = %T, want DuckDuckGoSearchProvider", fallback.Fallback)
+	}
+}
+
+func TestWebSearchProviderUsesSearXNGWithDuckDuckGoFallback(t *testing.T) {
+	provider := webSearchProvider(config.Config{
+		WebSearchProvider:         "searxng",
+		WebSearchFallbackProvider: "duckduckgo",
+		SearXNGBaseURL:            "https://searx.test",
+	})
+	fallback, ok := provider.(agent.FallbackSearchProvider)
+	if !ok {
+		t.Fatalf("provider = %T, want FallbackSearchProvider", provider)
+	}
+	if primary, ok := fallback.Primary.(agent.SearXNGSearchProvider); !ok || primary.BaseURL != "https://searx.test" {
+		t.Fatalf("primary = %+v, want SearXNGSearchProvider with base URL", fallback.Primary)
+	}
+	if _, ok := fallback.Fallback.(agent.DuckDuckGoSearchProvider); !ok {
+		t.Fatalf("fallback = %T, want DuckDuckGoSearchProvider", fallback.Fallback)
+	}
+}
+
+func TestWebSearchProviderUsesDirectSearXNG(t *testing.T) {
+	provider := webSearchProvider(config.Config{
+		WebSearchProvider: "searxng",
+		SearXNGBaseURL:    "https://searx.test",
+	})
+	searxng, ok := provider.(agent.SearXNGSearchProvider)
+	if !ok {
+		t.Fatalf("provider = %T, want SearXNGSearchProvider", provider)
+	}
+	if searxng.BaseURL != "https://searx.test" {
+		t.Fatalf("base URL = %q, want https://searx.test", searxng.BaseURL)
+	}
+}
+
+func TestWebSearchProviderUsesBraveWithSearXNGFallback(t *testing.T) {
+	provider := webSearchProvider(config.Config{
+		WebSearchProvider:         "brave",
+		WebSearchFallbackProvider: "searxng",
+		BraveSearchAPIKey:         "key",
+		SearXNGBaseURL:            "https://searx.test",
+	})
+	fallback, ok := provider.(agent.FallbackSearchProvider)
+	if !ok {
+		t.Fatalf("provider = %T, want FallbackSearchProvider", provider)
+	}
+	if _, ok := fallback.Primary.(agent.BraveSearchProvider); !ok {
+		t.Fatalf("primary = %T, want BraveSearchProvider", fallback.Primary)
+	}
+	if backup, ok := fallback.Fallback.(agent.SearXNGSearchProvider); !ok || backup.BaseURL != "https://searx.test" {
+		t.Fatalf("fallback = %+v, want SearXNGSearchProvider with base URL", fallback.Fallback)
+	}
+}
+
+func TestWebSearchProviderUsesDuckDuckGoWithSearXNGFallback(t *testing.T) {
+	provider := webSearchProvider(config.Config{
+		WebSearchProvider:         "duckduckgo",
+		WebSearchFallbackProvider: "searxng",
+		SearXNGBaseURL:            "https://searx.test",
+	})
+	fallback, ok := provider.(agent.FallbackSearchProvider)
+	if !ok {
+		t.Fatalf("provider = %T, want FallbackSearchProvider", provider)
+	}
+	if _, ok := fallback.Primary.(agent.DuckDuckGoSearchProvider); !ok {
+		t.Fatalf("primary = %T, want DuckDuckGoSearchProvider", fallback.Primary)
+	}
+	if backup, ok := fallback.Fallback.(agent.SearXNGSearchProvider); !ok || backup.BaseURL != "https://searx.test" {
+		t.Fatalf("fallback = %+v, want SearXNGSearchProvider with base URL", fallback.Fallback)
 	}
 }
 

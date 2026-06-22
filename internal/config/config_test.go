@@ -16,7 +16,7 @@ func TestLoadRequiresDatabaseURL(t *testing.T) {
 }
 
 func TestLoadDefaults(t *testing.T) {
-	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
 	t.Setenv("GIGI_HTTP_ADDR", "")
 	t.Setenv("GIGI_ENV", "")
 	t.Setenv("GIGI_DISCORD_ENABLED", "")
@@ -58,7 +58,7 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadMigrationDir(t *testing.T) {
-	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
 	t.Setenv("GIGI_MIGRATIONS_DIR", "/app/db/migrations")
 
 	cfg, err := Load()
@@ -71,7 +71,7 @@ func TestLoadMigrationDir(t *testing.T) {
 }
 
 func TestLoadRequiresDiscordTokenWhenEnabled(t *testing.T) {
-	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
 	t.Setenv("GIGI_DISCORD_ENABLED", "true")
 	t.Setenv("DISCORD_TOKEN", "")
 	t.Setenv("DISCORD_CLIENT_ID", "client-id")
@@ -83,7 +83,7 @@ func TestLoadRequiresDiscordTokenWhenEnabled(t *testing.T) {
 }
 
 func TestLoadRequiresDiscordClientIDWhenEnabled(t *testing.T) {
-	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
 	t.Setenv("GIGI_DISCORD_ENABLED", "true")
 	t.Setenv("DISCORD_TOKEN", "token")
 	t.Setenv("DISCORD_CLIENT_ID", "")
@@ -95,7 +95,7 @@ func TestLoadRequiresDiscordClientIDWhenEnabled(t *testing.T) {
 }
 
 func TestLoadEnablesDiscordWithCredentials(t *testing.T) {
-	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
 	t.Setenv("GIGI_DISCORD_ENABLED", "yes")
 	t.Setenv("DISCORD_TOKEN", "token")
 	t.Setenv("DISCORD_CLIENT_ID", "client-id")
@@ -110,7 +110,7 @@ func TestLoadEnablesDiscordWithCredentials(t *testing.T) {
 }
 
 func TestLoadDiscordCommandSyncSettings(t *testing.T) {
-	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
 	t.Setenv("GIGI_DISCORD_ENABLED", "true")
 	t.Setenv("GIGI_DISCORD_SYNC_COMMANDS", "on")
 	t.Setenv("GIGI_DISCORD_GUILD_ID", "guild-id")
@@ -130,7 +130,7 @@ func TestLoadDiscordCommandSyncSettings(t *testing.T) {
 }
 
 func TestLoadLLMSecretKeySettings(t *testing.T) {
-	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
 	t.Setenv("GIGI_LLM_SECRET_KEY_BASE64", "  c2VjcmV0  ")
 	t.Setenv("GIGI_LLM_SECRET_KEY_ID", "  prod-v2  ")
 
@@ -147,10 +147,11 @@ func TestLoadLLMSecretKeySettings(t *testing.T) {
 }
 
 func TestLoadWebSearchSettings(t *testing.T) {
-	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
 	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "  brave  ")
-	t.Setenv("GIGI_WEB_SEARCH_FALLBACK", "  duckduckgo  ")
+	t.Setenv("GIGI_WEB_SEARCH_FALLBACK", "  searxng  ")
 	t.Setenv("BRAVE_SEARCH_API_KEY", "  search-key  ")
+	t.Setenv("SEARXNG_BASE_URL", "  https://searx.test  ")
 
 	cfg, err := Load()
 	if err != nil {
@@ -159,16 +160,19 @@ func TestLoadWebSearchSettings(t *testing.T) {
 	if cfg.WebSearchProvider != "brave" {
 		t.Fatalf("WebSearchProvider = %q, want brave", cfg.WebSearchProvider)
 	}
-	if cfg.WebSearchFallbackProvider != "duckduckgo" {
-		t.Fatalf("WebSearchFallbackProvider = %q, want duckduckgo", cfg.WebSearchFallbackProvider)
+	if cfg.WebSearchFallbackProvider != "searxng" {
+		t.Fatalf("WebSearchFallbackProvider = %q, want searxng", cfg.WebSearchFallbackProvider)
 	}
 	if cfg.BraveSearchAPIKey != "search-key" {
 		t.Fatalf("BraveSearchAPIKey = %q, want search-key", cfg.BraveSearchAPIKey)
 	}
+	if cfg.SearXNGBaseURL != "https://searx.test" {
+		t.Fatalf("SearXNGBaseURL = %q, want https://searx.test", cfg.SearXNGBaseURL)
+	}
 }
 
 func TestLoadDefaultsWebSearchProviderToBraveWhenKeyExists(t *testing.T) {
-	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
 	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "")
 	t.Setenv("BRAVE_SEARCH_API_KEY", "search-key")
 
@@ -181,8 +185,23 @@ func TestLoadDefaultsWebSearchProviderToBraveWhenKeyExists(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultsWebSearchProviderToBraveWhenBothBraveAndSearXNGConfigured(t *testing.T) {
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "")
+	t.Setenv("BRAVE_SEARCH_API_KEY", "search-key")
+	t.Setenv("SEARXNG_BASE_URL", "https://searx.test")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.WebSearchProvider != "brave" {
+		t.Fatalf("WebSearchProvider = %q, want brave", cfg.WebSearchProvider)
+	}
+}
+
 func TestLoadRejectsUnknownWebSearchProvider(t *testing.T) {
-	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
 	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "brvae")
 
 	_, err := Load()
@@ -192,7 +211,7 @@ func TestLoadRejectsUnknownWebSearchProvider(t *testing.T) {
 }
 
 func TestLoadRejectsUnknownWebSearchFallback(t *testing.T) {
-	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
 	t.Setenv("GIGI_WEB_SEARCH_FALLBACK", "brave")
 
 	_, err := Load()
@@ -201,8 +220,23 @@ func TestLoadRejectsUnknownWebSearchFallback(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultsWebSearchProviderToSearXNGWhenBaseURLExists(t *testing.T) {
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "")
+	t.Setenv("BRAVE_SEARCH_API_KEY", "")
+	t.Setenv("SEARXNG_BASE_URL", "https://searx.test")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.WebSearchProvider != "searxng" {
+		t.Fatalf("WebSearchProvider = %q, want searxng", cfg.WebSearchProvider)
+	}
+}
+
 func TestLoadRequiresBraveSearchKeyWithoutFallback(t *testing.T) {
-	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
 	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "brave")
 	t.Setenv("GIGI_WEB_SEARCH_FALLBACK", "")
 	t.Setenv("BRAVE_SEARCH_API_KEY", "")
@@ -214,13 +248,50 @@ func TestLoadRequiresBraveSearchKeyWithoutFallback(t *testing.T) {
 }
 
 func TestLoadAllowsBraveSearchWithoutKeyWhenDuckDuckGoFallbackExists(t *testing.T) {
-	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
 	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "brave")
 	t.Setenv("GIGI_WEB_SEARCH_FALLBACK", "duckduckgo")
 	t.Setenv("BRAVE_SEARCH_API_KEY", "")
 
 	if _, err := Load(); err != nil {
 		t.Fatalf("Load returned error with DuckDuckGo fallback: %v", err)
+	}
+}
+
+func TestLoadAllowsBraveSearchWithoutKeyWhenSearXNGFallbackExists(t *testing.T) {
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "brave")
+	t.Setenv("GIGI_WEB_SEARCH_FALLBACK", "searxng")
+	t.Setenv("BRAVE_SEARCH_API_KEY", "")
+	t.Setenv("SEARXNG_BASE_URL", "https://searx.test")
+
+	if _, err := Load(); err != nil {
+		t.Fatalf("Load returned error with SearXNG fallback: %v", err)
+	}
+}
+
+func TestLoadRequiresSearXNGBaseURLWithoutFallback(t *testing.T) {
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "searxng")
+	t.Setenv("GIGI_WEB_SEARCH_FALLBACK", "")
+	t.Setenv("SEARXNG_BASE_URL", "")
+
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "SEARXNG_BASE_URL") {
+		t.Fatalf("expected SearXNG base URL validation error, got %v", err)
+	}
+}
+
+func TestLoadRequiresSearXNGBaseURLForFallback(t *testing.T) {
+	t.Setenv("GIGI_DATABASE_URL", "postgres://localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "brave")
+	t.Setenv("BRAVE_SEARCH_API_KEY", "")
+	t.Setenv("GIGI_WEB_SEARCH_FALLBACK", "searxng")
+	t.Setenv("SEARXNG_BASE_URL", "")
+
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "SEARXNG_BASE_URL") {
+		t.Fatalf("expected SearXNG fallback validation error, got %v", err)
 	}
 }
 

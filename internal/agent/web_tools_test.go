@@ -200,6 +200,92 @@ func TestBraveSearchProviderRequiresAPIKey(t *testing.T) {
 	}
 }
 
+func TestSearXNGSearchProviderMapsJSONResults(t *testing.T) {
+	var gotPath string
+	var gotQuery string
+	var gotFormat string
+	provider := SearXNGSearchProvider{
+		BaseURL: "https://searx.test/searxng",
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			gotPath = req.URL.Path
+			gotQuery = req.URL.Query().Get("q")
+			gotFormat = req.URL.Query().Get("format")
+			body := `{"results":[{"title":"SearXNG Result","url":"https://example.com/searxng","content":"SearXNG snippet"},{"title":"Bad URL","url":"javascript:alert(1)","content":"bad scheme"},{"title":"","url":"https://example.com/skip","content":"missing title"}]}`
+			return textResponse(http.StatusOK, "application/json", body, nil), nil
+		})},
+		ResolveHost: staticResolver(map[string][]net.IP{
+			"searx.test": {net.ParseIP("93.184.216.34")},
+		}),
+	}
+
+	results, name, err := provider.Search(context.Background(), "openai news", 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "searxng" {
+		t.Fatalf("provider = %q, want searxng", name)
+	}
+	if gotPath != "/searxng/search" || gotQuery != "openai news" || gotFormat != "json" {
+		t.Fatalf("request path=%q query=%q format=%q", gotPath, gotQuery, gotFormat)
+	}
+	if len(results) != 1 || results[0].Title != "SearXNG Result" || results[0].Body != "SearXNG snippet" {
+		t.Fatalf("results = %+v, want mapped SearXNG result", results)
+	}
+}
+
+func TestSearXNGSearchProviderAllowsConfiguredPrivateHost(t *testing.T) {
+	provider := SearXNGSearchProvider{
+		BaseURL: "http://searxng:8080",
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if req.URL.Host != "searxng:8080" {
+				t.Fatalf("host = %q, want configured SearXNG host", req.URL.Host)
+			}
+			return textResponse(http.StatusOK, "application/json", `{"results":[{"title":"Local","url":"https://example.com/local","content":"ok"}]}`, nil), nil
+		})},
+		ResolveHost: staticResolver(map[string][]net.IP{
+			"searxng": {net.ParseIP("10.0.0.2")},
+		}),
+	}
+
+	results, name, err := provider.Search(context.Background(), "test", 5)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "searxng" || len(results) != 1 {
+		t.Fatalf("provider/results = %q/%+v, want local SearXNG result", name, results)
+	}
+}
+
+func TestSearXNGSearchProviderRejectsCredentialedBaseURL(t *testing.T) {
+	provider := SearXNGSearchProvider{BaseURL: "https://user:pass@searx.test"}
+
+	_, _, err := provider.Search(context.Background(), "test", 5)
+	if err == nil || !strings.Contains(err.Error(), "userinfo is not allowed") {
+		t.Fatalf("expected userinfo validation error, got %v", err)
+	}
+}
+
+func TestSearXNGSearchProviderReportsNonOKStatus(t *testing.T) {
+	provider := SearXNGSearchProvider{
+		BaseURL: "https://searx.test",
+		Client: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return textResponse(http.StatusForbidden, "application/json", `{"error":"json disabled"}`, nil), nil
+		})},
+	}
+
+	_, _, err := provider.Search(context.Background(), "test", 5)
+	if err == nil || !strings.Contains(err.Error(), "searxng search returned status 403") {
+		t.Fatalf("expected status error, got %v", err)
+	}
+}
+
+func TestSearXNGSearchProviderRequiresBaseURL(t *testing.T) {
+	_, _, err := (SearXNGSearchProvider{}).Search(context.Background(), "test", 5)
+	if err == nil || !strings.Contains(err.Error(), "searxng base url is required") {
+		t.Fatalf("expected base URL error, got %v", err)
+	}
+}
+
 func TestWebSearchReportsProviderChallenge(t *testing.T) {
 	challenge := `<html><body><form id="challenge-form" action="//duckduckgo.com/anomaly.js?cc=botnet"></form></body></html>`
 	tool := WebSearchTool{
