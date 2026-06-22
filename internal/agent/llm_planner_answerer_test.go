@@ -12,7 +12,7 @@ import (
 )
 
 func TestLLMPlannerBuildsValidatedToolPlan(t *testing.T) {
-	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: `{"intent":"summarize_recent_chat","tool_calls":[{"name":"memory.recent","args":{"limit":"25"}}]}`}}
+	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: `{"intent":"summarize_recent_chat","tool_calls":[{"name":"memory.recent","args":{"limit":"25"}}]}`, ProviderID: "openai", ModelID: "gpt-test", InputTokens: 12, OutputTokens: 8}}
 	planner := LLMPlanner{Runtime: runtime}
 
 	plan, ok, err := planner.Plan(context.Background(), agentTestRequest(), []ToolSpec{{Name: ToolMemoryRecent, Description: "Recent messages"}})
@@ -24,6 +24,9 @@ func TestLLMPlannerBuildsValidatedToolPlan(t *testing.T) {
 	}
 	if runtime.req.Purpose != llmprovider.PurposeRouting || !strings.Contains(runtime.req.Input, ToolMemoryRecent) {
 		t.Fatalf("request=%+v, want routing request with tool specs", runtime.req)
+	}
+	if plan.Trace["llm_provider"] != "openai" || plan.Trace["llm_model"] != "gpt-test" || plan.Trace["llm_input_tokens"] != "12" || plan.Trace["llm_attempt"] != "initial" {
+		t.Fatalf("trace=%+v, want llm routing metadata", plan.Trace)
 	}
 }
 
@@ -63,6 +66,9 @@ func TestLLMPlannerRepairsEmptyPlanWithToolAwareRetry(t *testing.T) {
 	}
 	if !ok || len(plan.ToolCalls) != 1 || plan.ToolCalls[0].Name != ToolWebSearch || plan.ToolCalls[0].Args["query"] != "latest Go release notes" {
 		t.Fatalf("plan=%+v ok=%v, want repaired web.search plan", plan, ok)
+	}
+	if plan.Trace["llm_attempt"] != "repair" || plan.Trace["repair_reason"] != "empty_tool_plan" {
+		t.Fatalf("trace=%+v, want repair metadata", plan.Trace)
 	}
 	if len(runtime.reqs) != 2 || !strings.Contains(runtime.reqs[1].Input, "previous planner output") || !strings.Contains(runtime.reqs[1].Input, "Return {} only if Gigi should ignore the message") {
 		t.Fatalf("requests=%+v, want tool-aware retry prompt", runtime.reqs)
@@ -377,6 +383,17 @@ func TestLLMAnswererPreservesSentinelsWithLongUserInput(t *testing.T) {
 		if !strings.Contains(runtime.req.Input, marker) {
 			t.Fatalf("input=%q, want marker/result %q", runtime.req.Input, marker)
 		}
+	}
+}
+
+func TestLLMAnswererRecordsAnswerTrace(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: "summary", ProviderID: "anthropic", ModelID: "claude-test", InputTokens: 20, OutputTokens: 5}}
+	response, err := (LLMAnswerer{Runtime: runtime}).Answer(context.Background(), agentTestRequest(), Plan{Intent: "chat"}, []ToolResult{{Name: ToolWebSearch, Summary: "tool summary"}})
+	if err != nil {
+		t.Fatalf("Answer returned error: %v", err)
+	}
+	if response.Trace["answer_mode"] != "llm" || response.Trace["llm_provider"] != "anthropic" || response.Trace["llm_output_tokens"] != "5" || response.Trace["answer_preview"] != "summary" {
+		t.Fatalf("trace=%+v, want llm answer metadata", response.Trace)
 	}
 }
 

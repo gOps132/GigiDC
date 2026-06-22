@@ -24,11 +24,11 @@ type LLMAnswerer struct {
 
 func (a LLMAnswerer) Answer(ctx context.Context, request Request, plan Plan, results []ToolResult) (Response, error) {
 	if a.Runtime == nil {
-		return Response{Text: formatToolResults(results)}, nil
+		return Response{Text: formatToolResults(results), Trace: map[string]string{"answer_mode": "fallback", "fallback_reason": "no_runtime"}}, nil
 	}
 	input := a.answerPrompt(request, plan, results)
 	if strings.TrimSpace(input) == "" {
-		return Response{Text: formatToolResults(results)}, nil
+		return Response{Text: formatToolResults(results), Trace: map[string]string{"answer_mode": "fallback", "fallback_reason": "empty_input"}}, nil
 	}
 	generated, err := a.Runtime.GenerateText(ctx, llm.GenerateTextRequest{
 		Owner:           llmprovider.Scope{OwnerType: llmprovider.OwnerGuild, GuildID: request.GuildID},
@@ -43,18 +43,27 @@ func (a LLMAnswerer) Answer(ctx context.Context, request Request, plan Plan, res
 	if err != nil {
 		return Response{}, err
 	}
+	trace := llmResponseTrace("chat", "answer", generated)
+	trace["answer_mode"] = "llm"
 	text := strings.TrimSpace(generated.Text)
 	if text == "" {
-		return Response{Text: formatToolResults(results)}, nil
+		trace["answer_mode"] = "fallback"
+		trace["fallback_reason"] = "empty_llm_output"
+		return Response{Text: formatToolResults(results), Trace: trace}, nil
 	}
 	if requiresEvidenceCitation(request, results) && !containsValidEvidenceCitation(text, request, results) {
-		return Response{Text: formatToolResults(results)}, nil
+		trace["answer_mode"] = "fallback"
+		trace["fallback_reason"] = "missing_required_citation"
+		return Response{Text: formatToolResults(results), Trace: trace}, nil
 	}
 	text = stripAnswerCitationLabels(text)
 	if text == "" {
-		return Response{Text: formatToolResults(results)}, nil
+		trace["answer_mode"] = "fallback"
+		trace["fallback_reason"] = "empty_after_citation_strip"
+		return Response{Text: formatToolResults(results), Trace: trace}, nil
 	}
-	return Response{Text: text, Visibility: VisibilityPublic}, nil
+	trace["answer_preview"] = text
+	return Response{Text: text, Visibility: VisibilityPublic, Trace: trace}, nil
 }
 
 func llmAnswererInstructions() string {

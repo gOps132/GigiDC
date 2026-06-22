@@ -34,6 +34,7 @@ type TraceEvent struct {
 	Capability  string
 	RoutingMode string
 	CreatedAt   time.Time
+	Details     map[string]string
 }
 
 type TraceRun struct {
@@ -55,6 +56,20 @@ type TraceQuery struct {
 
 type TraceSink interface {
 	RecordTraceEvent(context.Context, Request, TraceEvent) error
+}
+
+type MultiTraceSink []TraceSink
+
+func (s MultiTraceSink) RecordTraceEvent(ctx context.Context, request Request, event TraceEvent) error {
+	for _, sink := range s {
+		if sink == nil {
+			continue
+		}
+		if err := sink.RecordTraceEvent(ctx, request, event); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type TraceReader interface {
@@ -151,6 +166,7 @@ func (t Trace) Record(ctx context.Context, request Request, kind string, status 
 		ToolKind:    cleanMetadata["kind"],
 		Capability:  cleanMetadata["capability"],
 		RoutingMode: cleanMetadata["routing_mode"],
+		Details:     traceEventDetails(cleanMetadata),
 	}
 	if t.Sink != nil {
 		if err := t.Sink.RecordTraceEvent(ctx, request, event); err != nil {
@@ -181,6 +197,23 @@ func sanitizeTraceMetadata(metadata map[string]string) map[string]string {
 		}
 	}
 	return cleaned
+}
+
+func traceEventDetails(metadata map[string]string) map[string]string {
+	details := map[string]string{}
+	for key, value := range metadata {
+		switch key {
+		case "source", "run_id", "step_index":
+			continue
+		}
+		if key != "" && value != "" {
+			details[key] = value
+		}
+	}
+	if len(details) == 0 {
+		return nil
+	}
+	return details
 }
 
 func (s *MemoryTraceStore) RecordTraceEvent(ctx context.Context, request Request, event TraceEvent) error {
@@ -265,6 +298,9 @@ func (s *MemoryTraceStore) trimLocked() {
 
 func copyTraceRun(run TraceRun) TraceRun {
 	run.Events = append([]TraceEvent(nil), run.Events...)
+	for index := range run.Events {
+		run.Events[index].Details = copyStringMap(run.Events[index].Details)
+	}
 	return run
 }
 

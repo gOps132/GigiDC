@@ -51,7 +51,11 @@ func (h PlanningHandler) HandleAgentRequest(ctx context.Context, request Request
 			request.PriorRun = &snapshot
 		}
 	}
-	trace := Trace{Recorder: h.Recorder, Sink: h.TraceSink, Source: "agent"}
+	traceSink := h.TraceSink
+	if request.TraceSink != nil {
+		traceSink = MultiTraceSink{h.TraceSink, request.TraceSink}
+	}
+	trace := Trace{Recorder: h.Recorder, Sink: traceSink, Source: "agent"}
 	policy := RoutingPolicy{
 		Policy:                       h.Policy,
 		Checker:                      h.Checker,

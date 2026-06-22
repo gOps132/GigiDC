@@ -471,6 +471,9 @@ func TestTraceRecordsSafeLastRun(t *testing.T) {
 	if event.Phase != "tool" || event.StepIndex != 2 || event.ToolName != "memory.recent" || event.Capability != "memory.read.guild" {
 		t.Fatalf("event=%+v, want safe tool metadata", event)
 	}
+	if event.Details["tool"] != "memory.recent" || event.Details["capability"] != "memory.read.guild" {
+		t.Fatalf("details=%+v, want copied safe details", event.Details)
+	}
 }
 
 func TestTraceStoreScopesDuplicateRunIDs(t *testing.T) {

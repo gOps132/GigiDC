@@ -122,30 +122,30 @@ func (r Runner) Run(ctx context.Context, request Request) (Response, bool, error
 		return r.completeRun(ctx, runID, runStarted, RunStatusSucceeded, TerminationIgnored, Response{}, false, nil)
 	}
 	if strings.TrimSpace(plan.ClarifyingQuestion) != "" {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "clarify", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "clarify", mergeMetadata(planMetadata, plan.Trace, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return r.completeRun(ctx, runID, runStarted, RunStatusSucceeded, TerminationClarify, Response{Text: plan.ClarifyingQuestion}, true, nil)
 	}
 	if plan.RequiresConfirmation {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "confirmation_required", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "confirmation_required", mergeMetadata(planMetadata, plan.Trace, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return r.completeRun(ctx, runID, runStarted, RunStatusConfirmationRequired, TerminationConfirmationRequired, Response{Text: "I can plan that, but confirmation is required before running it."}, true, nil)
 	}
 	if len(plan.ToolCalls) == 0 && request.PriorRun == nil && shouldFallThroughNoToolPlan(request, plan) {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "no_tools", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent), "planner": "agent"}))
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "no_tools", mergeMetadata(planMetadata, plan.Trace, map[string]string{"intent": safeAuditValue(plan.Intent), "planner": "agent"}))
 		return r.completeRun(ctx, runID, runStarted, RunStatusSucceeded, TerminationIgnored, Response{}, false, nil)
 	}
 	if mode == llmprovider.ToolRoutingDryRun {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "dry_run", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "dry_run", mergeMetadata(planMetadata, plan.Trace, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return r.completeRun(ctx, runID, runStarted, RunStatusDryRun, TerminationDryRun, Response{Text: formatDryRunPlan(plan)}, true, nil)
 	}
 	if r.maxSteps() > 0 && plannedStepCount(plan)+executor.TraceStepOffset > r.maxSteps() {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, "step_budget_exceeded", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, "step_budget_exceeded", mergeMetadata(planMetadata, plan.Trace, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return r.completeRun(ctx, runID, runStarted, RunStatusFailed, TerminationStepBudgetExceeded, Response{Text: "Agent step budget exceeded."}, true, nil)
 	}
 	if r.maxToolCalls() > 0 && len(plan.ToolCalls) > r.maxToolCalls() {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, "tool_budget_exceeded", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent)}))
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusFailed, "tool_budget_exceeded", mergeMetadata(planMetadata, plan.Trace, map[string]string{"intent": safeAuditValue(plan.Intent)}))
 		return r.completeRun(ctx, runID, runStarted, RunStatusFailed, TerminationToolBudgetExceeded, Response{Text: "Agent tool budget exceeded."}, true, nil)
 	}
-	_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "", mergeMetadata(planMetadata, map[string]string{"intent": safeAuditValue(plan.Intent), "planner": "agent"}))
+	_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "", mergeMetadata(planMetadata, plan.Trace, map[string]string{"intent": safeAuditValue(plan.Intent), "planner": "agent"}))
 	response, err := executor.Execute(ctx, request, plan)
 	status, reason := executionTermination(response, err)
 	return r.completeRun(ctx, runID, runStarted, status, reason, response, true, err)

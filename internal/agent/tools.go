@@ -118,6 +118,7 @@ type Plan struct {
 	ToolCalls            []ToolCall
 	ClarifyingQuestion   string
 	RequiresConfirmation bool
+	Trace                map[string]string
 }
 
 type Planner interface {

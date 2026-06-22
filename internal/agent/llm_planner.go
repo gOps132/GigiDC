@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gOps132/GigiDC/internal/contextbroker"
@@ -57,6 +58,7 @@ func (p LLMPlanner) Plan(ctx context.Context, request Request, specs []ToolSpec)
 	}
 	plan, ok, err := p.parseValidPlan(generated.Text, specs, request)
 	if err != nil || (ok && !shouldRepairEmptyToolPlan(plan, request)) {
+		plan.Trace = mergeMetadata(llmResponseTrace("routing", "initial", generated), plan.Trace)
 		return plan, ok, err
 	}
 
@@ -73,7 +75,39 @@ func (p LLMPlanner) Plan(ctx context.Context, request Request, specs []ToolSpec)
 	if err != nil {
 		return Plan{}, false, err
 	}
-	return p.parseValidPlan(repair.Text, specs, request)
+	plan, ok, err = p.parseValidPlan(repair.Text, specs, request)
+	plan.Trace = mergeMetadata(llmResponseTrace("routing", "repair", repair), plan.Trace)
+	if generated.Text != "" {
+		plan.Trace = mergeMetadata(plan.Trace, map[string]string{
+			"repair_reason":       "empty_tool_plan",
+			"previous_llm_output": generated.Text,
+		})
+	}
+	return plan, ok, err
+}
+
+func llmResponseTrace(purpose string, attempt string, response llm.TextResponse) map[string]string {
+	metadata := map[string]string{
+		"planner":     "llm",
+		"llm_purpose": purpose,
+		"llm_attempt": attempt,
+	}
+	if response.ProviderID != "" {
+		metadata["llm_provider"] = response.ProviderID
+	}
+	if response.ModelID != "" {
+		metadata["llm_model"] = response.ModelID
+	}
+	if response.InputTokens > 0 {
+		metadata["llm_input_tokens"] = strconv.Itoa(response.InputTokens)
+	}
+	if response.OutputTokens > 0 {
+		metadata["llm_output_tokens"] = strconv.Itoa(response.OutputTokens)
+	}
+	if response.Text != "" {
+		metadata["llm_output_preview"] = response.Text
+	}
+	return metadata
 }
 
 func llmPlannerInstructions() string {

@@ -26,9 +26,12 @@ type CommandHandler func(context.Context, Interaction) (CommandResponse, error)
 type CommandModalHandler func(context.Context, ModalInteraction) (CommandResponse, error)
 
 type CommandResponse struct {
-	Content   string
-	Ephemeral bool
-	Modal     *ModalResponse
+	Content      string
+	Ephemeral    bool
+	Embeds       []*discordgo.MessageEmbed
+	Modal        *ModalResponse
+	Deferred     bool
+	AfterRespond func(context.Context, InteractionResponseEditor)
 }
 
 type ModalResponse struct {
@@ -55,6 +58,27 @@ type CommandRouter struct {
 
 type interactionResponder interface {
 	InteractionRespond(*discordgo.Interaction, *discordgo.InteractionResponse, ...discordgo.RequestOption) error
+}
+
+type interactionResponseEditor interface {
+	InteractionResponseEdit(*discordgo.Interaction, *discordgo.WebhookEdit, ...discordgo.RequestOption) (*discordgo.Message, error)
+}
+
+type InteractionResponseEditor interface {
+	EditInteractionResponse(context.Context, *discordgo.WebhookEdit) error
+}
+
+type discordInteractionEditor struct {
+	responder   interactionResponseEditor
+	interaction *discordgo.Interaction
+}
+
+func (e discordInteractionEditor) EditInteractionResponse(ctx context.Context, edit *discordgo.WebhookEdit) error {
+	if e.responder == nil || e.interaction == nil {
+		return nil
+	}
+	_, err := e.responder.InteractionResponseEdit(e.interaction, edit)
+	return err
 }
 
 type CommandAuthorizer interface {
@@ -133,7 +157,7 @@ func (r *CommandRouter) HandleInteraction(ctx context.Context, responder interac
 	data := event.ApplicationCommandData()
 	command, ok := r.commands[data.Name]
 	if !ok {
-		return respond(responder, event.Interaction, CommandResponse{Content: "Command not supported yet."})
+		return respond(ctx, responder, event.Interaction, CommandResponse{Content: "Command not supported yet."})
 	}
 
 	interaction := Interaction{
@@ -154,37 +178,37 @@ func (r *CommandRouter) HandleInteraction(ctx context.Context, responder interac
 		if dynamicCapability != "" {
 			requiredCapability = dynamicCapability
 		} else if requiredCapability == "" {
-			return respond(responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
+			return respond(ctx, responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
 		}
 	}
 	if requiredCapability != "" {
 		if r.authorizer == nil {
-			return respond(responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
+			return respond(ctx, responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
 		}
 		decision, err := r.authorizer.Check(ctx, interaction, requiredCapability)
 		if err != nil {
-			return respond(responder, event.Interaction, CommandResponse{Content: "Permission check failed.", Ephemeral: true})
+			return respond(ctx, responder, event.Interaction, CommandResponse{Content: "Permission check failed.", Ephemeral: true})
 		}
 		if !decision.Allowed {
-			return respond(responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
+			return respond(ctx, responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
 		}
 	}
 
 	response, err := command.Handle(ctx, interaction)
 	if err != nil {
-		return respond(responder, event.Interaction, CommandResponse{Content: "Command failed.", Ephemeral: requiredCapability != ""})
+		return respond(ctx, responder, event.Interaction, CommandResponse{Content: "Command failed.", Ephemeral: requiredCapability != ""})
 	}
-	if strings.TrimSpace(response.Content) == "" {
+	if strings.TrimSpace(response.Content) == "" && len(response.Embeds) == 0 && !response.Deferred {
 		response.Content = "ok"
 	}
-	return respond(responder, event.Interaction, response)
+	return respond(ctx, responder, event.Interaction, response)
 }
 
 func (r *CommandRouter) handleModalInteraction(ctx context.Context, responder interactionResponder, event *discordgo.InteractionCreate) error {
 	data := event.ModalSubmitData()
 	command, ok := r.commandForModal(data.CustomID)
 	if !ok {
-		return respond(responder, event.Interaction, CommandResponse{Content: "Interaction not supported yet.", Ephemeral: true})
+		return respond(ctx, responder, event.Interaction, CommandResponse{Content: "Interaction not supported yet.", Ephemeral: true})
 	}
 
 	interaction := ModalInteraction{
@@ -203,12 +227,12 @@ func (r *CommandRouter) handleModalInteraction(ctx context.Context, responder in
 		if dynamicCapability != "" {
 			requiredCapability = dynamicCapability
 		} else if requiredCapability == "" {
-			return respond(responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
+			return respond(ctx, responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
 		}
 	}
 	if requiredCapability != "" {
 		if r.authorizer == nil {
-			return respond(responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
+			return respond(ctx, responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
 		}
 		decision, err := r.authorizer.Check(ctx, Interaction{
 			GuildID:          interaction.GuildID,
@@ -219,21 +243,21 @@ func (r *CommandRouter) handleModalInteraction(ctx context.Context, responder in
 			Name:             interaction.Name,
 		}, requiredCapability)
 		if err != nil {
-			return respond(responder, event.Interaction, CommandResponse{Content: "Permission check failed.", Ephemeral: true})
+			return respond(ctx, responder, event.Interaction, CommandResponse{Content: "Permission check failed.", Ephemeral: true})
 		}
 		if !decision.Allowed {
-			return respond(responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
+			return respond(ctx, responder, event.Interaction, CommandResponse{Content: "Permission denied.", Ephemeral: true})
 		}
 	}
 
 	response, err := command.HandleModal(ctx, interaction)
 	if err != nil {
-		return respond(responder, event.Interaction, CommandResponse{Content: "Command failed.", Ephemeral: requiredCapability != ""})
+		return respond(ctx, responder, event.Interaction, CommandResponse{Content: "Command failed.", Ephemeral: requiredCapability != ""})
 	}
-	if strings.TrimSpace(response.Content) == "" {
+	if strings.TrimSpace(response.Content) == "" && len(response.Embeds) == 0 && !response.Deferred {
 		response.Content = "ok"
 	}
-	return respond(responder, event.Interaction, response)
+	return respond(ctx, responder, event.Interaction, response)
 }
 
 func (r *CommandRouter) commandForModal(customID string) (Command, bool) {
@@ -250,7 +274,7 @@ func (r *CommandRouter) commandForModal(customID string) (Command, bool) {
 	return Command{}, false
 }
 
-func respond(responder interactionResponder, interaction *discordgo.Interaction, response CommandResponse) error {
+func respond(ctx context.Context, responder interactionResponder, interaction *discordgo.Interaction, response CommandResponse) error {
 	if response.Modal != nil {
 		return responder.InteractionRespond(interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseModal,
@@ -261,14 +285,25 @@ func respond(responder interactionResponder, interaction *discordgo.Interaction,
 			},
 		})
 	}
-	data := &discordgo.InteractionResponseData{Content: response.Content}
+	data := &discordgo.InteractionResponseData{Content: response.Content, Embeds: response.Embeds}
 	if response.Ephemeral {
 		data.Flags = discordgo.MessageFlagsEphemeral
 	}
-	return responder.InteractionRespond(interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
+	responseType := discordgo.InteractionResponseChannelMessageWithSource
+	if response.Deferred {
+		responseType = discordgo.InteractionResponseDeferredChannelMessageWithSource
+	}
+	if err := responder.InteractionRespond(interaction, &discordgo.InteractionResponse{
+		Type: responseType,
 		Data: data,
-	})
+	}); err != nil {
+		return err
+	}
+	if response.AfterRespond != nil {
+		editor, _ := responder.(interactionResponseEditor)
+		go response.AfterRespond(ctx, discordInteractionEditor{responder: editor, interaction: interaction})
+	}
+	return nil
 }
 
 func interactionUserID(interaction *discordgo.Interaction) string {
