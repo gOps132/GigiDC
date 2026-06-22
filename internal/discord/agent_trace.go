@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -226,6 +227,11 @@ func formatAgentTraceEvent(event agent.TraceEvent) string {
 	if event.RoutingMode != "" {
 		parts = append(parts, "routing=`"+safeInline(event.RoutingMode)+"`")
 	}
+	if event.Phase == "tool" {
+		if data := formatAgentTraceToolData(event.Details); data != "" {
+			parts = append(parts, data)
+		}
+	}
 	return strings.Join(parts, " ")
 }
 
@@ -297,6 +303,9 @@ func formatAgentTracePhase(events []agent.TraceEvent, phase string, view string)
 			if count := event.Details["result_count"]; count != "" {
 				line += " results=`" + safeInline(count) + "`"
 			}
+			if data := formatAgentTraceToolData(event.Details); data != "" {
+				line += " " + data
+			}
 			lines = append(lines, line)
 		case "answer":
 			line := "mode=`" + safeInline(event.Details["answer_mode"]) + "`"
@@ -321,6 +330,35 @@ func formatAgentTracePhase(events []agent.TraceEvent, phase string, view string)
 		}
 	}
 	return boundEmbedValue(strings.Join(lines, "\n"))
+}
+
+func formatAgentTraceToolData(details map[string]string) string {
+	if len(details) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(details))
+	for key := range details {
+		if strings.HasPrefix(key, "result_data_") {
+			keys = append(keys, key)
+		}
+	}
+	if len(keys) == 0 {
+		return ""
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		value := strings.TrimSpace(details[key])
+		if value == "" {
+			continue
+		}
+		label := strings.TrimPrefix(key, "result_data_")
+		parts = append(parts, "data."+safeInline(label)+"=`"+safeInline(value)+"`")
+		if len(parts) >= 4 {
+			break
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 func formatAgentTraceDebugDetails(events []agent.TraceEvent) string {

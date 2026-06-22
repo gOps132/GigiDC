@@ -142,8 +142,68 @@ func toolResultMetadata(result ToolResult) map[string]string {
 		if truncated := strings.TrimSpace(result.Data["truncated"]); truncated != "" {
 			metadata["result_truncated"] = truncated
 		}
+		for key, value := range safeToolResultData(result.Data) {
+			metadata["result_data_"+key] = value
+		}
 	}
 	return metadata
+}
+
+func safeToolResultData(data map[string]string) map[string]string {
+	if len(data) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(data))
+	for key := range data {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	safe := map[string]string{}
+	for _, key := range keys {
+		cleanKey := strings.TrimSpace(key)
+		cleanValue := strings.TrimSpace(data[key])
+		if cleanKey == "" || cleanValue == "" || !isSafeToolResultDataKey(cleanKey) {
+			continue
+		}
+		if len(cleanValue) > 160 {
+			cleanValue = cleanValue[:157] + "..."
+		}
+		safe[cleanKey] = cleanValue
+		if len(safe) >= 6 {
+			break
+		}
+	}
+	if len(safe) == 0 {
+		return nil
+	}
+	return safe
+}
+
+func isSafeToolResultDataKey(key string) bool {
+	switch key {
+	case "count", "url", "truncated":
+		return false
+	}
+	lower := strings.ToLower(key)
+	blocked := []string{
+		"content",
+		"credential",
+		"key",
+		"message",
+		"payload",
+		"restore",
+		"retention",
+		"secret",
+		"snippet",
+		"source",
+		"token",
+	}
+	for _, word := range blocked {
+		if strings.Contains(lower, word) {
+			return false
+		}
+	}
+	return true
 }
 
 func (e Executor) saveFollowUp(ctx context.Context, request Request, plan Plan, results []ToolResult, response Response) error {

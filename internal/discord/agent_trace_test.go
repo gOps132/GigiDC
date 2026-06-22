@@ -93,9 +93,10 @@ func TestAgentTraceLastDebugUsesEmbedDetails(t *testing.T) {
 			ToolName:   "web.search",
 			Capability: "web.search",
 			Details: map[string]string{
-				"arg_query":      "news today",
-				"result_count":   "0",
-				"result_summary": `No search results found for query: "news today"`,
+				"arg_query":            "news today",
+				"result_count":         "0",
+				"result_data_provider": "duckduckgo",
+				"result_summary":       `No search results found for query: "news today"`,
 			},
 		}, {
 			Phase:  "answer",
@@ -114,7 +115,7 @@ func TestAgentTraceLastDebugUsesEmbedDetails(t *testing.T) {
 		t.Fatalf("response = %+v, want private embed", response)
 	}
 	rendered := traceEmbedText(response.Embeds[0])
-	for _, want := range []string{"web.search", "news today", "results=`0`", "fallback=`missing_required_citation`"} {
+	for _, want := range []string{"web.search", "news today", "results=`0`", "data.provider=`duckduckgo`", "fallback=`missing_required_citation`"} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("embed text = %q, want %q", rendered, want)
 		}

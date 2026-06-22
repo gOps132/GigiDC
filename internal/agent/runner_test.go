@@ -314,6 +314,46 @@ func TestExecutorMasksToolErrorAndRecordsTrace(t *testing.T) {
 	}
 }
 
+func TestExecutorRecordsSafeToolResultDataInTrace(t *testing.T) {
+	recorder := &fakeAgentAuditRecorder{}
+	runner := Runner{
+		Planner: &fakePlanner{ok: true, plan: Plan{Intent: "fake", ToolCalls: []ToolCall{{Name: "fake.tool"}}}},
+		Policy:  RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Executor: Executor{
+			Tools: NewRegistry(&fakeTool{result: ToolResult{
+				Name:    ToolWebSearch,
+				Summary: "search done",
+				Data: map[string]string{
+					"provider":  "duckduckgo",
+					"title_1":   "OpenAI news",
+					"snippet_1": "large quoted snippet",
+					"content":   "raw page content",
+				},
+			}}),
+			Trace: Trace{Recorder: recorder},
+		},
+		Trace: Trace{Recorder: recorder},
+	}
+
+	_, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !handled {
+		t.Fatalf("Run handled=false, want handled")
+	}
+	metadata := recorder.events[1].Metadata
+	if metadata["result_data_provider"] != "duckduckgo" || metadata["result_data_title_1"] != "OpenAI news" {
+		t.Fatalf("metadata=%+v, want safe result data", metadata)
+	}
+	if _, ok := metadata["result_data_snippet_1"]; ok {
+		t.Fatalf("metadata=%+v, want snippet omitted", metadata)
+	}
+	if _, ok := metadata["result_data_content"]; ok {
+		t.Fatalf("metadata=%+v, want content omitted", metadata)
+	}
+}
+
 func TestExecutorDeniesToolCapabilityBeforeExecute(t *testing.T) {
 	recorder := &fakeAgentAuditRecorder{}
 	tool := &fakeTool{capability: "memory.read.guild"}

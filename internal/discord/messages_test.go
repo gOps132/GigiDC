@@ -78,7 +78,7 @@ func TestMessageRouterStreamsLiveDebugWhenEnabled(t *testing.T) {
 			Phase:    "tool",
 			Status:   "succeeded",
 			ToolName: "web.search",
-			Details:  map[string]string{"arg_query": "news today", "result_count": "0"},
+			Details:  map[string]string{"arg_query": "news today", "result_count": "0", "result_data_provider": "duckduckgo"},
 		})
 		return MessageResponse{Content: "mention-ok"}, nil
 	}), nil)
@@ -95,7 +95,7 @@ func TestMessageRouterStreamsLiveDebugWhenEnabled(t *testing.T) {
 		t.Fatalf("sent embeds=%d edited embeds=%d, want live debug send/edit", len(sender.sentEmbeds), len(sender.editedEmbeds))
 	}
 	rendered := traceEmbedText(sender.editedEmbeds[len(sender.editedEmbeds)-1])
-	for _, want := range []string{"web.search", "news today", "results=`0`", "Final answer", "mention-ok"} {
+	for _, want := range []string{"web.search", "news today", "results=`0`", "data.provider=`duckduckgo`", "Final answer", "mention-ok"} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("debug embed=%q, want %q", rendered, want)
 		}
