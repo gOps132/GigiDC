@@ -34,6 +34,8 @@ Provider API keys are entered through `/llm provider add` or `/llm provider rota
 
 Agent `web.search` uses DuckDuckGo HTML by default. Set `BRAVE_SEARCH_API_KEY` to use Brave Search API for `web.search`; Gigi automatically selects Brave when this key is present unless `GIGI_WEB_SEARCH_PROVIDER=duckduckgo` is set. Set `SEARXNG_BASE_URL` to use a SearXNG instance; Gigi automatically selects SearXNG when this value is present and no Brave key is set. SearXNG instances must have JSON output enabled for `format=json`; many public instances disable it and return `403`. Use `GIGI_WEB_SEARCH_FALLBACK=duckduckgo` to back up Brave or SearXNG with DuckDuckGo, or `GIGI_WEB_SEARCH_FALLBACK=searxng` to back up DuckDuckGo or Brave with SearXNG. SearXNG fallback requires `SEARXNG_BASE_URL`; Brave cannot be configured as a fallback.
 
+Local Docker Compose includes a private SearXNG service with JSON output enabled. Inside Docker, Gigi reaches it through `SEARXNG_BASE_URL=http://searxng:8080`; from the host, open `http://127.0.0.1:8081`. The local Compose defaults select SearXNG with DuckDuckGo fallback.
+
 After adding a guild credential, select model profiles for live guild mention behavior:
 
 ```text
@@ -62,6 +64,7 @@ Then verify:
 ```bash
 curl http://127.0.0.1:8080/healthz
 curl http://127.0.0.1:8080/readyz
+curl "http://127.0.0.1:8081/search?q=lebron+james&format=json"
 ```
 
 ## Database

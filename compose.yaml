@@ -17,6 +17,10 @@ services:
       DISCORD_TOKEN: ${DISCORD_TOKEN:-}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GIGI_WEB_SEARCH_PROVIDER: ${GIGI_WEB_SEARCH_PROVIDER:-searxng}
+      GIGI_WEB_SEARCH_FALLBACK: ${GIGI_WEB_SEARCH_FALLBACK:-duckduckgo}
+      BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
+      SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-http://searxng:8080}
     ports:
       - "127.0.0.1:8080:8080"
     expose:
@@ -24,6 +28,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      searxng:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/readyz >/dev/null"]
       interval: 10s
@@ -47,6 +53,17 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
+
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    environment:
+      SEARXNG_BASE_URL: ${SEARXNG_PUBLIC_URL:-http://127.0.0.1:8081/}
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-change-me-in-production}
+    ports:
+      - "127.0.0.1:${SEARXNG_PORT:-8081}:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
 
 volumes:
   gigi-db:
