@@ -116,7 +116,7 @@ func TestLLMPlannerPromptMentionsWebAndJobRouting(t *testing.T) {
 			t.Fatalf("instructions=%q, want %q", runtime.req.Instructions, want)
 		}
 	}
-	for _, want := range []string{"Tool selection guide", "web.search: use for web/online/current/latest/real-time/news/headlines/today information requests and public fact lookups", "web.fetch: use for reading or summarizing", `{"intent":"chat","tool_calls":[]}`, "Return {} only if Gigi should ignore"} {
+	for _, want := range []string{"Tool selection guide", "web.search: use for web/online/current/latest/real-time/news/headlines/today information requests and public fact lookups", "web.fetch: use for reading or summarizing", `{"intent":"tool_inventory","tool_calls":[],"clarifying_question":"Available tools: ..."}`, `{"intent":"chat","tool_calls":[]}`, "Return {} only if Gigi should ignore"} {
 		if !strings.Contains(runtime.req.Input, want) {
 			t.Fatalf("input=%q, want %q", runtime.req.Input, want)
 		}
@@ -159,6 +159,61 @@ func TestLLMPlannerRepairsEmptyChatPlanWithPriorRun(t *testing.T) {
 	}
 	if len(runtime.reqs) != 2 || plan.Intent != "web_search" || plan.Trace["repair_reason"] != "empty_tool_plan" || plan.Trace["llm_attempt"] != "repair" {
 		t.Fatalf("plan=%+v trace=%+v requests=%d, want repaired web_search trace", plan, plan.Trace, len(runtime.reqs))
+	}
+}
+
+func TestLLMPlannerAcceptsResponseAliasForPlannerReply(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{
+		Text: `{"intent":"tool_inventory","tool_calls":[],"response":"Available tools: jobs.cancel, jobs.list, jobs.schedule, memory.recent, memory.search, web.fetch, web.search"}`,
+	}}
+	request := agentTestRequest()
+	request.Text = "what tools can you call?"
+
+	plan, ok, err := (LLMPlanner{Runtime: runtime}).Plan(context.Background(), request, []ToolSpec{
+		{Name: ToolJobsCancel, Description: "Cancel jobs"},
+		{Name: ToolJobsList, Description: "List jobs"},
+		{Name: ToolJobsSchedule, Description: "Schedule jobs"},
+		{Name: ToolMemoryRecent, Description: "Recent memory"},
+		{Name: ToolMemorySearch, Description: "Search memory"},
+		{Name: ToolWebFetch, Description: "Fetch URL"},
+		{Name: ToolWebSearch, Description: "Search web"},
+	})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if !ok || plan.ClarifyingQuestion == "" || !strings.Contains(plan.ClarifyingQuestion, ToolWebSearch) {
+		t.Fatalf("plan=%+v ok=%v, want response alias surfaced as planner reply", plan, ok)
+	}
+	if len(runtime.reqs) != 1 || plan.Trace["llm_attempt"] != "initial" {
+		t.Fatalf("trace=%+v requests=%d, want accepted initial plan without repair", plan.Trace, len(runtime.reqs))
+	}
+}
+
+func TestLLMPlannerRepairsChatResponseAliasForPlannerReply(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{responses: []llm.TextResponse{
+		{Text: `{"intent":"chat","tool_calls":[],"response":"Available tools: jobs.cancel, jobs.list, jobs.schedule, memory.recent, memory.search, web.fetch, web.search"}`},
+		{Text: `{"intent":"tool_inventory","tool_calls":[],"clarifying_question":"Available tools: jobs.cancel, jobs.list, jobs.schedule, memory.recent, memory.search, web.fetch, web.search"}`},
+	}}
+	request := agentTestRequest()
+	request.Text = "what tools can you call?"
+
+	plan, ok, err := (LLMPlanner{Runtime: runtime}).Plan(context.Background(), request, []ToolSpec{
+		{Name: ToolJobsCancel, Description: "Cancel jobs"},
+		{Name: ToolJobsList, Description: "List jobs"},
+		{Name: ToolJobsSchedule, Description: "Schedule jobs"},
+		{Name: ToolMemoryRecent, Description: "Recent memory"},
+		{Name: ToolMemorySearch, Description: "Search memory"},
+		{Name: ToolWebFetch, Description: "Fetch URL"},
+		{Name: ToolWebSearch, Description: "Search web"},
+	})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if !ok || plan.Intent != "tool_inventory" || !strings.Contains(plan.ClarifyingQuestion, ToolWebSearch) {
+		t.Fatalf("plan=%+v ok=%v, want repaired tool inventory planner reply", plan, ok)
+	}
+	if len(runtime.reqs) != 2 || plan.Trace["llm_attempt"] != "repair" || !strings.Contains(runtime.reqs[1].Input, "convert it to clarifying_question") {
+		t.Fatalf("trace=%+v requests=%+v, want repair conversion prompt", plan.Trace, runtime.reqs)
 	}
 }
 
