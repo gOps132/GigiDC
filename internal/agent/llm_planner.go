@@ -26,6 +26,7 @@ type llmPlanProposal struct {
 	Intent               string        `json:"intent"`
 	ToolCalls            []llmToolCall `json:"tool_calls"`
 	ClarifyingQuestion   string        `json:"clarifying_question"`
+	Response             string        `json:"response"`
 	RequiresConfirmation bool          `json:"requires_confirmation"`
 }
 
@@ -111,7 +112,7 @@ func llmResponseTrace(purpose string, attempt string, response llm.TextResponse)
 }
 
 func llmPlannerInstructions() string {
-	return "You are Gigi's tool planner. Return only JSON. You may only select listed tools. Do not answer the user. Prefer read tools over saying capability is unavailable. If the user asks for web, online, external, current, latest, real-time, news, headlines, today information, or public fact lookup about a person/place/company/topic and web.search is listed, choose web.search. If the user asks to read, summarize, or inspect a URL and web.fetch is listed, choose web.fetch. Never produce chat refusals such as not being able to browse or provide real-time updates; choose a listed read tool instead. If the user asks what tools Gigi can use, return a clarifying_question listing the available tool names. Use jobs.list, jobs.schedule, or jobs.cancel only for explicit background job requests; write tools require confirmation. Use memory and analytics tools when needed for current-channel memory, plugin planning, permission checks, or usage summaries. Ask a clarifying_question only when needed. For follow-up questions, use prior run context if present or choose a tool to refresh context. If prior run context is enough to answer, return {\"intent\":\"answer_from_prior\",\"tool_calls\":[]}. For messages answerable without tools, return {\"intent\":\"chat\",\"tool_calls\":[]}. Return {} only when Gigi should ignore the message. Never invent tool names or arguments."
+	return "You are Gigi's tool planner. Return only JSON. You may only select listed tools. Do not answer the user. Prefer read tools over saying capability is unavailable. If the user asks for web, online, external, current, latest, real-time, news, headlines, today information, or public fact lookup about a person/place/company/topic and web.search is listed, choose web.search. If the user asks to read, summarize, or inspect a URL and web.fetch is listed, choose web.fetch. Never produce chat refusals such as not being able to browse or provide real-time updates; choose a listed read tool instead. If the user asks what tools Gigi can use, return {\"intent\":\"tool_inventory\",\"tool_calls\":[],\"clarifying_question\":\"Available tools: ...\"}. Do not use response for normal chat answers; response is accepted only as a compatibility alias when intent is tool_inventory. Use jobs.list, jobs.schedule, or jobs.cancel only for explicit background job requests; write tools require confirmation. Use memory and analytics tools when needed for current-channel memory, plugin planning, permission checks, or usage summaries. Ask a clarifying_question only when needed. For follow-up questions, use prior run context if present or choose a tool to refresh context. If prior run context is enough to answer, return {\"intent\":\"answer_from_prior\",\"tool_calls\":[]}. For messages answerable without tools, return {\"intent\":\"chat\",\"tool_calls\":[]}. Return {} only when Gigi should ignore the message. Never invent tool names or arguments."
 }
 
 func llmPlannerPrompt(request Request, specs []ToolSpec) string {
@@ -146,7 +147,7 @@ func llmPlannerPrompt(request Request, specs []ToolSpec) string {
 		b.WriteString(formatContextPack(*request.ContextPack, 2200))
 		b.WriteString("\n")
 	}
-	b.WriteString("\nReturn JSON like {\"intent\":\"summarize_recent_chat\",\"tool_calls\":[{\"name\":\"memory.recent\",\"args\":{\"limit\":\"25\"}}]}. For follow-up answerable from prior context, return {\"intent\":\"answer_from_prior\",\"tool_calls\":[]}. For normal chat that needs no tools, return {\"intent\":\"chat\",\"tool_calls\":[]}. Return {} only if Gigi should ignore the message.")
+	b.WriteString("\nReturn JSON like {\"intent\":\"summarize_recent_chat\",\"tool_calls\":[{\"name\":\"memory.recent\",\"args\":{\"limit\":\"25\"}}]}. For tool inventory questions, return {\"intent\":\"tool_inventory\",\"tool_calls\":[],\"clarifying_question\":\"Available tools: ...\"}. For follow-up answerable from prior context, return {\"intent\":\"answer_from_prior\",\"tool_calls\":[]}. For normal chat that needs no tools, return {\"intent\":\"chat\",\"tool_calls\":[]}. Return {} only if Gigi should ignore the message.")
 	return b.String()
 }
 
@@ -173,6 +174,7 @@ func llmPlannerRepairPrompt(originalPrompt, priorOutput string) string {
 	b.WriteString("\n\nThe previous planner output did not produce a valid actionable plan:\n")
 	b.WriteString(strings.TrimSpace(priorOutput))
 	b.WriteString("\n\nRe-evaluate the same user message against the listed tools. A chat refusal is not a valid planner result. Return {} only if Gigi should ignore the message. If a listed read tool can obtain needed information, choose it. If web.search is listed and the user asks for current, latest, real-time, news, headlines, today information, or public fact lookup about a person/place/company/topic, choose web.search. Return only JSON.")
+	b.WriteString(" If the user asks what tools Gigi can use, return {\"intent\":\"tool_inventory\",\"tool_calls\":[],\"clarifying_question\":\"Available tools: ...\"}; if previous output used response for that direct planner reply, convert it to clarifying_question.")
 	return b.String()
 }
 
@@ -224,8 +226,11 @@ func parseLLMPlan(value string, specs []ToolSpec, maxToolCalls int) (Plan, bool,
 	}
 	plan := Plan{
 		Intent:               strings.TrimSpace(proposal.Intent),
-		ClarifyingQuestion:   strings.TrimSpace(proposal.ClarifyingQuestion),
+		ClarifyingQuestion:   plannerDirectResponse(proposal),
 		RequiresConfirmation: proposal.RequiresConfirmation,
+	}
+	if strings.TrimSpace(proposal.Response) != "" && strings.TrimSpace(proposal.ClarifyingQuestion) == "" && !allowsResponseAlias(plan.Intent) {
+		return Plan{}, false, nil
 	}
 	if plan.Intent == "" && plan.ClarifyingQuestion == "" && len(proposal.ToolCalls) == 0 {
 		return Plan{}, false, nil
@@ -264,9 +269,23 @@ func parseLLMPlan(value string, specs []ToolSpec, maxToolCalls int) (Plan, bool,
 	return plan, true, nil
 }
 
+func plannerDirectResponse(proposal llmPlanProposal) string {
+	if question := strings.TrimSpace(proposal.ClarifyingQuestion); question != "" {
+		return question
+	}
+	if !allowsResponseAlias(proposal.Intent) {
+		return ""
+	}
+	return strings.TrimSpace(proposal.Response)
+}
+
+func allowsResponseAlias(intent string) bool {
+	return strings.EqualFold(strings.TrimSpace(intent), "tool_inventory")
+}
+
 func allowsEmptyToolPlan(intent string) bool {
 	switch strings.TrimSpace(intent) {
-	case "answer_from_prior", "chat":
+	case "answer_from_prior", "chat", "tool_inventory":
 		return true
 	default:
 		return false
