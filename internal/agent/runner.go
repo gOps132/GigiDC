@@ -118,6 +118,7 @@ func (r Runner) Run(ctx context.Context, request Request) (Response, bool, error
 		return r.completeRun(ctx, runID, runStarted, RunStatusFailed, TerminationPlannerFailed, Response{Text: "Agent routing failed."}, true, nil)
 	}
 	if !ok {
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "no_plan", mergeMetadata(planMetadata, map[string]string{"planner": "agent"}))
 		return r.completeRun(ctx, runID, runStarted, RunStatusSucceeded, TerminationIgnored, Response{}, false, nil)
 	}
 	if strings.TrimSpace(plan.ClarifyingQuestion) != "" {

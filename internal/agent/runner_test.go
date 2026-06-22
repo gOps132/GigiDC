@@ -71,6 +71,27 @@ func TestRunnerFallsThroughWhenPlannerNeedsNoTools(t *testing.T) {
 	}
 }
 
+func TestRunnerRecordsTraceWhenPlannerReturnsNoPlan(t *testing.T) {
+	recorder := &fakeAgentAuditRecorder{}
+	planner := &fakePlanner{ok: false}
+	runner := Runner{
+		Planner: planner,
+		Policy:  RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
+		Trace:   Trace{Recorder: recorder},
+	}
+
+	response, handled, err := runner.Run(context.Background(), agentTestRequest())
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if handled || response.Text != "" || !planner.called {
+		t.Fatalf("response=%+v handled=%v planner.called=%v, want chat fallback after no plan", response, handled, planner.called)
+	}
+	if len(recorder.events) != 1 || recorder.events[0].Kind != "agent.plan" || recorder.events[0].Reason != "no_plan" || recorder.events[0].Metadata["planner"] != "agent" {
+		t.Fatalf("events=%+v, want no-plan trace", recorder.events)
+	}
+}
+
 func TestRunnerFallsThroughWhenAutoContextNoToolPlanIsPlainChat(t *testing.T) {
 	fetcher := &fakeContextFetcher{pack: contextbroker.Pack{Snippets: []contextbroker.Snippet{{ID: "m1", Text: "recent unrelated context"}}}}
 	planner := &fakePlanner{ok: true, plan: Plan{Intent: "chat"}}
