@@ -307,6 +307,27 @@ func TestLLMAnswererPromptIncludesContextPackCitationRule(t *testing.T) {
 	}
 }
 
+func TestLLMAnswererAllowsUncitedWebToolAnswerWithFetchedContext(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: "I found no web results for weather today."}}
+	request := agentTestRequest()
+	pack := contextbroker.BuildPack(contextbroker.BuildRequest{
+		Snippets: []contextbroker.Snippet{{ID: "m1", Source: "discord:channel-id", Text: "unrelated channel context"}},
+	})
+	request.ContextPack = &pack
+
+	response, err := (LLMAnswerer{Runtime: runtime}).Answer(context.Background(), request, Plan{Intent: ToolWebSearch}, []ToolResult{{
+		Name:    ToolWebSearch,
+		Summary: `No search results found for query: "weather today"`,
+		Data:    map[string]string{"count": "0", "provider": "brave"},
+	}})
+	if err != nil {
+		t.Fatalf("Answer returned error: %v", err)
+	}
+	if response.Text != "I found no web results for weather today." || response.Trace["answer_mode"] != "llm" {
+		t.Fatalf("response=%+v, want uncited web tool answer to pass despite fetched context", response)
+	}
+}
+
 func TestLLMAnswererFallsBackWhenMemoryEvidenceOmitsCitation(t *testing.T) {
 	runtime := &fakeAgentTextRuntime{response: llm.TextResponse{Text: "Alice mentioned postgres."}}
 	results := []ToolResult{{

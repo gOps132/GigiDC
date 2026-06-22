@@ -182,13 +182,24 @@ func (a LLMAnswerer) maxInputChars() int {
 }
 
 func requiresEvidenceCitation(request Request, results []ToolResult) bool {
-	if request.ContextPack != nil && len(request.ContextPack.Citations) > 0 {
-		return true
-	}
 	for _, result := range results {
 		if isMemoryEvidenceTool(result.Name) && strings.TrimSpace(result.Data["citation_labels"]) != "" {
 			return true
 		}
+	}
+	if len(results) > 0 && request.ContextPack != nil && len(request.ContextPack.Citations) > 0 {
+		for _, result := range results {
+			if result.Name == ToolWebSearch || result.Name == ToolWebFetch {
+				return false
+			}
+		}
+		return true
+	}
+	if len(results) > 0 {
+		return false
+	}
+	if request.ContextPack != nil && len(request.ContextPack.Citations) > 0 {
+		return true
 	}
 	return false
 }
