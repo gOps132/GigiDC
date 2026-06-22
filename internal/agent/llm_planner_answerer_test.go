@@ -64,8 +64,30 @@ func TestLLMPlannerRepairsEmptyPlanWithToolAwareRetry(t *testing.T) {
 	if !ok || len(plan.ToolCalls) != 1 || plan.ToolCalls[0].Name != ToolWebSearch || plan.ToolCalls[0].Args["query"] != "latest Go release notes" {
 		t.Fatalf("plan=%+v ok=%v, want repaired web.search plan", plan, ok)
 	}
-	if len(runtime.reqs) != 2 || !strings.Contains(runtime.reqs[1].Input, "previous planner output") || !strings.Contains(runtime.reqs[1].Input, "Return {} only if none of the listed tools could help") {
+	if len(runtime.reqs) != 2 || !strings.Contains(runtime.reqs[1].Input, "previous planner output") || !strings.Contains(runtime.reqs[1].Input, "Return {} only if Gigi should ignore the message") {
 		t.Fatalf("requests=%+v, want tool-aware retry prompt", runtime.reqs)
+	}
+}
+
+func TestLLMPlannerRepairsRealtimeRefusalWithWebSearch(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{responses: []llm.TextResponse{
+		{Text: `I can't provide real-time news updates.`},
+		{Text: `{"intent":"web_search","tool_calls":[{"name":"web.search","args":{"query":"news today"}}]}`},
+	}}
+	request := agentTestRequest()
+	request.Text = "whats the news today"
+
+	plan, ok, err := (LLMPlanner{Runtime: runtime}).Plan(context.Background(), request, []ToolSpec{{Name: ToolWebSearch, Description: "Search the web"}})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if !ok || len(plan.ToolCalls) != 1 || plan.ToolCalls[0].Name != ToolWebSearch || plan.ToolCalls[0].Args["query"] != "news today" {
+		t.Fatalf("plan=%+v ok=%v, want repaired news web.search plan", plan, ok)
+	}
+	for _, want := range []string{"A chat refusal is not a valid planner result", "news, headlines, or today information", "choose web.search"} {
+		if !strings.Contains(runtime.reqs[1].Input, want) {
+			t.Fatalf("repair input=%q, want %q", runtime.reqs[1].Input, want)
+		}
 	}
 }
 
@@ -83,15 +105,33 @@ func TestLLMPlannerPromptMentionsWebAndJobRouting(t *testing.T) {
 	if !ok || len(plan.ToolCalls) != 1 || plan.ToolCalls[0].Name != ToolWebSearch || plan.ToolCalls[0].Args["query"] != "latest Go release notes" {
 		t.Fatalf("plan=%+v ok=%v, want web.search plan", plan, ok)
 	}
-	for _, want := range []string{"web.search", "current", "latest", "web.fetch", "jobs.list", "what tools Gigi can use"} {
+	for _, want := range []string{"web.search", "current", "latest", "news", "today", "web.fetch", "jobs.list", "what tools Gigi can use", "Never produce chat refusals"} {
 		if !strings.Contains(runtime.req.Instructions, want) {
 			t.Fatalf("instructions=%q, want %q", runtime.req.Instructions, want)
 		}
 	}
-	for _, want := range []string{"Tool selection guide", "web.search: use for web/online/current/latest/real-time information requests", "web.fetch: use for reading or summarizing"} {
+	for _, want := range []string{"Tool selection guide", "web.search: use for web/online/current/latest/real-time/news/headlines/today information requests", "web.fetch: use for reading or summarizing", `{"intent":"chat","tool_calls":[]}`, "Return {} only if Gigi should ignore"} {
 		if !strings.Contains(runtime.req.Input, want) {
 			t.Fatalf("input=%q, want %q", runtime.req.Input, want)
 		}
+	}
+}
+
+func TestLLMPlannerRechecksExplicitChatPlanBeforeFallback(t *testing.T) {
+	runtime := &fakeAgentTextRuntime{responses: []llm.TextResponse{
+		{Text: `{"intent":"chat","tool_calls":[]}`},
+		{Text: `{"intent":"chat","tool_calls":[]}`},
+	}}
+
+	plan, ok, err := (LLMPlanner{Runtime: runtime}).Plan(context.Background(), agentTestRequest(), []ToolSpec{{Name: ToolWebSearch}})
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if !ok || plan.Intent != "chat" || len(plan.ToolCalls) != 0 {
+		t.Fatalf("plan=%+v ok=%v, want explicit chat plan", plan, ok)
+	}
+	if len(runtime.reqs) != 2 || !strings.Contains(runtime.reqs[1].Input, "A chat refusal is not a valid planner result") {
+		t.Fatalf("requests=%+v, want chat plan rechecked once", runtime.reqs)
 	}
 }
 
