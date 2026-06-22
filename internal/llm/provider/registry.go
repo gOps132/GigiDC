@@ -42,6 +42,26 @@ type Registry struct {
 	specs map[ProviderID]ProviderSpec
 }
 
+var defaultModels = map[ProviderID]map[Purpose]string{
+	ProviderOpenAI: {
+		PurposeChat:      "gpt-5.4-mini",
+		PurposeReasoning: "gpt-5.5",
+		PurposeEmbedding: "text-embedding-3-small",
+		PurposeRouting:   "gpt-5.4-mini",
+	},
+	ProviderAnthropic: {
+		PurposeChat:      "claude-sonnet-4-6",
+		PurposeReasoning: "claude-sonnet-4-6",
+		PurposeRouting:   "claude-haiku-4-5-20251001",
+	},
+	ProviderGemini: {
+		PurposeChat:      "gemini-3.5-flash",
+		PurposeReasoning: "gemini-3.1-pro-preview",
+		PurposeEmbedding: "gemini-embedding-2",
+		PurposeRouting:   "gemini-3.5-flash",
+	},
+}
+
 func DefaultRegistry() Registry {
 	return Registry{
 		specs: map[ProviderID]ProviderSpec{
@@ -144,6 +164,15 @@ func (r Registry) SupportsPurpose(id ProviderID, purpose Purpose) bool {
 
 func SupportsPurpose(id ProviderID, purpose Purpose) bool {
 	return DefaultRegistry().SupportsPurpose(id, purpose)
+}
+
+func DefaultModel(id ProviderID, purpose Purpose) (string, bool) {
+	providerDefaults, ok := defaultModels[id]
+	if !ok {
+		return "", false
+	}
+	modelID, ok := providerDefaults[purpose]
+	return modelID, ok
 }
 
 func ValidateModelID(modelID string) (string, error) {
