@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,18 +22,27 @@ const (
 	ToolWebSearch = "web.search"
 	ToolWebFetch  = "web.fetch"
 
-	defaultWebSearchURL  = "https://html.duckduckgo.com/html/?q="
-	maxWebSearchResults  = 10
-	defaultWebFetchChars = 10000
-	maxWebResponseBytes  = 1 << 20
+	defaultWebSearchURL   = "https://html.duckduckgo.com/html/?q="
+	defaultBraveSearchURL = "https://api.search.brave.com/res/v1/web/search"
+	maxWebSearchResults   = 10
+	defaultWebFetchChars  = 10000
+	maxWebResponseBytes   = 1 << 20
 )
 
-var errBlockedHost = errors.New("blocked host")
+var (
+	errBlockedHost             = errors.New("blocked host")
+	errSearchProviderChallenge = errors.New("search provider challenge")
+)
 
 type hostResolver func(context.Context, string) ([]net.IP, error)
 
-// WebSearchTool searches the web using DuckDuckGo HTML.
+type WebSearchProvider interface {
+	Search(context.Context, string, int) ([]SearchResult, string, error)
+}
+
+// WebSearchTool searches the web using the configured provider.
 type WebSearchTool struct {
+	Provider    WebSearchProvider
 	Client      *http.Client
 	BaseURL     string
 	ResolveHost hostResolver
@@ -60,17 +70,17 @@ func (t WebSearchTool) Execute(ctx context.Context, request Request, call ToolCa
 	}
 	limit := parseWebLimit(call.Args["limit"], 5, maxWebSearchResults)
 
-	results, err := t.search(ctx, query, limit)
+	results, providerName, err := t.searchProvider().Search(ctx, query, limit)
 	if err != nil {
 		return ToolResult{}, fmt.Errorf("web search failed: %w", err)
 	}
 	if len(results) == 0 {
-		return ToolResult{Name: ToolWebSearch, Summary: fmt.Sprintf("No search results found for query: %q", query), Data: map[string]string{"count": "0"}}, nil
+		return ToolResult{Name: ToolWebSearch, Summary: fmt.Sprintf("No search results found for query: %q", query), Data: map[string]string{"count": "0", "provider": providerName}}, nil
 	}
 
 	var summary strings.Builder
 	summary.WriteString(fmt.Sprintf("Search results for %q:\n", query))
-	data := map[string]string{"count": strconv.Itoa(len(results))}
+	data := map[string]string{"count": strconv.Itoa(len(results)), "provider": providerName}
 	for i, result := range results {
 		index := strconv.Itoa(i + 1)
 		summary.WriteString(fmt.Sprintf("%s. [%s](%s) - %s\n", index, result.Title, result.URL, result.Body))
@@ -81,33 +91,146 @@ func (t WebSearchTool) Execute(ctx context.Context, request Request, call ToolCa
 	return ToolResult{Name: ToolWebSearch, Summary: summary.String(), Data: data}, nil
 }
 
-func (t WebSearchTool) search(ctx context.Context, query string, limit int) ([]SearchResult, error) {
-	baseURL := strings.TrimSpace(t.BaseURL)
+func (t WebSearchTool) searchProvider() WebSearchProvider {
+	if t.Provider != nil {
+		return t.Provider
+	}
+	return DuckDuckGoSearchProvider{Client: t.Client, BaseURL: t.BaseURL, ResolveHost: t.ResolveHost}
+}
+
+type DuckDuckGoSearchProvider struct {
+	Client      *http.Client
+	BaseURL     string
+	ResolveHost hostResolver
+}
+
+func (p DuckDuckGoSearchProvider) Search(ctx context.Context, query string, limit int) ([]SearchResult, string, error) {
+	baseURL := strings.TrimSpace(p.BaseURL)
 	if baseURL == "" {
 		baseURL = defaultWebSearchURL
 	}
 	searchURL := baseURL + url.QueryEscape(query)
-	target, err := parseSafeWebURL(ctx, searchURL, t.ResolveHost)
+	target, err := parseSafeWebURL(ctx, searchURL, p.ResolveHost)
 	if err != nil {
-		return nil, err
+		return nil, "duckduckgo", err
 	}
 
-	client := safeWebClient(t.Client, t.ResolveHost)
+	client := safeWebClient(p.Client, p.ResolveHost)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 	if err != nil {
-		return nil, err
+		return nil, "duckduckgo", err
 	}
 	req.Header.Set("User-Agent", "GigiDC/1.0 (+https://github.com/gOps132/GigiDC)")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, "duckduckgo", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("search request returned status %d", resp.StatusCode)
+		return nil, "duckduckgo", fmt.Errorf("search request returned status %d", resp.StatusCode)
 	}
-	return parseDuckDuckGoHTML(io.LimitReader(resp.Body, maxWebResponseBytes), limit)
+	results, err := parseDuckDuckGoHTML(io.LimitReader(resp.Body, maxWebResponseBytes), limit)
+	return results, "duckduckgo", err
+}
+
+type BraveSearchProvider struct {
+	APIKey      string
+	Client      *http.Client
+	BaseURL     string
+	ResolveHost hostResolver
+}
+
+func (p BraveSearchProvider) Search(ctx context.Context, query string, limit int) ([]SearchResult, string, error) {
+	apiKey := strings.TrimSpace(p.APIKey)
+	if apiKey == "" {
+		return nil, "brave", fmt.Errorf("brave search api key is required")
+	}
+	baseURL := strings.TrimSpace(p.BaseURL)
+	if baseURL == "" {
+		baseURL = defaultBraveSearchURL
+	}
+	target, err := parseSafeWebURL(ctx, baseURL, p.ResolveHost)
+	if err != nil {
+		return nil, "brave", err
+	}
+	values := target.Query()
+	values.Set("q", query)
+	values.Set("count", strconv.Itoa(parseWebLimit(strconv.Itoa(limit), 5, maxWebSearchResults)))
+	target.RawQuery = values.Encode()
+
+	client := safeWebClient(p.Client, p.ResolveHost)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		return nil, "brave", err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Subscription-Token", apiKey)
+	req.Header.Set("User-Agent", "GigiDC/1.0 (+https://github.com/gOps132/GigiDC)")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, "brave", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, "brave", fmt.Errorf("brave search returned status %d", resp.StatusCode)
+	}
+
+	var payload struct {
+		Web struct {
+			Results []struct {
+				Title       string `json:"title"`
+				URL         string `json:"url"`
+				Description string `json:"description"`
+			} `json:"results"`
+		} `json:"web"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxWebResponseBytes)).Decode(&payload); err != nil {
+		return nil, "brave", err
+	}
+
+	results := make([]SearchResult, 0, len(payload.Web.Results))
+	for _, result := range payload.Web.Results {
+		title := strings.TrimSpace(result.Title)
+		resultURL := strings.TrimSpace(result.URL)
+		if title == "" || !isHTTPResultURL(resultURL) {
+			continue
+		}
+		results = append(results, SearchResult{
+			Title: title,
+			URL:   resultURL,
+			Body:  strings.TrimSpace(result.Description),
+		})
+		if len(results) >= maxWebSearchResults {
+			break
+		}
+	}
+	return results, "brave", nil
+}
+
+func isHTTPResultURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+}
+
+type FallbackSearchProvider struct {
+	Primary  WebSearchProvider
+	Fallback WebSearchProvider
+}
+
+func (p FallbackSearchProvider) Search(ctx context.Context, query string, limit int) ([]SearchResult, string, error) {
+	if p.Primary == nil {
+		if p.Fallback == nil {
+			return nil, "", fmt.Errorf("web search provider is required")
+		}
+		return p.Fallback.Search(ctx, query, limit)
+	}
+	results, name, err := p.Primary.Search(ctx, query, limit)
+	if err == nil || p.Fallback == nil {
+		return results, name, err
+	}
+	return p.Fallback.Search(ctx, query, limit)
 }
 
 func parseDuckDuckGoHTML(r io.Reader, limit int) ([]SearchResult, error) {
@@ -119,10 +242,14 @@ func parseDuckDuckGoHTML(r io.Reader, limit int) ([]SearchResult, error) {
 
 	var results []SearchResult
 	var current *SearchResult
+	challenged := false
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
 		if len(results) >= limit {
 			return
+		}
+		if n.Type == html.ElementNode && isDuckDuckGoChallengeNode(n) {
+			challenged = true
 		}
 		if n.Type == html.ElementNode && n.Data == "div" && nodeClassContains(n, "result body") {
 			if current != nil {
@@ -155,7 +282,20 @@ func parseDuckDuckGoHTML(r io.Reader, limit int) ([]SearchResult, error) {
 			filtered = append(filtered, result)
 		}
 	}
+	if challenged && len(filtered) == 0 {
+		return nil, errSearchProviderChallenge
+	}
 	return filtered, nil
+}
+
+func isDuckDuckGoChallengeNode(n *html.Node) bool {
+	id := attr(n, "id")
+	action := attr(n, "action")
+	src := attr(n, "src")
+	return id == "challenge-form" ||
+		id == "img-form" ||
+		strings.Contains(action, "/anomaly.js") ||
+		strings.Contains(src, "/anomaly.js")
 }
 
 func cleanDuckDuckGoURL(href string) string {

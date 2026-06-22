@@ -32,6 +32,8 @@ openssl rand -base64 32
 
 Provider API keys are entered through `/llm provider add` or `/llm provider rotate` private modals and sealed as guild credentials. Do not set provider keys in `OPENAI_API_KEY`; that environment variable is reserved and unused for provider calls.
 
+Agent `web.search` uses DuckDuckGo HTML by default. Set `BRAVE_SEARCH_API_KEY` to use Brave Search API for `web.search`; Gigi automatically selects Brave when this key is present unless `GIGI_WEB_SEARCH_PROVIDER=duckduckgo` is set. To keep DuckDuckGo as a backup when Brave fails, set `GIGI_WEB_SEARCH_FALLBACK=duckduckgo`.
+
 After adding a guild credential, select model profiles for live guild mention behavior:
 
 ```text

@@ -119,6 +119,31 @@ func TestGuildMentionPlannerStartsWithLLMPlanner(t *testing.T) {
 	}
 }
 
+func TestWebSearchProviderUsesDuckDuckGoByDefault(t *testing.T) {
+	provider := webSearchProvider(config.Config{})
+	if _, ok := provider.(agent.DuckDuckGoSearchProvider); !ok {
+		t.Fatalf("provider = %T, want DuckDuckGoSearchProvider", provider)
+	}
+}
+
+func TestWebSearchProviderUsesBraveWithDuckDuckGoFallback(t *testing.T) {
+	provider := webSearchProvider(config.Config{
+		WebSearchProvider:         "brave",
+		WebSearchFallbackProvider: "duckduckgo",
+		BraveSearchAPIKey:         "key",
+	})
+	fallback, ok := provider.(agent.FallbackSearchProvider)
+	if !ok {
+		t.Fatalf("provider = %T, want FallbackSearchProvider", provider)
+	}
+	if _, ok := fallback.Primary.(agent.BraveSearchProvider); !ok {
+		t.Fatalf("primary = %T, want BraveSearchProvider", fallback.Primary)
+	}
+	if _, ok := fallback.Fallback.(agent.DuckDuckGoSearchProvider); !ok {
+		t.Fatalf("fallback = %T, want DuckDuckGoSearchProvider", fallback.Fallback)
+	}
+}
+
 type fakeDiscordClient struct {
 	started chan struct{}
 	closed  chan struct{}

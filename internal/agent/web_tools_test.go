@@ -114,6 +114,126 @@ func TestWebSearchClampsLimit(t *testing.T) {
 	}
 }
 
+func TestWebSearchUsesConfiguredProvider(t *testing.T) {
+	tool := WebSearchTool{
+		Provider: fakeSearchProvider{
+			name: "fake",
+			results: []SearchResult{{
+				Title: "Result",
+				URL:   "https://example.com/result",
+				Body:  "Snippet",
+			}},
+		},
+	}
+
+	result, err := tool.Execute(context.Background(), Request{}, ToolCall{
+		Name: ToolWebSearch,
+		Args: map[string]string{"query": "test"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Data["provider"] != "fake" {
+		t.Fatalf("provider = %q, want fake", result.Data["provider"])
+	}
+	if result.Data["url_1"] != "https://example.com/result" {
+		t.Fatalf("url_1 = %q, want provider result", result.Data["url_1"])
+	}
+}
+
+func TestWebSearchFallbackProviderUsesBackupAfterPrimaryError(t *testing.T) {
+	provider := FallbackSearchProvider{
+		Primary:  fakeSearchProvider{name: "primary", err: errors.New("rate limited")},
+		Fallback: fakeSearchProvider{name: "fallback", results: []SearchResult{{Title: "Backup", URL: "https://example.com/backup"}}},
+	}
+
+	results, name, err := provider.Search(context.Background(), "test", 5)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "fallback" {
+		t.Fatalf("provider name = %q, want fallback", name)
+	}
+	if len(results) != 1 || results[0].Title != "Backup" {
+		t.Fatalf("results = %+v, want fallback result", results)
+	}
+}
+
+func TestBraveSearchProviderMapsResultsAndSendsToken(t *testing.T) {
+	var gotToken string
+	var gotQuery string
+	var gotCount string
+	provider := BraveSearchProvider{
+		APIKey:  "secret",
+		BaseURL: "https://brave.test/res/v1/web/search",
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			gotToken = req.Header.Get("X-Subscription-Token")
+			gotQuery = req.URL.Query().Get("q")
+			gotCount = req.URL.Query().Get("count")
+			body := `{"web":{"results":[{"title":"Brave Result","url":"https://example.com/brave","description":"Brave snippet"},{"title":"Bad URL","url":"javascript:alert(1)","description":"bad scheme"},{"title":"","url":"https://example.com/skip","description":"missing title"}]}}`
+			return textResponse(http.StatusOK, "application/json", body, nil), nil
+		})},
+		ResolveHost: staticResolver(map[string][]net.IP{
+			"brave.test": {net.ParseIP("93.184.216.34")},
+		}),
+	}
+
+	results, name, err := provider.Search(context.Background(), "weather today", 50)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "brave" {
+		t.Fatalf("provider = %q, want brave", name)
+	}
+	if gotToken != "secret" || gotQuery != "weather today" || gotCount != "10" {
+		t.Fatalf("headers/query token=%q query=%q count=%q", gotToken, gotQuery, gotCount)
+	}
+	if len(results) != 1 || results[0].Title != "Brave Result" || results[0].Body != "Brave snippet" {
+		t.Fatalf("results = %+v, want mapped Brave result", results)
+	}
+}
+
+func TestBraveSearchProviderRequiresAPIKey(t *testing.T) {
+	_, _, err := (BraveSearchProvider{}).Search(context.Background(), "test", 5)
+	if err == nil || !strings.Contains(err.Error(), "brave search api key is required") {
+		t.Fatalf("expected API key error, got %v", err)
+	}
+}
+
+func TestWebSearchReportsProviderChallenge(t *testing.T) {
+	challenge := `<html><body><form id="challenge-form" action="//duckduckgo.com/anomaly.js?cc=botnet"></form></body></html>`
+	tool := WebSearchTool{
+		Client: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return textResponse(http.StatusOK, "text/html", challenge, nil), nil
+		})},
+		BaseURL: "https://search.test/?q=",
+		ResolveHost: staticResolver(map[string][]net.IP{
+			"search.test": {net.ParseIP("93.184.216.34")},
+		}),
+	}
+
+	_, err := tool.Execute(context.Background(), Request{}, ToolCall{
+		Name: ToolWebSearch,
+		Args: map[string]string{"query": "weather today"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "search provider challenge") {
+		t.Fatalf("expected provider challenge error, got %v", err)
+	}
+}
+
+type fakeSearchProvider struct {
+	name    string
+	results []SearchResult
+	err     error
+}
+
+func (p fakeSearchProvider) Search(context.Context, string, int) ([]SearchResult, string, error) {
+	if p.err != nil {
+		return nil, p.name, p.err
+	}
+	return p.results, p.name, nil
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {

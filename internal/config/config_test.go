@@ -49,6 +49,12 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.LLMSecretKeyID != "local-v1" {
 		t.Fatalf("LLMSecretKeyID = %q, want local-v1", cfg.LLMSecretKeyID)
 	}
+	if cfg.WebSearchProvider != "duckduckgo" {
+		t.Fatalf("WebSearchProvider = %q, want duckduckgo", cfg.WebSearchProvider)
+	}
+	if cfg.WebSearchFallbackProvider != "" {
+		t.Fatalf("WebSearchFallbackProvider = %q, want blank", cfg.WebSearchFallbackProvider)
+	}
 }
 
 func TestLoadMigrationDir(t *testing.T) {
@@ -137,6 +143,84 @@ func TestLoadLLMSecretKeySettings(t *testing.T) {
 	}
 	if cfg.LLMSecretKeyID != "prod-v2" {
 		t.Fatalf("LLMSecretKeyID = %q, want prod-v2", cfg.LLMSecretKeyID)
+	}
+}
+
+func TestLoadWebSearchSettings(t *testing.T) {
+	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "  brave  ")
+	t.Setenv("GIGI_WEB_SEARCH_FALLBACK", "  duckduckgo  ")
+	t.Setenv("BRAVE_SEARCH_API_KEY", "  search-key  ")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.WebSearchProvider != "brave" {
+		t.Fatalf("WebSearchProvider = %q, want brave", cfg.WebSearchProvider)
+	}
+	if cfg.WebSearchFallbackProvider != "duckduckgo" {
+		t.Fatalf("WebSearchFallbackProvider = %q, want duckduckgo", cfg.WebSearchFallbackProvider)
+	}
+	if cfg.BraveSearchAPIKey != "search-key" {
+		t.Fatalf("BraveSearchAPIKey = %q, want search-key", cfg.BraveSearchAPIKey)
+	}
+}
+
+func TestLoadDefaultsWebSearchProviderToBraveWhenKeyExists(t *testing.T) {
+	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "")
+	t.Setenv("BRAVE_SEARCH_API_KEY", "search-key")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.WebSearchProvider != "brave" {
+		t.Fatalf("WebSearchProvider = %q, want brave", cfg.WebSearchProvider)
+	}
+}
+
+func TestLoadRejectsUnknownWebSearchProvider(t *testing.T) {
+	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "brvae")
+
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "GIGI_WEB_SEARCH_PROVIDER") {
+		t.Fatalf("expected provider validation error, got %v", err)
+	}
+}
+
+func TestLoadRejectsUnknownWebSearchFallback(t *testing.T) {
+	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_WEB_SEARCH_FALLBACK", "brave")
+
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "GIGI_WEB_SEARCH_FALLBACK") {
+		t.Fatalf("expected fallback validation error, got %v", err)
+	}
+}
+
+func TestLoadRequiresBraveSearchKeyWithoutFallback(t *testing.T) {
+	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "brave")
+	t.Setenv("GIGI_WEB_SEARCH_FALLBACK", "")
+	t.Setenv("BRAVE_SEARCH_API_KEY", "")
+
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "BRAVE_SEARCH_API_KEY") {
+		t.Fatalf("expected Brave API key validation error, got %v", err)
+	}
+}
+
+func TestLoadAllowsBraveSearchWithoutKeyWhenDuckDuckGoFallbackExists(t *testing.T) {
+	t.Setenv("GIGI_DATABASE_URL", "postgres://gigi:gigi@localhost:5432/gigi?sslmode=disable")
+	t.Setenv("GIGI_WEB_SEARCH_PROVIDER", "brave")
+	t.Setenv("GIGI_WEB_SEARCH_FALLBACK", "duckduckgo")
+	t.Setenv("BRAVE_SEARCH_API_KEY", "")
+
+	if _, err := Load(); err != nil {
+		t.Fatalf("Load returned error with DuckDuckGo fallback: %v", err)
 	}
 }
 

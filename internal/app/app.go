@@ -137,7 +137,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 						agent.PluginPlanTool{Registry: pluginStore, Checker: evaluator},
 						agent.PermissionsCheckTool{Checker: evaluator},
 						agent.LLMUsageGuildTool{Reporter: usageRecorder},
-						agent.WebSearchTool{},
+						agent.WebSearchTool{Provider: webSearchProvider(cfg)},
 						agent.WebFetchTool{},
 						agent.JobsScheduleTool{Queue: jobsQueue, NewJobID: func() string { return storage.NewID("job") }},
 						agent.JobsListTool{DB: db},
@@ -213,6 +213,19 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 	}
 
 	return application, nil
+}
+
+func webSearchProvider(cfg config.Config) agent.WebSearchProvider {
+	duckDuckGo := agent.DuckDuckGoSearchProvider{}
+	if cfg.WebSearchProvider != "brave" {
+		return duckDuckGo
+	}
+
+	brave := agent.BraveSearchProvider{APIKey: cfg.BraveSearchAPIKey}
+	if cfg.WebSearchFallbackProvider == "duckduckgo" {
+		return agent.FallbackSearchProvider{Primary: brave, Fallback: duckDuckGo}
+	}
+	return brave
 }
 
 func guildMentionPlanner(llmRuntime llm.Runtime) agent.Planner {
