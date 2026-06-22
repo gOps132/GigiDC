@@ -31,6 +31,9 @@ func TestAgentCommandsExposeTraceLast(t *testing.T) {
 	if findOption(trace.Options, "live") == nil {
 		t.Fatalf("trace options = %+v, want live command", trace.Options)
 	}
+	if findOption(trace.Options, "mode") == nil {
+		t.Fatalf("trace options = %+v, want mode command", trace.Options)
+	}
 }
 
 func TestAgentTraceLastFormatsScopedRun(t *testing.T) {
@@ -47,7 +50,7 @@ func TestAgentTraceLastFormatsScopedRun(t *testing.T) {
 			RoutingMode: "enabled",
 		}},
 	}, ok: true}
-	response, err := agentTraceHandler(reader, nil)(context.Background(), agentTraceInteraction(nil))
+	response, err := agentTraceHandler(reader, nil, nil)(context.Background(), agentTraceInteraction(nil))
 	if err != nil {
 		t.Fatalf("handler returned error: %v", err)
 	}
@@ -61,7 +64,7 @@ func TestAgentTraceLastFormatsScopedRun(t *testing.T) {
 
 func TestAgentTraceLastSupportsPublicVisibility(t *testing.T) {
 	reader := &fakeAgentTraceReader{run: agent.TraceRun{RunID: "agentrun_1"}, ok: true}
-	response, err := agentTraceHandler(reader, nil)(context.Background(), agentTraceInteraction([]InteractionOption{{Name: "visibility", Value: "public"}}))
+	response, err := agentTraceHandler(reader, nil, nil)(context.Background(), agentTraceInteraction([]InteractionOption{{Name: "visibility", Value: "public"}}))
 	if err != nil {
 		t.Fatalf("handler returned error: %v", err)
 	}
@@ -71,7 +74,7 @@ func TestAgentTraceLastSupportsPublicVisibility(t *testing.T) {
 }
 
 func TestAgentTraceLastNoTrace(t *testing.T) {
-	response, err := agentTraceHandler(&fakeAgentTraceReader{}, nil)(context.Background(), agentTraceInteraction(nil))
+	response, err := agentTraceHandler(&fakeAgentTraceReader{}, nil, nil)(context.Background(), agentTraceInteraction(nil))
 	if err != nil {
 		t.Fatalf("handler returned error: %v", err)
 	}
@@ -103,7 +106,7 @@ func TestAgentTraceLastDebugUsesEmbedDetails(t *testing.T) {
 			},
 		}},
 	}, ok: true}
-	response, err := agentTraceHandler(reader, nil)(context.Background(), agentTraceInteraction([]InteractionOption{{Name: "view", Value: "debug"}}))
+	response, err := agentTraceHandler(reader, nil, nil)(context.Background(), agentTraceInteraction([]InteractionOption{{Name: "view", Value: "debug"}}))
 	if err != nil {
 		t.Fatalf("handler returned error: %v", err)
 	}
@@ -115,6 +118,33 @@ func TestAgentTraceLastDebugUsesEmbedDetails(t *testing.T) {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("embed text = %q, want %q", rendered, want)
 		}
+	}
+}
+
+func TestAgentTraceModeTogglesLiveDebug(t *testing.T) {
+	store := NewMemoryAgentLiveDebugStore()
+	response, err := agentTraceHandler(nil, nil, store)(context.Background(), agentTraceModeInteraction("on"))
+	if err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	enabled, err := store.LiveDebugEnabled(context.Background(), "guild-id", "user-id")
+	if err != nil {
+		t.Fatalf("LiveDebugEnabled returned error: %v", err)
+	}
+	if !response.Ephemeral || !enabled || !strings.Contains(response.Content, "Live debug is on") {
+		t.Fatalf("response=%+v enabled=%v, want live debug on", response, enabled)
+	}
+
+	response, err = agentTraceHandler(nil, nil, store)(context.Background(), agentTraceModeInteraction("off"))
+	if err != nil {
+		t.Fatalf("handler returned error: %v", err)
+	}
+	enabled, err = store.LiveDebugEnabled(context.Background(), "guild-id", "user-id")
+	if err != nil {
+		t.Fatalf("LiveDebugEnabled returned error: %v", err)
+	}
+	if !response.Ephemeral || enabled || !strings.Contains(response.Content, "Live debug is off") {
+		t.Fatalf("response=%+v enabled=%v, want live debug off", response, enabled)
 	}
 }
 
@@ -166,6 +196,25 @@ func agentTraceLiveInteraction(prompt string) Interaction {
 				Options: []InteractionOption{{
 					Name:  "prompt",
 					Value: prompt,
+				}},
+			}},
+		}},
+	}
+}
+
+func agentTraceModeInteraction(state string) Interaction {
+	return Interaction{
+		GuildID:   "guild-id",
+		ChannelID: "channel-id",
+		UserID:    "user-id",
+		Name:      "agent",
+		Options: []InteractionOption{{
+			Name: "trace",
+			Options: []InteractionOption{{
+				Name: "mode",
+				Options: []InteractionOption{{
+					Name:  "state",
+					Value: state,
 				}},
 			}},
 		}},

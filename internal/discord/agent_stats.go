@@ -23,6 +23,7 @@ type AgentCommandConfig struct {
 	Clock             func() time.Time
 	ReplyLatencyStore GuildReplyLatencyStore
 	Runtime           AgentRuntime
+	LiveDebugStore    AgentLiveDebugStore
 }
 
 type AgentStatsReader interface {

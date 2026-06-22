@@ -3,10 +3,12 @@ package discord
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/gOps132/GigiDC/internal/agent"
 	"github.com/gOps132/GigiDC/internal/memory"
 )
 
@@ -53,6 +55,50 @@ func TestMessageRouterRoutesGuildMentions(t *testing.T) {
 	}
 	if sender.content != "mention-ok" {
 		t.Fatalf("sent content = %q, want mention-ok", sender.content)
+	}
+}
+
+func TestMessageRouterStreamsLiveDebugWhenEnabled(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryAgentLiveDebugStore()
+	if err := store.SetLiveDebugEnabled(ctx, "guild-id", "user-id", true); err != nil {
+		t.Fatalf("SetLiveDebugEnabled returned error: %v", err)
+	}
+	router, err := NewMessageRouter("bot-id", MessageHandlerFunc(func(ctx context.Context, message Message) (MessageResponse, error) {
+		if message.TraceSink == nil {
+			t.Fatal("expected live debug trace sink")
+		}
+		_ = message.TraceSink.RecordTraceEvent(ctx, agent.Request{
+			Surface:     agent.SurfaceGuildMention,
+			GuildID:     message.GuildID,
+			ChannelID:   message.ChannelID,
+			ActorUserID: message.UserID,
+		}, agent.TraceEvent{
+			RunID:    "agentrun_live",
+			Phase:    "tool",
+			Status:   "succeeded",
+			ToolName: "web.search",
+			Details:  map[string]string{"arg_query": "news today", "result_count": "0"},
+		})
+		return MessageResponse{Content: "mention-ok"}, nil
+	}), nil)
+	if err != nil {
+		t.Fatalf("NewMessageRouter returned error: %v", err)
+	}
+	router.SetAgentLiveDebugStore(store)
+	sender := &fakeMessageSender{}
+
+	if err := router.HandleMessage(ctx, sender, messageCreate("guild-id", "channel-id", "user-id", false, "<@bot-id> whats the news today")); err != nil {
+		t.Fatalf("HandleMessage returned error: %v", err)
+	}
+	if len(sender.sentEmbeds) != 1 || len(sender.editedEmbeds) == 0 {
+		t.Fatalf("sent embeds=%d edited embeds=%d, want live debug send/edit", len(sender.sentEmbeds), len(sender.editedEmbeds))
+	}
+	rendered := traceEmbedText(sender.editedEmbeds[len(sender.editedEmbeds)-1])
+	for _, want := range []string{"web.search", "news today", "results=`0`", "Final answer", "mention-ok"} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("debug embed=%q, want %q", rendered, want)
+		}
 	}
 }
 
@@ -306,15 +352,29 @@ func messageCreate(guildID string, channelID string, userID string, bot bool, co
 }
 
 type fakeMessageSender struct {
-	channelID string
-	content   string
-	err       error
+	channelID    string
+	content      string
+	err          error
+	sentEmbeds   []*discordgo.MessageEmbed
+	editedEmbeds []*discordgo.MessageEmbed
 }
 
 func (s *fakeMessageSender) ChannelMessageSend(channelID string, content string, _ ...discordgo.RequestOption) (*discordgo.Message, error) {
 	s.channelID = channelID
 	s.content = content
 	return &discordgo.Message{ChannelID: channelID, Content: content}, s.err
+}
+
+func (s *fakeMessageSender) ChannelMessageSendEmbed(channelID string, embed *discordgo.MessageEmbed, _ ...discordgo.RequestOption) (*discordgo.Message, error) {
+	s.channelID = channelID
+	s.sentEmbeds = append(s.sentEmbeds, embed)
+	return &discordgo.Message{ID: "debug-message-id", ChannelID: channelID, Embeds: []*discordgo.MessageEmbed{embed}}, s.err
+}
+
+func (s *fakeMessageSender) ChannelMessageEditEmbed(channelID string, messageID string, embed *discordgo.MessageEmbed, _ ...discordgo.RequestOption) (*discordgo.Message, error) {
+	s.channelID = channelID
+	s.editedEmbeds = append(s.editedEmbeds, embed)
+	return &discordgo.Message{ID: messageID, ChannelID: channelID, Embeds: []*discordgo.MessageEmbed{embed}}, s.err
 }
 
 type fakeAuditSink struct {
