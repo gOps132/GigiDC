@@ -150,6 +150,26 @@ func TestAgentTraceLastDebugShowsToolFailureDetails(t *testing.T) {
 	}
 }
 
+func TestAgentTracePlanOmitsEmptyIntent(t *testing.T) {
+	run := agent.TraceRun{RunID: "agentrun_1", Status: "succeeded", Events: []agent.TraceEvent{{
+		Phase:       "plan",
+		Status:      "succeeded",
+		Reason:      "no_plan",
+		RoutingMode: "enabled",
+		Details:     map[string]string{"llm_provider": "openai", "llm_model": "gpt-test"},
+	}}}
+
+	rendered := traceEmbedText(formatAgentTraceEmbed(run, "debug"))
+	if strings.Contains(rendered, "intent=``") {
+		t.Fatalf("embed text = %q, want no empty intent field", rendered)
+	}
+	for _, want := range []string{"routing=`enabled`", "model=`gpt-test` provider=`openai`"} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("embed text = %q, want %q", rendered, want)
+		}
+	}
+}
+
 func TestAgentTraceModeTogglesLiveDebug(t *testing.T) {
 	store := NewMemoryAgentLiveDebugStore()
 	response, err := agentTraceHandler(nil, nil, store)(context.Background(), agentTraceModeInteraction("on"))

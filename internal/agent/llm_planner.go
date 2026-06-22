@@ -111,7 +111,7 @@ func llmResponseTrace(purpose string, attempt string, response llm.TextResponse)
 }
 
 func llmPlannerInstructions() string {
-	return "You are Gigi's tool planner. Return only JSON. You may only select listed tools. Do not answer the user. Prefer read tools over saying capability is unavailable. If the user asks for web, online, external, current, latest, real-time, news, headlines, or today information and web.search is listed, choose web.search. If the user asks to read, summarize, or inspect a URL and web.fetch is listed, choose web.fetch. Never produce chat refusals such as not being able to browse or provide real-time updates; choose a listed read tool instead. If the user asks what tools Gigi can use, return a clarifying_question listing the available tool names. Use jobs.list, jobs.schedule, or jobs.cancel only for explicit background job requests; write tools require confirmation. Use memory and analytics tools when needed for current-channel memory, plugin planning, permission checks, or usage summaries. Ask a clarifying_question only when needed. For follow-up questions, use prior run context if present or choose a tool to refresh context. If prior run context is enough to answer, return {\"intent\":\"answer_from_prior\",\"tool_calls\":[]}. For messages answerable without tools, return {\"intent\":\"chat\",\"tool_calls\":[]}. Return {} only when Gigi should ignore the message. Never invent tool names or arguments."
+	return "You are Gigi's tool planner. Return only JSON. You may only select listed tools. Do not answer the user. Prefer read tools over saying capability is unavailable. If the user asks for web, online, external, current, latest, real-time, news, headlines, today information, or public fact lookup about a person/place/company/topic and web.search is listed, choose web.search. If the user asks to read, summarize, or inspect a URL and web.fetch is listed, choose web.fetch. Never produce chat refusals such as not being able to browse or provide real-time updates; choose a listed read tool instead. If the user asks what tools Gigi can use, return a clarifying_question listing the available tool names. Use jobs.list, jobs.schedule, or jobs.cancel only for explicit background job requests; write tools require confirmation. Use memory and analytics tools when needed for current-channel memory, plugin planning, permission checks, or usage summaries. Ask a clarifying_question only when needed. For follow-up questions, use prior run context if present or choose a tool to refresh context. If prior run context is enough to answer, return {\"intent\":\"answer_from_prior\",\"tool_calls\":[]}. For messages answerable without tools, return {\"intent\":\"chat\",\"tool_calls\":[]}. Return {} only when Gigi should ignore the message. Never invent tool names or arguments."
 }
 
 func llmPlannerPrompt(request Request, specs []ToolSpec) string {
@@ -164,7 +164,6 @@ func (p LLMPlanner) parseValidPlan(value string, specs []ToolSpec, request Reque
 func shouldRepairEmptyToolPlan(plan Plan, request Request) bool {
 	return len(plan.ToolCalls) == 0 &&
 		strings.TrimSpace(plan.ClarifyingQuestion) == "" &&
-		request.PriorRun == nil &&
 		strings.EqualFold(strings.TrimSpace(plan.Intent), "chat")
 }
 
@@ -173,7 +172,7 @@ func llmPlannerRepairPrompt(originalPrompt, priorOutput string) string {
 	b.WriteString(originalPrompt)
 	b.WriteString("\n\nThe previous planner output did not produce a valid actionable plan:\n")
 	b.WriteString(strings.TrimSpace(priorOutput))
-	b.WriteString("\n\nRe-evaluate the same user message against the listed tools. A chat refusal is not a valid planner result. Return {} only if Gigi should ignore the message. If a listed read tool can obtain needed information, choose it. If web.search is listed and the user asks for current, latest, real-time, news, headlines, or today information, choose web.search. Return only JSON.")
+	b.WriteString("\n\nRe-evaluate the same user message against the listed tools. A chat refusal is not a valid planner result. Return {} only if Gigi should ignore the message. If a listed read tool can obtain needed information, choose it. If web.search is listed and the user asks for current, latest, real-time, news, headlines, today information, or public fact lookup about a person/place/company/topic, choose web.search. Return only JSON.")
 	return b.String()
 }
 
@@ -184,7 +183,7 @@ func toolSelectionGuide(specs []ToolSpec) string {
 	}
 	var lines []string
 	if names[ToolWebSearch] {
-		lines = append(lines, "- web.search: use for web/online/current/latest/real-time/news/headlines/today information requests. Args: query, optional limit.")
+		lines = append(lines, "- web.search: use for web/online/current/latest/real-time/news/headlines/today information requests and public fact lookups about people, places, companies, or topics. Args: query, optional limit.")
 	}
 	if names[ToolWebFetch] {
 		lines = append(lines, "- web.fetch: use for reading or summarizing a specific public URL. Args: url.")

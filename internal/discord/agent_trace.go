@@ -281,7 +281,10 @@ func formatAgentTracePhase(events []agent.TraceEvent, phase string, view string)
 		}
 		switch phase {
 		case "plan":
-			line := fmt.Sprintf("intent=`%s` routing=`%s`", safeInline(event.Intent), safeInline(event.RoutingMode))
+			line := "routing=`" + safeInline(event.RoutingMode) + "`"
+			if event.Intent != "" {
+				line = "intent=`" + safeInline(event.Intent) + "` " + line
+			}
 			if provider := event.Details["llm_provider"]; provider != "" {
 				line += " model=`" + safeInline(event.Details["llm_model"]) + "` provider=`" + safeInline(provider) + "`"
 			}

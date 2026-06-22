@@ -73,7 +73,7 @@ func TestRunnerFallsThroughWhenPlannerNeedsNoTools(t *testing.T) {
 
 func TestRunnerRecordsTraceWhenPlannerReturnsNoPlan(t *testing.T) {
 	recorder := &fakeAgentAuditRecorder{}
-	planner := &fakePlanner{ok: false}
+	planner := &fakePlanner{ok: false, plan: Plan{Trace: map[string]string{"llm_attempt": "repair", "llm_provider": "openai"}}}
 	runner := Runner{
 		Planner: planner,
 		Policy:  RoutingPolicy{Policy: fakePolicy{mode: llmprovider.ToolRoutingEnabled}},
@@ -84,10 +84,10 @@ func TestRunnerRecordsTraceWhenPlannerReturnsNoPlan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
-	if handled || response.Text != "" || !planner.called {
-		t.Fatalf("response=%+v handled=%v planner.called=%v, want chat fallback after no plan", response, handled, planner.called)
+	if !handled || response.Text != "Agent routing produced no plan." || !planner.called {
+		t.Fatalf("response=%+v handled=%v planner.called=%v, want handled no-plan response", response, handled, planner.called)
 	}
-	if len(recorder.events) != 1 || recorder.events[0].Kind != "agent.plan" || recorder.events[0].Reason != "no_plan" || recorder.events[0].Metadata["planner"] != "agent" {
+	if len(recorder.events) != 1 || recorder.events[0].Kind != "agent.plan" || recorder.events[0].Reason != "no_plan" || recorder.events[0].Metadata["planner"] != "agent" || recorder.events[0].Metadata["llm_attempt"] != "repair" {
 		t.Fatalf("events=%+v, want no-plan trace", recorder.events)
 	}
 }

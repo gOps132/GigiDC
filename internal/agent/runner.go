@@ -118,8 +118,11 @@ func (r Runner) Run(ctx context.Context, request Request) (Response, bool, error
 		return r.completeRun(ctx, runID, runStarted, RunStatusFailed, TerminationPlannerFailed, Response{Text: "Agent routing failed."}, true, nil)
 	}
 	if !ok {
-		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "no_plan", mergeMetadata(planMetadata, map[string]string{"planner": "agent"}))
-		return r.completeRun(ctx, runID, runStarted, RunStatusSucceeded, TerminationIgnored, Response{}, false, nil)
+		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "no_plan", mergeMetadata(planMetadata, plan.Trace, map[string]string{"planner": "agent"}))
+		if len(plan.Trace) == 0 {
+			return r.completeRun(ctx, runID, runStarted, RunStatusSucceeded, TerminationIgnored, Response{}, false, nil)
+		}
+		return r.completeRun(ctx, runID, runStarted, RunStatusSucceeded, TerminationIgnored, Response{Text: "Agent routing produced no plan."}, true, nil)
 	}
 	if strings.TrimSpace(plan.ClarifyingQuestion) != "" {
 		_ = trace.Record(ctx, request, "agent.plan", audit.StatusSucceeded, "clarify", mergeMetadata(planMetadata, plan.Trace, map[string]string{"intent": safeAuditValue(plan.Intent)}))
