@@ -22,6 +22,7 @@ type AgentCommandConfig struct {
 	StatsAuthorizer   CommandAuthorizer
 	Clock             func() time.Time
 	ReplyLatencyStore GuildReplyLatencyStore
+	Runtime           AgentRuntime
 }
 
 type AgentStatsReader interface {

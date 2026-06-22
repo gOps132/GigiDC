@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"sort"
+	"strings"
 
 	"github.com/gOps132/GigiDC/internal/audit"
 	"github.com/gOps132/GigiDC/internal/contextbroker"
@@ -66,17 +68,17 @@ func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Resp
 		}
 		call.Name = spec.Name
 		result, err := tool.Execute(ctx, request, call)
-		metadata := map[string]string{
+		metadata := mergeMetadata(map[string]string{
 			"tool":       safeAuditValue(spec.Name),
 			"kind":       safeAuditValue(string(spec.Kind)),
 			"capability": safeAuditValue(spec.Capability),
-		}
+		}, toolCallMetadata(call))
 		if err != nil {
 			_ = trace.Record(ctx, request, "agent.tool", audit.StatusFailed, "tool_failed", metadata)
 			return Response{Text: "Agent tool failed.", RunStatus: RunStatusFailed, TerminationReason: TerminationExecutorFailed}, nil
 		}
 		results = append(results, result)
-		_ = trace.Record(ctx, request, "agent.tool", audit.StatusSucceeded, "", metadata)
+		_ = trace.Record(ctx, request, "agent.tool", audit.StatusSucceeded, "", mergeMetadata(metadata, toolResultMetadata(result)))
 	}
 	answerTrace := e.Trace.WithStep(e.TraceStepOffset + len(plan.ToolCalls) + 1)
 	if canceled, err := traceRunCanceled(ctx, answerTrace); err != nil {
@@ -87,7 +89,7 @@ func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Resp
 	}
 	if e.Answerer != nil {
 		if e.SkipAnswerReason != "" {
-			_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusFailed, e.SkipAnswerReason, map[string]string{"intent": safeAuditValue(plan.Intent)})
+			_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusFailed, e.SkipAnswerReason, map[string]string{"intent": safeAuditValue(plan.Intent), "answer_mode": "fallback", "fallback_reason": e.SkipAnswerReason})
 			response := Response{Text: formatToolResults(results), RunStatus: RunStatusFailed, TerminationReason: TerminationLLMBudgetExceeded}
 			_ = e.saveFollowUp(ctx, request, plan, results, response)
 			return response, nil
@@ -97,14 +99,51 @@ func (e Executor) Execute(ctx context.Context, request Request, plan Plan) (Resp
 			_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusFailed, "answer_failed", map[string]string{"intent": safeAuditValue(plan.Intent)})
 			return Response{Text: "Agent answer failed.", RunStatus: RunStatusFailed, TerminationReason: TerminationExecutorFailed}, nil
 		}
-		_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusSucceeded, "", map[string]string{"intent": safeAuditValue(plan.Intent)})
+		_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusSucceeded, "", mergeMetadata(map[string]string{"intent": safeAuditValue(plan.Intent)}, response.Trace))
 		_ = e.saveFollowUp(ctx, request, plan, results, response)
 		return response, nil
 	}
-	_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusSucceeded, "", map[string]string{"intent": safeAuditValue(plan.Intent)})
-	response := Response{Text: formatToolResults(results)}
+	response := Response{Text: formatToolResults(results), Trace: map[string]string{"answer_mode": "fallback", "fallback_reason": "no_answerer"}}
+	_ = answerTrace.Record(ctx, request, "agent.answer", audit.StatusSucceeded, "", mergeMetadata(map[string]string{"intent": safeAuditValue(plan.Intent)}, response.Trace))
 	_ = e.saveFollowUp(ctx, request, plan, results, response)
 	return response, nil
+}
+
+func toolCallMetadata(call ToolCall) map[string]string {
+	if len(call.Args) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(call.Args))
+	for key := range call.Args {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	metadata := map[string]string{}
+	for _, key := range keys {
+		cleanKey := strings.TrimSpace(key)
+		cleanValue := strings.TrimSpace(call.Args[key])
+		if cleanKey == "" || cleanValue == "" {
+			continue
+		}
+		metadata["arg_"+cleanKey] = cleanValue
+	}
+	return metadata
+}
+
+func toolResultMetadata(result ToolResult) map[string]string {
+	metadata := map[string]string{"result_summary": result.Summary}
+	if result.Data != nil {
+		if count := strings.TrimSpace(result.Data["count"]); count != "" {
+			metadata["result_count"] = count
+		}
+		if url := strings.TrimSpace(result.Data["url"]); url != "" {
+			metadata["result_url"] = url
+		}
+		if truncated := strings.TrimSpace(result.Data["truncated"]); truncated != "" {
+			metadata["result_truncated"] = truncated
+		}
+	}
+	return metadata
 }
 
 func (e Executor) saveFollowUp(ctx context.Context, request Request, plan Plan, results []ToolResult, response Response) error {

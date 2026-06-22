@@ -34,6 +34,7 @@ type Request struct {
 	RawText          string
 	PriorRun         *RunSnapshot
 	ContextPack      *contextbroker.Pack
+	TraceSink        TraceSink
 }
 
 type Response struct {
@@ -43,6 +44,7 @@ type Response struct {
 	ConfirmationID    string
 	RunStatus         RunStatus
 	TerminationReason TerminationReason
+	Trace             map[string]string
 }
 
 type Handler interface {
@@ -103,5 +105,17 @@ func NormalizeResponse(response Response) Response {
 	response.Visibility = Visibility(strings.TrimSpace(string(response.Visibility)))
 	response.RunID = strings.TrimSpace(response.RunID)
 	response.ConfirmationID = strings.TrimSpace(response.ConfirmationID)
+	response.Trace = copyStringMap(response.Trace)
 	return response
+}
+
+func copyStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	copied := make(map[string]string, len(values))
+	for key, value := range values {
+		copied[key] = value
+	}
+	return copied
 }

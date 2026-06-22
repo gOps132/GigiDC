@@ -160,6 +160,7 @@ func New(cfg config.Config, logger *slog.Logger, opts ...Option) (*App, error) {
 			StatsReader:       agentStatsReader,
 			StatsAuthorizer:   authorizer,
 			ReplyLatencyStore: replyLatencyStore,
+			Runtime:           agentRuntime,
 		})...)
 		commands = append(commands, discord.PermissionCommands(grantManager, nil, auditStore)...)
 		commands = append(commands, discord.PluginCommands(pluginStore, plugins.HTTPManifestFetcher{}, auditStore)...)

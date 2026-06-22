@@ -168,6 +168,48 @@ func TestCommandRouterSendsModalResponse(t *testing.T) {
 	}
 }
 
+func TestCommandRouterSendsEmbedResponse(t *testing.T) {
+	router, err := NewCommandRouter(Command{
+		Name:        "trace",
+		Description: "trace command",
+		Handle: func(context.Context, Interaction) (CommandResponse, error) {
+			return CommandResponse{Embeds: []*discordgo.MessageEmbed{{Title: "Trace"}}}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	responder := &fakeResponder{}
+
+	if err := router.HandleInteraction(context.Background(), responder, applicationCommand("trace")); err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if responder.response.Type != discordgo.InteractionResponseChannelMessageWithSource || len(responder.response.Data.Embeds) != 1 || responder.response.Data.Content != "" {
+		t.Fatalf("response = %+v, want embed response without ok content", responder.response)
+	}
+}
+
+func TestCommandRouterSendsDeferredEphemeralResponse(t *testing.T) {
+	router, err := NewCommandRouter(Command{
+		Name:        "trace",
+		Description: "trace command",
+		Handle: func(context.Context, Interaction) (CommandResponse, error) {
+			return CommandResponse{Deferred: true, Ephemeral: true}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCommandRouter returned error: %v", err)
+	}
+	responder := &fakeResponder{}
+
+	if err := router.HandleInteraction(context.Background(), responder, applicationCommand("trace")); err != nil {
+		t.Fatalf("HandleInteraction returned error: %v", err)
+	}
+	if responder.response.Type != discordgo.InteractionResponseDeferredChannelMessageWithSource || responder.flags() != discordgo.MessageFlagsEphemeral {
+		t.Fatalf("response = %+v, want deferred ephemeral response", responder.response)
+	}
+}
+
 func TestCommandRouterRoutesModalSubmitAndExtractsValues(t *testing.T) {
 	var got ModalInteraction
 	router, err := NewCommandRouter(Command{
